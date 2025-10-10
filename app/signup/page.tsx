@@ -101,7 +101,7 @@ const Page = () => {
     try {
       if (
         !data.password.match(
-          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/
         )
       ) {
         toast.error(
@@ -233,7 +233,7 @@ const Page = () => {
               htmlFor="password"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Password
+              Confirm Password
             </label>
             <div className="flex gap-2">
               <input

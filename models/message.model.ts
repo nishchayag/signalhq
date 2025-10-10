@@ -4,6 +4,7 @@ export interface IMessage extends Document {
   content: string;
   createdAt: Date;
   createdFor: mongoose.Types.ObjectId;
+  questionId?: mongoose.Types.ObjectId; // Reference to specific question (optional for backward compatibility)
 }
 
 const messageSchema: Schema<IMessage> = new Schema({
@@ -20,6 +21,11 @@ const messageSchema: Schema<IMessage> = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
+  },
+  questionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Question",
+    required: false, // Optional for backward compatibility
   },
 });
 

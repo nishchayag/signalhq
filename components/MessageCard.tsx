@@ -68,15 +68,17 @@ const MessageCard = ({ message, onMessageDelete }: MessageCardProps) => {
   return (
     <Card>
       <CardHeader className="flex flex-row justify-between items-start">
-        <CardTitle className="text-base font-medium">
-          {message.content}
-        </CardTitle>
+        <div className="overflow-auto">
+          <CardTitle className="text-base font-medium">
+            {message.content}
+          </CardTitle>
+        </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="text-destructive hover:bg-destructive/10"
+              className="text-destructive hover:bg-destructive/10 "
             >
               <X className="h-4 w-4" />
             </Button>
