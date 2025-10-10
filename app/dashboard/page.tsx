@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [generalMessages, setGeneralMessages] = useState<IMessage[]>([]);
   const [view, setView] = useState<"general" | "question">("general");
+  const [refreshingQuestionId, setRefreshingQuestionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (session) {
@@ -178,6 +179,7 @@ export default function DashboardPage() {
   };
 
   const handleRefreshQuestion = async (questionId: string) => {
+    setRefreshingQuestionId(questionId);
     try {
       const response = await axios.get(`/api/questions/${questionId}`);
       if (response.data.success) {
@@ -203,6 +205,8 @@ export default function DashboardPage() {
     } catch (error) {
       console.error("Error refreshing question:", error);
       toast.error("Failed to refresh question");
+    } finally {
+      setRefreshingQuestionId(null);
     }
   };
 
@@ -328,8 +332,13 @@ export default function DashboardPage() {
                           }}
                           className="h-8 w-8 p-0"
                           title="Refresh question messages"
+                          disabled={refreshingQuestionId === question._id}
                         >
-                          <RefreshCw className="h-4 w-4 text-blue-600" />
+                          <RefreshCw 
+                            className={`h-4 w-4 text-blue-600 ${
+                              refreshingQuestionId === question._id ? 'animate-spin' : ''
+                            }`} 
+                          />
                         </Button>
                         <Button
                           variant="ghost"
