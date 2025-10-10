@@ -33,7 +33,9 @@ export default function DashboardPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [generalMessages, setGeneralMessages] = useState<IMessage[]>([]);
   const [view, setView] = useState<"general" | "question">("general");
-  const [refreshingQuestionId, setRefreshingQuestionId] = useState<string | null>(null);
+  const [refreshingQuestionId, setRefreshingQuestionId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (session) {
@@ -334,10 +336,12 @@ export default function DashboardPage() {
                           title="Refresh question messages"
                           disabled={refreshingQuestionId === question._id}
                         >
-                          <RefreshCw 
+                          <RefreshCw
                             className={`h-4 w-4 text-blue-600 ${
-                              refreshingQuestionId === question._id ? 'animate-spin' : ''
-                            }`} 
+                              refreshingQuestionId === question._id
+                                ? "animate-spin"
+                                : ""
+                            }`}
                           />
                         </Button>
                         <Button
