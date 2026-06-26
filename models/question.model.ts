@@ -6,6 +6,9 @@ export interface IQuestion extends Document {
   description?: string;
   isActive: boolean;
   userId: mongoose.Types.ObjectId;
+  // Owning organization. Optional during multi-tenant migration; backfilled
+  // for existing questions, required once the migration completes.
+  organizationId?: mongoose.Types.ObjectId;
   slug: string; // Unique identifier for the question URL
   createdAt: Date;
   updatedAt: Date;
@@ -33,6 +36,11 @@ const QuestionSchema: Schema<IQuestion> = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
     },
     slug: {
       type: String,
