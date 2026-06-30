@@ -9,6 +9,9 @@ export interface IQuestion extends Document {
   // Owning organization. Optional during multi-tenant migration; backfilled
   // for existing questions, required once the migration completes.
   organizationId?: mongoose.Types.ObjectId;
+  // Optional owning team within the organization. When set, the question is
+  // scoped to that team; when null it is an org-level question.
+  teamId?: mongoose.Types.ObjectId;
   slug: string; // Unique identifier for the question URL
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +43,11 @@ const QuestionSchema: Schema<IQuestion> = new Schema(
     organizationId: {
       type: Schema.Types.ObjectId,
       ref: "Organization",
+      index: true,
+    },
+    teamId: {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
       index: true,
     },
     slug: {

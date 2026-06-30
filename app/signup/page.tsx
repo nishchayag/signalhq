@@ -117,8 +117,17 @@ const Page = () => {
       const response = await axios.post("/api/auth/signup", data);
       if (response.data.success) {
         toast.success("Signup successful! Redirecting to Verify Email page...");
+        // Carry a relative ?callbackUrl through the verify → login chain so an
+        // invited new user lands back on the invite after verifying.
+        const cb = new URLSearchParams(window.location.search).get(
+          "callbackUrl"
+        );
+        const safe = cb && cb.startsWith("/") && !cb.startsWith("//");
+        const cbParam = safe
+          ? `&callbackUrl=${encodeURIComponent(cb!)}`
+          : "";
         router.push(
-          `/verifyEmail?username=${data.username}&email=${data.email}`
+          `/verifyEmail?username=${data.username}&email=${data.email}${cbParam}`
         );
       } else {
         toast.error(

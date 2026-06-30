@@ -2,89 +2,98 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import authOptions from "@/lib/nextAuthOptions";
 import connectDB from "@/lib/connectDB";
-import QuestionModel from "@/models/question.model";
+import QuestionModel, { IQuestion } from "@/models/question.model";
 import MessageModel from "@/models/message.model";
-import UserModel from "@/models/user.model";
+import MembershipModel from "@/models/membership.model";
 import { updateQuestionSchema } from "@/schemas/questionSchema";
-import mongoose from "mongoose";
+import { can, Permission } from "@/lib/permissions";
+
+type AuthzOk = { ok: true; question: IQuestion };
+type AuthzFail = { ok: false; response: NextResponse };
+
+/**
+ * Load a question and authorize the caller against it. Org-owned questions are
+ * gated by membership + role permission; legacy questions without an org fall
+ * back to owner-only access.
+ */
+async function loadAndAuthorize(
+  questionId: string,
+  permission?: Permission
+): Promise<AuthzOk | AuthzFail> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?._id) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { success: false, message: "Not authenticated" },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const question = await QuestionModel.findById(questionId);
+  if (!question) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { success: false, message: "Question not found" },
+        { status: 404 }
+      ),
+    };
+  }
+
+  if (question.organizationId) {
+    const membership = await MembershipModel.findOne({
+      organizationId: question.organizationId,
+      userId: session.user._id,
+    });
+    if (!membership) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { success: false, message: "Question not found" },
+          { status: 404 }
+        ),
+      };
+    }
+    if (permission && !can(membership.role, permission)) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { success: false, message: "Insufficient permissions" },
+          { status: 403 }
+        ),
+      };
+    }
+  } else if (String(question.userId) !== String(session.user._id)) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { success: false, message: "Question not found" },
+        { status: 404 }
+      ),
+    };
+  }
+
+  return { ok: true, question };
+}
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
   await connectDB();
-
   try {
-    const session = await getServerSession(authOptions);
     const { questionId } = await params;
+    const authz = await loadAndAuthorize(questionId);
+    if (!authz.ok) return authz.response;
 
-    if (!session || !session.user) {
-      return NextResponse.json(
-        { success: false, message: "Not authenticated" },
-        { status: 401 }
-      );
-    }
-
-    const question = await QuestionModel.findOne({
-      _id: questionId,
-      userId: session.user._id,
+    const messages = await MessageModel.find({ questionId }).sort({
+      createdAt: -1,
     });
-
-    if (!question) {
-      return NextResponse.json(
-        { success: false, message: "Question not found" },
-        { status: 404 }
-      );
-    }
-
-    // Get messages for this question
-    console.log("Searching for messages with questionId:", questionId);
-
-    // Convert string to ObjectId for proper comparison
-    const questionObjectId = new mongoose.Types.ObjectId(questionId);
-
-    // Try different query approaches to debug
-    const allMessages = await MessageModel.find({});
-    console.log("All messages in database:", allMessages.length);
-
-    const messagesWithQuestionId = await MessageModel.find({
-      questionId: { $exists: true },
-    });
-    console.log(
-      "Messages with questionId field:",
-      messagesWithQuestionId.length
-    );
-
-    if (messagesWithQuestionId.length > 0) {
-      console.log("Sample message with questionId:", messagesWithQuestionId[0]);
-    }
-
-    // Try both string and ObjectId queries
-    const messagesByString = await MessageModel.find({
-      questionId: questionId,
-    }).sort({ createdAt: -1 });
-
-    const messagesByObjectId = await MessageModel.find({
-      questionId: questionObjectId,
-    }).sort({ createdAt: -1 });
-
-    console.log("Question ID:", questionId);
-    console.log("Question ID type:", typeof questionId);
-    console.log("Messages by string query:", messagesByString.length);
-    console.log("Messages by ObjectId query:", messagesByObjectId.length);
-
-    // Use the query that returns results
-    const messages =
-      messagesByObjectId.length > 0 ? messagesByObjectId : messagesByString;
-
-    console.log("Final messages result:", messages.length);
 
     return NextResponse.json(
-      {
-        success: true,
-        question,
-        messages,
-      },
+      { success: true, question: authz.question, messages },
       { status: 200 }
     );
   } catch (error) {
@@ -101,51 +110,28 @@ export async function PUT(
   { params }: { params: Promise<{ questionId: string }> }
 ) {
   await connectDB();
-
   try {
-    const session = await getServerSession(authOptions);
     const { questionId } = await params;
-
-    if (!session || !session.user) {
-      return NextResponse.json(
-        { success: false, message: "Not authenticated" },
-        { status: 401 }
-      );
-    }
+    const authz = await loadAndAuthorize(questionId, "question:update");
+    if (!authz.ok) return authz.response;
 
     const body = await request.json();
     const result = updateQuestionSchema.safeParse(body);
-
     if (!result.success) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid input",
-          errors: result.error.format(),
-        },
+        { success: false, message: "Invalid input", errors: result.error.format() },
         { status: 400 }
       );
     }
 
-    const question = await QuestionModel.findOneAndUpdate(
-      { _id: questionId, userId: session.user._id },
+    const question = await QuestionModel.findByIdAndUpdate(
+      questionId,
       result.data,
       { new: true }
     );
 
-    if (!question) {
-      return NextResponse.json(
-        { success: false, message: "Question not found" },
-        { status: 404 }
-      );
-    }
-
     return NextResponse.json(
-      {
-        success: true,
-        message: "Question updated successfully",
-        question,
-      },
+      { success: true, message: "Question updated successfully", question },
       { status: 200 }
     );
   } catch (error) {
@@ -162,21 +148,12 @@ export async function PATCH(
   { params }: { params: Promise<{ questionId: string }> }
 ) {
   await connectDB();
-
   try {
-    const session = await getServerSession(authOptions);
     const { questionId } = await params;
+    const authz = await loadAndAuthorize(questionId, "question:update");
+    if (!authz.ok) return authz.response;
 
-    if (!session || !session.user) {
-      return NextResponse.json(
-        { success: false, message: "Not authenticated" },
-        { status: 401 }
-      );
-    }
-
-    const body = await request.json();
-    const { isActive } = body;
-
+    const { isActive } = await request.json();
     if (typeof isActive !== "boolean") {
       return NextResponse.json(
         { success: false, message: "isActive must be a boolean" },
@@ -184,21 +161,11 @@ export async function PATCH(
       );
     }
 
-    const question = await QuestionModel.findOneAndUpdate(
-      {
-        _id: questionId,
-        userId: session.user._id,
-      },
+    const question = await QuestionModel.findByIdAndUpdate(
+      questionId,
       { isActive },
       { new: true }
     );
-
-    if (!question) {
-      return NextResponse.json(
-        { success: false, message: "Question not found" },
-        { status: 404 }
-      );
-    }
 
     return NextResponse.json(
       {
@@ -218,69 +185,31 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
   await connectDB();
-
   try {
-    const session = await getServerSession(authOptions);
     const { questionId } = await params;
+    const authz = await loadAndAuthorize(questionId, "question:delete");
+    if (!authz.ok) return authz.response;
 
-    if (!session || !session.user) {
-      return NextResponse.json(
-        { success: false, message: "Not authenticated" },
-        { status: 401 }
-      );
-    }
-
-    const question = await QuestionModel.findOneAndDelete({
-      _id: questionId,
-      userId: session.user._id,
-    });
-
-    if (!question) {
-      return NextResponse.json(
-        { success: false, message: "Question not found" },
-        { status: 404 }
-      );
-    }
-
-    // Count messages before deletion for logging
-    const messageCount = await MessageModel.countDocuments({
-      questionId: questionId,
-    });
-
-    console.log(
-      `Deleting question ${questionId} with ${messageCount} responses`
+    const messagesToDelete = await MessageModel.find({ questionId }).select(
+      "_id"
     );
+    const messageIds = messagesToDelete.map((m) => m._id);
 
-    // Get all messages for this question before deletion (to clean up user's messages array)
-    const messagesToDelete = await MessageModel.find({
-      questionId: questionId,
-    }).select("_id");
+    const deletedMessages = await MessageModel.deleteMany({ questionId });
+    await QuestionModel.findByIdAndDelete(questionId);
 
-    const messageIds = messagesToDelete.map((msg) => msg._id);
-
-    // Delete all messages for this question
-    const deletedMessages = await MessageModel.deleteMany({
-      questionId: questionId,
-    });
-
-    // Clean up user's messages array by removing the deleted message IDs
+    // Keep the owner's denormalized messages array consistent.
     if (messageIds.length > 0) {
+      const { default: UserModel } = await import("@/models/user.model");
       await UserModel.updateOne(
-        { _id: session.user._id },
+        { _id: authz.question.userId },
         { $pull: { messages: { $in: messageIds } } }
       );
-      console.log(
-        `Cleaned up ${messageIds.length} message references from user's messages array`
-      );
     }
-
-    console.log(
-      `Successfully deleted question and ${deletedMessages.deletedCount} responses`
-    );
 
     return NextResponse.json(
       {

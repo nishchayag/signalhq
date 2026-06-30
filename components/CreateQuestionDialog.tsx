@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -27,12 +28,20 @@ interface CreateQuestionDialogProps {
   onQuestionCreated: (question: IQuestion) => void;
 }
 
+interface Team {
+  _id: string;
+  name: string;
+  isMember: boolean;
+}
+
 export default function CreateQuestionDialog({
   open,
   onOpenChange,
   onQuestionCreated,
 }: CreateQuestionDialogProps) {
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [teams, setTeams] = useState<Team[]>([]);
 
   const {
     register,
@@ -42,6 +51,27 @@ export default function CreateQuestionDialog({
   } = useForm<CreateQuestionRequest>({
     resolver: zodResolver(createQuestionSchema),
   });
+
+  // Load the active org's teams when the dialog opens so the question can be
+  // scoped to one. Members only see teams they belong to (they can't create
+  // questions for teams they aren't part of, and wouldn't see them afterwards).
+  useEffect(() => {
+    if (!open) return;
+    const orgId = session?.user?.activeOrgId;
+    if (!orgId) return;
+    (async () => {
+      try {
+        const res = await axios.get(`/api/organizations/${orgId}/teams`);
+        if (res.data.success) {
+          const all: Team[] = res.data.teams;
+          const isMemberRole = session?.user?.activeOrgRole === "MEMBER";
+          setTeams(isMemberRole ? all.filter((t) => t.isMember) : all);
+        }
+      } catch (error) {
+        console.error("Error loading teams:", error);
+      }
+    })();
+  }, [open, session]);
 
   const onSubmit = async (data: CreateQuestionRequest) => {
     setLoading(true);
@@ -108,6 +138,25 @@ export default function CreateQuestionDialog({
               </p>
             )}
           </div>
+
+          {teams.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="teamId">Team (Optional)</Label>
+              <select
+                id="teamId"
+                {...register("teamId")}
+                disabled={loading}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">Organization-wide (no team)</option>
+                {teams.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <DialogFooter>
             <Button

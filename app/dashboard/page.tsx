@@ -13,13 +13,16 @@ import {
   Power,
   PowerOff,
   RefreshCw,
+  Settings,
 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import axios from "axios";
 import { IQuestion } from "@/models/question.model";
 import { IMessage } from "@/models/message.model";
 import MessageCard from "@/components/MessageCard";
 import CreateQuestionDialog from "@/components/CreateQuestionDialog";
+import OrgSwitcher from "@/components/OrgSwitcher";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -36,13 +39,27 @@ export default function DashboardPage() {
   const [refreshingQuestionId, setRefreshingQuestionId] = useState<
     string | null
   >(null);
+  const [teams, setTeams] = useState<{ _id: string; name: string }[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string>("all");
 
   useEffect(() => {
     if (session) {
       fetchQuestions();
       fetchGeneralMessages();
+      fetchTeams();
     }
   }, [session]);
+
+  const fetchTeams = async () => {
+    const orgId = session?.user?.activeOrgId;
+    if (!orgId) return;
+    try {
+      const res = await axios.get(`/api/organizations/${orgId}/teams`);
+      if (res.data.success) setTeams(res.data.teams);
+    } catch (error) {
+      console.error("Error fetching teams:", error);
+    }
+  };
 
   const fetchQuestions = async () => {
     try {
@@ -101,8 +118,11 @@ export default function DashboardPage() {
     setMessages([]);
   };
 
+  const orgSlug = session?.user?.activeOrgSlug;
+
   const copyQuestionLink = (slug: string) => {
-    const link = `${window.location.origin}/q/${slug}`;
+    const path = orgSlug ? `/o/${orgSlug}/q/${slug}` : `/q/${slug}`;
+    const link = `${window.location.origin}${path}`;
     navigator.clipboard.writeText(link);
     toast.success("Question link copied to clipboard!");
   };
@@ -212,6 +232,15 @@ export default function DashboardPage() {
     }
   };
 
+  const teamNameById: Record<string, string> = Object.fromEntries(
+    teams.map((t) => [t._id, t.name])
+  );
+  const filteredQuestions = questions.filter((q) => {
+    if (teamFilter === "all") return true;
+    if (teamFilter === "none") return !q.teamId;
+    return String(q.teamId) === teamFilter;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -228,6 +257,18 @@ export default function DashboardPage() {
           <div className="p-6 border-b border-gray-200">
             <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
             <p className="text-sm text-gray-600 mt-1">Manage your feedback</p>
+          </div>
+
+          {/* Organization switcher + management */}
+          <div className="p-4 border-b border-gray-200 space-y-2">
+            <OrgSwitcher />
+            <Link
+              href="/dashboard/organization"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50"
+            >
+              <Settings className="h-4 w-4" />
+              Organization settings
+            </Link>
           </div>
 
           <div className="p-4">
@@ -267,8 +308,24 @@ export default function DashboardPage() {
                 </Button>
               </div>
 
+              {teams.length > 0 && (
+                <select
+                  value={teamFilter}
+                  onChange={(e) => setTeamFilter(e.target.value)}
+                  className="w-full mb-3 text-sm border border-gray-200 rounded-md px-2 py-1.5"
+                >
+                  <option value="all">All teams</option>
+                  <option value="none">Organization-wide</option>
+                  {teams.map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               <div className="space-y-2">
-                {questions.map((question) => (
+                {filteredQuestions.map((question) => (
                   <button
                     key={question._id}
                     onClick={() => handleQuestionSelect(question)}
@@ -288,6 +345,13 @@ export default function DashboardPage() {
                           <div className="text-xs text-gray-500 mt-1">
                             {question.responseCount} responses
                           </div>
+                          {teams.length > 0 && (
+                            <div className="text-[10px] text-gray-400 mt-0.5">
+                              {question.teamId
+                                ? teamNameById[String(question.teamId)] || "Team"
+                                : "Organization-wide"}
+                            </div>
+                          )}
                           <div className="flex items-center mt-1">
                             <div
                               className={`h-2 w-2 rounded-full mr-2 ${
@@ -361,7 +425,7 @@ export default function DashboardPage() {
                   </button>
                 ))}
 
-                {questions.length === 0 && (
+                {filteredQuestions.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <HelpCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                     <p className="text-sm">No questions yet</p>
@@ -406,7 +470,7 @@ export default function DashboardPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const link = `${window.location.origin}/u/${session?.user?.username}`;
+                            const link = `${window.location.origin}/o/${orgSlug}`;
                             navigator.clipboard.writeText(link);
                             toast.success("Link copied to clipboard!");
                           }}
@@ -418,10 +482,7 @@ export default function DashboardPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            window.open(
-                              `/u/${session?.user?.username}`,
-                              "_blank"
-                            );
+                            window.open(`/o/${orgSlug}`, "_blank");
                           }}
                         >
                           <ExternalLink className="h-4 w-4 mr-2" />

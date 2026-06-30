@@ -90,23 +90,16 @@ export async function POST(
       content,
       createdFor: question.userId,
       questionId: question._id,
+      // Mirror the question's org/team onto the response for scoped reads.
+      organizationId: question.organizationId,
+      teamId: question.teamId,
     });
 
-    const savedMessage = await message.save();
+    await message.save();
 
     // Update response count
     await QuestionModel.findByIdAndUpdate(question._id, {
       $inc: { responseCount: 1 },
-    });
-
-    console.log("Message saved for question:", question._id);
-    console.log("Message questionId field:", savedMessage.questionId);
-    console.log("Message details:", {
-      messageId: savedMessage._id,
-      questionId: savedMessage.questionId,
-      questionIdType: typeof savedMessage.questionId,
-      originalQuestionId: question._id,
-      originalQuestionIdType: typeof question._id,
     });
 
     return NextResponse.json(

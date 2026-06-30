@@ -8,6 +8,9 @@ export interface IMessage extends Document {
   // Owning organization. Optional during multi-tenant migration; backfilled
   // for existing messages, required once the migration completes.
   organizationId?: mongoose.Types.ObjectId;
+  // Optional owning team, mirrored from the question it answers (if any) so
+  // team-scoped reads don't need to join through Question.
+  teamId?: mongoose.Types.ObjectId;
 }
 
 const messageSchema: Schema<IMessage> = new Schema({
@@ -34,6 +37,12 @@ const messageSchema: Schema<IMessage> = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Organization",
     required: false, // Optional during migration; backfilled for existing messages
+    index: true,
+  },
+  teamId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Team",
+    required: false,
     index: true,
   },
 });

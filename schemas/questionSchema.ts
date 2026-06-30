@@ -10,6 +10,8 @@ export const createQuestionSchema = z.object({
     .string()
     .max(1000, "Description cannot exceed 1000 characters")
     .optional(),
+  // Optional team to scope the question to (within the active org).
+  teamId: z.string().optional(),
 });
 
 export const updateQuestionSchema = z.object({

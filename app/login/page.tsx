@@ -36,7 +36,12 @@ const Page = () => {
         return;
       } else if (response?.ok) {
         toast.success("Login successful");
-        router.push("/dashboard");
+        // Honor a relative ?callbackUrl (e.g. returning to an invite link).
+        const cb = new URLSearchParams(window.location.search).get(
+          "callbackUrl"
+        );
+        const safe = cb && cb.startsWith("/") && !cb.startsWith("//");
+        router.push(safe ? cb! : "/dashboard");
       }
     } catch (error) {
       console.error("Login error:", error);

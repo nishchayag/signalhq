@@ -3,6 +3,7 @@ import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import connectDB from "@/lib/connectDB";
 import bcrypt from "bcryptjs";
+import { getActiveOrgForToken } from "@/lib/orgContext";
 const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -57,13 +58,35 @@ const authOptions: AuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token._id = user._id?.toString();
         token.isVerified = user.isVerified;
         token.isAcceptingMessages = user.isAcceptingMessages;
         token.username = user.username;
         token.name = user.name;
+
+        // Stamp the user's default (personal) org onto the token at sign-in.
+        await connectDB();
+        const org = await getActiveOrgForToken(token._id as string);
+        token.activeOrgId = org?.organizationId;
+        token.activeOrgSlug = org?.slug;
+        token.activeOrgRole = org?.role;
+      }
+
+      // Org switcher: client calls `update({ activeOrgId })`. Validate the
+      // membership server-side before trusting the requested org.
+      if (trigger === "update" && session?.activeOrgId && token._id) {
+        await connectDB();
+        const org = await getActiveOrgForToken(
+          token._id as string,
+          session.activeOrgId as string
+        );
+        if (org) {
+          token.activeOrgId = org.organizationId;
+          token.activeOrgSlug = org.slug;
+          token.activeOrgRole = org.role;
+        }
       }
       return token;
     },
@@ -74,6 +97,9 @@ const authOptions: AuthOptions = {
         session.user.isAcceptingMessages = token.isAcceptingMessages;
         session.user.username = token.username;
         session.user.name = token.name;
+        session.user.activeOrgId = token.activeOrgId;
+        session.user.activeOrgSlug = token.activeOrgSlug;
+        session.user.activeOrgRole = token.activeOrgRole;
       }
       return session;
     },

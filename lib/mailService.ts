@@ -3,8 +3,11 @@ import connectDB from "./connectDB";
 import { Resend } from "resend";
 import VerificationEmail from "@/emailTemplates/verifyEmailTemplate";
 import ResetPasswordOtpEmail from "@/emailTemplates/resetPasswordTemplate";
+import InvitationEmail from "@/emailTemplates/invitationTemplate";
 import { NextResponse } from "next/server";
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+const FROM = "FeedBacker.io <feedback-io@nishchayag.live>";
 
 export const sendEmail = async ({
   email,
@@ -50,5 +53,41 @@ export const sendEmail = async ({
   } catch (error) {
     console.error("Error sending email:", error);
     return NextResponse.json({ error: "Error sending email" + error });
+  }
+};
+
+/**
+ * Send an organization invitation email. Unlike `sendEmail`, the recipient may
+ * not have an account yet, so there is no user lookup. Returns true on success.
+ */
+export const sendInvitationEmail = async ({
+  email,
+  orgName,
+  inviterName,
+  role,
+  acceptUrl,
+}: {
+  email: string;
+  orgName: string;
+  inviterName?: string;
+  role: string;
+  acceptUrl: string;
+}): Promise<boolean> => {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: email,
+      subject: `You've been invited to join ${orgName} on FeedBacker.io`,
+      react: InvitationEmail({ orgName, inviterName, role, acceptUrl }),
+    });
+    if (error) {
+      console.error("Error sending invitation email:", error);
+      return false;
+    }
+    console.log("Invitation email sent:", data);
+    return true;
+  } catch (error) {
+    console.error("Error sending invitation email:", error);
+    return false;
   }
 };

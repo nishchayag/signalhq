@@ -11,6 +11,7 @@ export default function VerifyEmailPage() {
   const params = useSearchParams();
   const username = params.get("username");
   const email = params.get("email");
+  const callbackUrl = params.get("callbackUrl");
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -69,7 +70,17 @@ export default function VerifyEmailPage() {
       if (response.data.message) {
         toast.success(response.data.message);
 
-        router.push("/login");
+        // Preserve a relative callbackUrl so the post-login redirect can return
+        // the user to where they started (e.g. an invite link).
+        const safe =
+          callbackUrl &&
+          callbackUrl.startsWith("/") &&
+          !callbackUrl.startsWith("//");
+        router.push(
+          safe
+            ? `/login?callbackUrl=${encodeURIComponent(callbackUrl!)}`
+            : "/login"
+        );
       }
     } catch (error: unknown) {
       console.error("Error verifying email:", error);

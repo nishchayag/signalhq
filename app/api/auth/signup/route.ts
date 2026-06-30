@@ -3,6 +3,7 @@ import { NextResponse, NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import userModel from "@/models/user.model";
 import { sendEmail } from "@/lib/mailService";
+import { createPersonalOrganization } from "@/lib/orgContext";
 
 export async function POST(request: NextRequest) {
   await connectDB();
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
       messages: [],
     });
     console.log("New user created:", newUser);
+
+    // Give every new account a personal organization (OWNER) so the org-scoped
+    // dashboard works immediately on first login.
+    await createPersonalOrganization({
+      _id: newUser._id,
+      name: newUser.name,
+      username: newUser.username,
+    });
+
     const emailResponse = await sendEmail({
       email,
       mailType: "VERIFY",
