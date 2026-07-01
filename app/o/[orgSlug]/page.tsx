@@ -29,13 +29,15 @@ export default async function OrgPublicPage({ params }: PageProps) {
     .lean();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-background py-16 px-4">
+      <div className="absolute inset-0 bg-grid opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_60%)]" />
+      <div className="absolute left-1/2 top-0 h-72 w-[600px] -translate-x-1/2 rounded-full bg-primary/15 blur-[110px]" />
+      <div className="relative max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-2">
             {organization.name}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Share anonymous feedback — your identity is never revealed
           </p>
         </div>
@@ -53,7 +55,7 @@ export default async function OrgPublicPage({ params }: PageProps) {
 
         {questions.length > 0 && (
           <div className="mt-8">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">
+            <h2 className="text-sm font-semibold text-foreground mb-3">
               Or respond to a specific question:
             </h2>
             <div className="grid gap-3">
@@ -61,7 +63,7 @@ export default async function OrgPublicPage({ params }: PageProps) {
                 <Link
                   key={String(q._id)}
                   href={`/o/${organization.slug}/q/${q.slug}`}
-                  className="block bg-white hover:bg-indigo-50 transition border border-gray-200 rounded-lg px-4 py-3 text-sm shadow-sm"
+                  className="block bg-card hover:bg-accent transition border border-border rounded-lg px-4 py-3 text-sm text-foreground shadow-sm"
                 >
                   {q.questionText}
                 </Link>

@@ -105,13 +105,13 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50">
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
-                  className="w-6 h-6 text-green-600"
+                  className="w-6 h-6 text-emerald-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -143,13 +143,13 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 py-12 px-4">
+    <div className="min-h-[calc(100vh-4rem)] bg-background py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
             Anonymous Feedback
           </h1>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Your response will be completely anonymous
           </p>
         </div>
@@ -175,7 +175,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
                   disabled={submitting}
                 />
                 {errors.content && (
-                  <p className="text-sm text-red-600 mt-1">
+                  <p className="text-sm text-destructive mt-1">
                     {errors.content.message}
                   </p>
                 )}
@@ -201,11 +201,11 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
               </Button>
             </form>
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-medium text-blue-900 mb-2">
+            <div className="mt-6 p-4 bg-muted/50 border border-border rounded-lg">
+              <h3 className="font-medium text-foreground mb-2">
                 🔒 Your Privacy is Protected
               </h3>
-              <ul className="text-sm text-blue-800 space-y-1">
+              <ul className="text-sm text-muted-foreground space-y-1">
                 <li>• Your identity remains completely anonymous</li>
                 <li>• No personal information is collected or stored</li>
                 <li>• Your response cannot be traced back to you</li>

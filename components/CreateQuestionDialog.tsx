@@ -117,7 +117,7 @@ export default function CreateQuestionDialog({
               disabled={loading}
             />
             {errors.questionText && (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-destructive">
                 {errors.questionText.message}
               </p>
             )}
@@ -133,7 +133,7 @@ export default function CreateQuestionDialog({
               disabled={loading}
             />
             {errors.description && (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-destructive">
                 {errors.description.message}
               </p>
             )}

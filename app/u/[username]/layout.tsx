@@ -10,7 +10,7 @@ export async function generateMetadata({
 
   return createMetadata({
     title: `Send Anonymous Message to ${username}`,
-    description: `Send an anonymous feedback message to ${username} using Feedbacker.io. Your message will be completely anonymous and private.`,
+    description: `Send an anonymous feedback message to ${username} using SignalHQ. Your message will be completely anonymous and private.`,
     url: `/u/${username}`,
     keywords: [
       "anonymous message",

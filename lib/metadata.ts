@@ -185,8 +185,8 @@ export function generateJsonLd(data: {
         },
         sameAs: [
           // Add your social media URLs here
-          "https://twitter.com/feedbacker_io",
-          "https://linkedin.com/company/feedbacker-io",
+          "https://twitter.com/signalhq",
+          "https://linkedin.com/company/signalhq",
         ],
       };
 

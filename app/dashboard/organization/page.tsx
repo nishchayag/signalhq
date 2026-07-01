@@ -108,7 +108,7 @@ export default function OrganizationPage() {
 
   if (!orgId) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         No active organization.
       </div>
     );
@@ -291,10 +291,10 @@ export default function OrganizationPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-[calc(100vh-4rem)] bg-background py-10 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Organization settings
           </h1>
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
@@ -303,15 +303,15 @@ export default function OrganizationPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b border-gray-200">
+        <div className="flex gap-1 mb-6 border-b border-border">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === t.key
-                  ? "border-indigo-600 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               {t.icon}
@@ -322,7 +322,7 @@ export default function OrganizationPage() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : (
           <>
@@ -335,16 +335,16 @@ export default function OrganizationPage() {
                         <p className="font-medium truncate">
                           {m.name}{" "}
                           {m.isSelf && (
-                            <span className="text-xs text-gray-400">(you)</span>
+                            <span className="text-xs text-muted-foreground/70">(you)</span>
                           )}
                         </p>
-                        <p className="text-sm text-gray-500 truncate">
+                        <p className="text-sm text-muted-foreground truncate">
                           @{m.username} · {m.email}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         {m.role === "OWNER" || !can(role, "member:role") || m.isSelf ? (
-                          <span className="text-xs uppercase tracking-wide text-gray-500 px-2">
+                          <span className="text-xs uppercase tracking-wide text-muted-foreground px-2">
                             {m.role}
                           </span>
                         ) : (
@@ -353,7 +353,7 @@ export default function OrganizationPage() {
                             onChange={(e) =>
                               changeRole(m, e.target.value as "ADMIN" | "MEMBER")
                             }
-                            className="text-sm border border-gray-200 rounded-md px-2 py-1"
+                            className="text-sm border border-input bg-background text-foreground rounded-md px-2 py-1"
                           >
                             <option value="ADMIN">ADMIN</option>
                             <option value="MEMBER">MEMBER</option>
@@ -368,7 +368,7 @@ export default function OrganizationPage() {
                               className="h-8 w-8 p-0"
                               onClick={() => removeMember(m)}
                             >
-                              <Trash2 className="h-4 w-4 text-red-600" />
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           )}
                       </div>
@@ -396,7 +396,7 @@ export default function OrganizationPage() {
                           onChange={(e) =>
                             setInviteRole(e.target.value as "ADMIN" | "MEMBER")
                           }
-                          className="text-sm border border-gray-200 rounded-md px-2 py-2"
+                          className="text-sm border border-input bg-background text-foreground rounded-md px-2 py-2"
                         >
                           <option value="MEMBER">Member</option>
                           <option value="ADMIN">Admin</option>
@@ -404,7 +404,7 @@ export default function OrganizationPage() {
                         <select
                           value={inviteTeam}
                           onChange={(e) => setInviteTeam(e.target.value)}
-                          className="text-sm border border-gray-200 rounded-md px-2 py-2"
+                          className="text-sm border border-input bg-background text-foreground rounded-md px-2 py-2"
                         >
                           <option value="">No team</option>
                           {teams.map((t) => (
@@ -424,24 +424,24 @@ export default function OrganizationPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     You don&apos;t have permission to invite members.
                   </p>
                 )}
 
                 <div className="space-y-2">
-                  <p className="font-medium text-sm text-gray-700">
+                  <p className="font-medium text-sm text-foreground">
                     Pending invitations
                   </p>
                   {invites.length === 0 && (
-                    <p className="text-sm text-gray-400">No pending invitations.</p>
+                    <p className="text-sm text-muted-foreground/70">No pending invitations.</p>
                   )}
                   {invites.map((i) => (
                     <Card key={i._id}>
                       <CardContent className="p-3 flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium">{i.email}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             {i.role} · expires{" "}
                             {new Date(i.expiresAt).toLocaleDateString()}
                           </p>
@@ -482,14 +482,14 @@ export default function OrganizationPage() {
                 )}
                 <div className="space-y-2">
                   {teams.length === 0 && (
-                    <p className="text-sm text-gray-400">No teams yet.</p>
+                    <p className="text-sm text-muted-foreground/70">No teams yet.</p>
                   )}
                   {teams.map((t) => (
                     <Card key={t._id}>
                       <CardContent className="p-3 flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium">{t.name}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             {t.memberCount} member
                             {t.memberCount === 1 ? "" : "s"}
                           </p>
@@ -511,7 +511,7 @@ export default function OrganizationPage() {
                               className="h-8 w-8 p-0"
                               onClick={() => deleteTeam(t)}
                             >
-                              <Trash2 className="h-4 w-4 text-red-600" />
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           )}
                         </div>
@@ -571,7 +571,7 @@ export default function OrganizationPage() {
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
                       <p className="font-medium">Leave organization</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-muted-foreground">
                         Remove yourself from this organization.
                       </p>
                     </div>
@@ -583,13 +583,13 @@ export default function OrganizationPage() {
                 </Card>
 
                 {can(role, "org:delete") && (
-                  <Card className="border-red-200">
+                  <Card className="border-destructive/30">
                     <CardContent className="p-4 flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-red-700">
+                        <p className="font-medium text-destructive">
                           Delete organization
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-muted-foreground">
                           Permanently delete this org and all its data.
                         </p>
                       </div>
@@ -698,7 +698,7 @@ function ManageTeamDialog({
             {allMembers.map((m) => (
               <label
                 key={m.userId}
-                className="flex items-center gap-2 px-2 py-2 rounded hover:bg-gray-50 cursor-pointer"
+                className="flex items-center gap-2 px-2 py-2 rounded hover:bg-accent cursor-pointer"
               >
                 <input
                   type="checkbox"
@@ -707,7 +707,7 @@ function ManageTeamDialog({
                 />
                 <span className="text-sm">
                   {m.name}{" "}
-                  <span className="text-gray-400">@{m.username}</span>
+                  <span className="text-muted-foreground/70">@{m.username}</span>
                 </span>
               </label>
             ))}

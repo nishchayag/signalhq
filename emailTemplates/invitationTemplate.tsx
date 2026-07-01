@@ -27,14 +27,14 @@ export default function InvitationEmail({
   return (
     <Html>
       <Head />
-      <Preview>You&apos;ve been invited to join {orgName} on FeedBacker.io</Preview>
+      <Preview>You&apos;ve been invited to join {orgName} on SignalHQ</Preview>
       <Body style={main}>
         <Container style={container}>
           <Text style={heading}>You&apos;re invited 🎉</Text>
 
           <Text style={text}>
             <strong>{inviterName}</strong> has invited you to join{" "}
-            <strong>{orgName}</strong> on <strong>FeedBacker.io</strong> as a{" "}
+            <strong>{orgName}</strong> on <strong>SignalHQ</strong> as a{" "}
             <strong>{role.toLowerCase()}</strong>.
           </Text>
 
@@ -53,7 +53,7 @@ export default function InvitationEmail({
           <Text style={footer}>
             This invitation will expire in 7 days. If you weren&apos;t expecting
             it, you can safely ignore this email.
-            <br />— The FeedBacker.io Team 🚀
+            <br />— The SignalHQ Team 🚀
           </Text>
         </Container>
       </Body>

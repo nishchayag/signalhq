@@ -4,7 +4,7 @@ import { Metadata } from "next";
 export const metadata: Metadata = createMetadata({
   title: "Sign Up",
   description:
-    "Create your free Feedbacker.io account and start collecting anonymous feedback today. Get started in seconds.",
+    "Create your free SignalHQ account and start collecting anonymous feedback today. Get started in seconds.",
   url: "/signup",
   keywords: [
     "sign up",

@@ -44,21 +44,25 @@ export default function TestimonialsCarousel() {
   }, [slider]);
 
   return (
-    <section className="bg-gray-50 py-16 px-4 text-center">
-      <h2 className="text-3xl font-bold text-gray-800 mb-8">Testimonials</h2>
+    <section className="bg-background py-20 px-4 text-center">
+      <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-10">
+        Loved by teams and creators
+      </h2>
       <div ref={sliderInstanceRef} className="keen-slider max-w-xl mx-auto">
         {testimonials.map((t, i) => (
           <div key={i} className="keen-slider__slide">
-            <div className="bg-white p-6 rounded-lg shadow-md border mx-4">
+            <div className="bg-card p-8 rounded-2xl shadow-sm border border-border mx-4">
               <Image
                 src={t.avatar}
                 alt={t.name}
                 width={64}
                 height={64}
-                className="mx-auto rounded-full w-16 h-16 mb-4"
+                className="mx-auto rounded-full w-16 h-16 mb-4 ring-2 ring-primary/20"
               />
-              <p className="text-gray-600 italic">“{t.feedback}”</p>
-              <h4 className="text-sm mt-4 font-semibold text-gray-800">
+              <p className="text-foreground/80 italic text-lg">
+                “{t.feedback}”
+              </p>
+              <h4 className="text-sm mt-4 font-semibold text-foreground">
                 {t.name}
               </h4>
             </div>

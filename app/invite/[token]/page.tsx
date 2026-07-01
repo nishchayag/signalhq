@@ -63,15 +63,17 @@ export default function AcceptInvitePage() {
   };
 
   const wrap = (children: React.ReactNode) => (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50 px-4">
-      <Card className="w-full max-w-md">{children}</Card>
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-background px-4">
+      <div className="absolute inset-0 bg-grid opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
+      <div className="absolute left-1/2 top-1/4 -z-0 h-64 w-[500px] -translate-x-1/2 rounded-full bg-primary/15 blur-[100px]" />
+      <Card className="relative z-10 w-full max-w-md shadow-xl">{children}</Card>
     </div>
   );
 
   if (loading || status === "loading") {
     return wrap(
       <CardContent className="py-12 flex justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </CardContent>
     );
   }
@@ -80,7 +82,7 @@ export default function AcceptInvitePage() {
     return wrap(
       <CardContent className="py-10 text-center">
         <h2 className="text-xl font-semibold mb-2">Invitation not found</h2>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           This invitation link is invalid or no longer exists.
         </p>
       </CardContent>
@@ -93,7 +95,7 @@ export default function AcceptInvitePage() {
         <h2 className="text-xl font-semibold mb-2">
           This invitation is {info.status.toLowerCase()}
         </h2>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           Ask an organization admin to send you a new one.
         </p>
       </CardContent>
@@ -108,12 +110,12 @@ export default function AcceptInvitePage() {
         </CardTitle>
       </CardHeader>
       <CardContent className="text-center space-y-4">
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           You&apos;ve been invited to join{" "}
           <strong>{info.organization.name}</strong> as a{" "}
           <strong>{info.role.toLowerCase()}</strong>.
         </p>
-        <p className="text-sm text-gray-500">Invitation sent to {info.email}</p>
+        <p className="text-sm text-muted-foreground">Invitation sent to {info.email}</p>
 
         {session ? (
           <Button onClick={accept} disabled={accepting} className="w-full" size="lg">
@@ -128,7 +130,7 @@ export default function AcceptInvitePage() {
           </Button>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Log in or sign up with <strong>{info.email}</strong> to accept.
             </p>
             <Button asChild className="w-full">

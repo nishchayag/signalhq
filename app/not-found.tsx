@@ -5,20 +5,24 @@ import { Metadata } from "next";
 export const metadata: Metadata = createMetadata({
   title: "404 - Page Not Found",
   description:
-    "The page you are looking for could not be found. Return to Feedbacker.io to continue collecting anonymous feedback.",
+    "The page you are looking for could not be found. Return to SignalHQ to continue collecting anonymous feedback.",
   noindex: true,
 });
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md mx-auto text-center">
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-background px-4">
+      <div className="absolute inset-0 bg-grid opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
+      <div className="absolute left-1/2 top-1/3 h-64 w-[500px] -translate-x-1/2 rounded-full bg-primary/15 blur-[100px]" />
+      <div className="relative mx-auto max-w-md text-center">
         <div className="mb-8">
-          <h1 className="text-9xl font-bold text-indigo-600">404</h1>
-          <h2 className="text-2xl font-semibold text-gray-900 mt-4">
-            Page Not Found
+          <h1 className="text-8xl font-bold tracking-tight text-gradient sm:text-9xl">
+            404
+          </h1>
+          <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+            Page not found
           </h2>
-          <p className="text-gray-600 mt-2">
+          <p className="mt-2 text-muted-foreground">
             The page you are looking for doesn&apos;t exist or has been moved.
           </p>
         </div>
@@ -26,15 +30,15 @@ export default function NotFound() {
         <div className="space-y-4">
           <Link
             href="/"
-            className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition"
+            className="inline-block rounded-full bg-primary px-6 py-3 font-medium text-primary-foreground transition hover:opacity-90"
           >
-            Back to Home
+            Back to home
           </Link>
 
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             <p>
               Or try{" "}
-              <Link href="/signup" className="text-indigo-600 hover:underline">
+              <Link href="/signup" className="text-primary hover:underline">
                 signing up
               </Link>{" "}
               to start collecting feedback

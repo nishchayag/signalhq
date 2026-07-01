@@ -2,10 +2,10 @@ import { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Feedbacker.io - Anonymous Feedback Platform",
-    short_name: "Feedbacker",
+    name: "SignalHQ - Anonymous Feedback for Teams",
+    short_name: "SignalHQ",
     description:
-      "Get honest, anonymous feedback from teammates, friends, or your audience using one simple link.",
+      "Turn honest, anonymous feedback into signal for your team — collected through simple shareable links.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

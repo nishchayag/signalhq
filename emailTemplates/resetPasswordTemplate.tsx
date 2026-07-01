@@ -22,13 +22,13 @@ export default function ResetPasswordOtpEmail({
   return (
     <Html>
       <Head />
-      <Preview>Your FeedBacker.io password reset code</Preview>
+      <Preview>Your SignalHQ password reset code</Preview>
       <Body style={main}>
         <Container style={container}>
           <Text style={heading}>Hi {name.split(" ")[0]},</Text>
 
           <Text style={text}>
-            We received a request to reset your <strong>FeedBacker.io</strong>{" "}
+            We received a request to reset your <strong>SignalHQ</strong>{" "}
             password.
             <br />
             Please use the code below to proceed:
@@ -43,7 +43,7 @@ export default function ResetPasswordOtpEmail({
             can safely ignore this email.
           </Text>
 
-          <Text style={footer}>— The FeedBacker.io Team 🚀</Text>
+          <Text style={footer}>— The SignalHQ Team 🚀</Text>
         </Container>
       </Body>
     </Html>

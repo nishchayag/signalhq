@@ -4,7 +4,7 @@ import { Metadata } from "next";
 export const metadata: Metadata = createMetadata({
   title: "Login",
   description:
-    "Sign in to your Feedbacker.io account to access your dashboard and manage anonymous feedback.",
+    "Sign in to your SignalHQ account to access your dashboard and manage anonymous feedback.",
   url: "/login",
   noindex: true, // Login pages are typically not indexed
 });

@@ -11,26 +11,26 @@ export interface SEOConfig {
 }
 
 export const seoConfig: SEOConfig = {
-  siteName: "Feedbacker.io",
-  siteUrl: process.env.NEXT_PUBLIC_BASE_URL || "https://feedbacker.io",
-  defaultTitle: "Feedbacker.io - Anonymous Feedback Platform",
+  siteName: "SignalHQ",
+  siteUrl: process.env.NEXT_PUBLIC_BASE_URL || "https://signalhq.io",
+  defaultTitle: "SignalHQ - Anonymous Feedback for Teams",
   defaultDescription:
-    "Get honest, anonymous feedback from teammates, friends, or your audience using one simple link. Secure, private, and instant feedback collection.",
+    "SignalHQ turns honest, anonymous feedback into signal for your team. Collect candid messages from teammates, your audience, or community through shareable links — organized by organization and team.",
   defaultKeywords: [
     "anonymous feedback",
+    "team feedback",
     "feedback platform",
     "anonymous messages",
     "feedback collection",
-    "team feedback",
     "honest feedback",
-    "anonymous communication",
+    "organization feedback",
     "workplace feedback",
     "private feedback",
     "feedback tool",
   ],
   defaultImage: "/og-image.png",
-  twitterHandle: "@feedbacker_io",
-  author: "Feedbacker.io Team",
+  twitterHandle: "@signalhq",
+  author: "SignalHQ Team",
   locale: "en_US",
 };
 

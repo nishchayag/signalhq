@@ -2,14 +2,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FieldErrors, useForm } from "react-hook-form";
 import * as z from "zod";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2, Check, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import axios from "axios";
 import { signupSchema } from "@/schemas/signUpSchema";
-import { LoaderCircle, Check, X } from "lucide-react";
 import Link from "next/link";
 
 const Page = () => {
@@ -142,21 +141,32 @@ const Page = () => {
     }
   };
 
+  const inputClass =
+    "w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition";
+
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-100 px-4">
-      <div className="w-full max-w-md bg-white shadow-lg rounded-lg p-8">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          Signup Page
-        </h1>
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden px-4 py-16">
+      <div className="absolute inset-0 bg-grid opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
+      <div className="absolute left-1/2 top-0 h-72 w-[600px] -translate-x-1/2 rounded-full bg-primary/20 blur-[100px]" />
+
+      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-xl">
+        <div className="mb-7 text-center">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Create your account
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Start collecting honest feedback in seconds
+          </p>
+        </div>
 
         <form
           onSubmit={handleSubmit(handleSubmitForm, handleFormErrors)}
-          className="space-y-5"
+          className="space-y-4"
         >
           <div>
             <label
               htmlFor="username"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1.5 block text-sm font-medium text-foreground"
             >
               Username
             </label>
@@ -165,20 +175,27 @@ const Page = () => {
               id="username"
               {...register("username", { minLength: 4 })}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className={inputClass}
+              placeholder="yourhandle"
             />
             {isCheckingUsername && (
-              <p className="flex items-center gap-2 text-blue-600 mt-1 text-sm">
-                <LoaderCircle className="animate-spin" /> Checking username...
+              <p className="mt-1.5 flex items-center gap-2 text-sm text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" /> Checking
+                username...
               </p>
             )}
             {usernameAvailableMessage && (
               <p
-                className={`flex items-center gap-2 mt-1 text-sm ${
-                  isAvailable ? "text-green-600" : "text-red-600"
+                className={`mt-1.5 flex items-center gap-1.5 text-sm ${
+                  isAvailable ? "text-emerald-500" : "text-destructive"
                 }`}
               >
-                {isAvailable ? <Check /> : <X />} {usernameAvailableMessage}
+                {isAvailable ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}{" "}
+                {usernameAvailableMessage}
               </p>
             )}
           </div>
@@ -186,7 +203,7 @@ const Page = () => {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1.5 block text-sm font-medium text-foreground"
             >
               Email
             </label>
@@ -194,14 +211,15 @@ const Page = () => {
               type="email"
               id="email"
               {...register("email")}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className={inputClass}
+              placeholder="you@example.com"
             />
           </div>
 
           <div>
             <label
               htmlFor="name"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1.5 block text-sm font-medium text-foreground"
             >
               Name
             </label>
@@ -209,55 +227,67 @@ const Page = () => {
               type="text"
               id="name"
               {...register("name")}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className={inputClass}
+              placeholder="Your name"
             />
           </div>
 
-          <div className="flex flex-col">
+          <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="mb-1.5 block text-sm font-medium text-foreground"
             >
               Password
             </label>
-            <div className="flex gap-2">
+            <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 id="password"
                 {...register("password")}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="Enter your password"
+                className={`${inputClass} pr-11`}
+                placeholder="Create a password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="right-2 top-9 text-gray-500 hover:text-gray-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Toggle password visibility"
               >
-                {showPassword ? <Eye /> : <EyeOff />}
+                {showPassword ? (
+                  <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
+                )}
               </button>
             </div>
           </div>
-          <div className="flex flex-col">
+
+          <div>
             <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              htmlFor="confirmPassword"
+              className="mb-1.5 block text-sm font-medium text-foreground"
             >
-              Confirm Password
+              Confirm password
             </label>
-            <div className="flex gap-2">
+            <div className="relative">
               <input
                 type={showConfirmPassword ? "text" : "password"}
                 id="confirmPassword"
                 {...register("confirmPassword")}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="Confirm your password"
+                className={`${inputClass} pr-11`}
+                placeholder="Re-enter your password"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="right-2 top-9 text-gray-500 hover:text-gray-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Toggle password visibility"
               >
-                {showConfirmPassword ? <Eye /> : <EyeOff />}
+                {showConfirmPassword ? (
+                  <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
+                )}
               </button>
             </div>
           </div>
@@ -265,18 +295,22 @@ const Page = () => {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full py-2 rounded-md font-medium transition-colors ${
-              loading
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-600 text-white hover:bg-blue-700"
-            }`}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-60"
           >
-            {loading ? "Loading..." : "Sign Up"}
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating account...
+              </>
+            ) : (
+              "Create account"
+            )}
           </button>
         </form>
-        <p className="mt-6 text-sm text-center text-gray-600">
+
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="text-blue-600 hover:underline">
+          <Link href="/login" className="font-medium text-primary hover:underline">
             Log in
           </Link>
         </p>

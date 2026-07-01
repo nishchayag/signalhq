@@ -7,7 +7,7 @@ import InvitationEmail from "@/emailTemplates/invitationTemplate";
 import { NextResponse } from "next/server";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM = "FeedBacker.io <feedback-io@nishchayag.live>";
+const FROM = "SignalHQ <feedback-io@nishchayag.live>";
 
 export const sendEmail = async ({
   email,
@@ -31,12 +31,12 @@ export const sendEmail = async ({
     }
 
     const { data, error } = await resend.emails.send({
-      from: "FeedBacker.io <feedback-io@nishchayag.live>",
+      from: FROM,
       to: email,
       subject:
         mailType === "VERIFY"
-          ? "Email Verification code for FeedBacker.io"
-          : "Reset Password code for FeedBacker.io",
+          ? "Email Verification code for SignalHQ"
+          : "Reset Password code for SignalHQ",
       react:
         mailType === "VERIFY"
           ? VerificationEmail({ otp: otpCode, name: userInDB.name })
@@ -77,7 +77,7 @@ export const sendInvitationEmail = async ({
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: email,
-      subject: `You've been invited to join ${orgName} on FeedBacker.io`,
+      subject: `You've been invited to join ${orgName} on SignalHQ`,
       react: InvitationEmail({ orgName, inviterName, role, acceptUrl }),
     });
     if (error) {

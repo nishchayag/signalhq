@@ -22,13 +22,13 @@ export default function VerificationEmail({
   return (
     <Html>
       <Head />
-      <Preview>Your FeedBacker.io verification code</Preview>
+      <Preview>Your SignalHQ verification code</Preview>
       <Body style={main}>
         <Container style={container}>
           <Text style={heading}>Hi {name.split(" ")[0]},</Text>
 
           <Text style={text}>
-            Welcome to <strong>FeedBacker.io</strong> 👋
+            Welcome to <strong>SignalHQ</strong> 👋
             <br />
             Please use the following code to verify your email address:
           </Text>
@@ -42,7 +42,7 @@ export default function VerificationEmail({
             can safely ignore this email.
           </Text>
 
-          <Text style={footer}>— The FeedBacker.io Team 🚀</Text>
+          <Text style={footer}>— The SignalHQ Team 🚀</Text>
         </Container>
       </Body>
     </Html>

@@ -243,28 +243,32 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-80 bg-white border-r border-gray-200 h-screen overflow-y-auto">
-          <div className="p-6 border-b border-gray-200">
-            <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
-            <p className="text-sm text-gray-600 mt-1">Manage your feedback</p>
+        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 shrink-0 overflow-y-auto border-r border-border bg-card md:block">
+          <div className="border-b border-border p-5">
+            <h1 className="text-lg font-semibold tracking-tight text-foreground">
+              Dashboard
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Manage your feedback
+            </p>
           </div>
 
           {/* Organization switcher + management */}
-          <div className="p-4 border-b border-gray-200 space-y-2">
+          <div className="space-y-2 border-b border-border p-4">
             <OrgSwitcher />
             <Link
               href="/dashboard/organization"
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
               Organization settings
@@ -272,197 +276,193 @@ export default function DashboardPage() {
           </div>
 
           <div className="p-4">
-            {/* General Messages */}
-            <div className="mb-6">
-              <button
-                onClick={handleGeneralView}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
-                  view === "general"
-                    ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                    : "hover:bg-gray-50"
-                }`}
-              >
-                <div className="flex items-center">
-                  <MessageSquare className="h-5 w-5 mr-3" />
-                  <div>
-                    <div className="font-medium">General Messages</div>
-                    <div className="text-xs text-gray-500">
-                      {generalMessages.length} messages
-                    </div>
+            {/* General messages */}
+            <button
+              onClick={handleGeneralView}
+              className={`mb-6 w-full rounded-xl border p-3 text-left transition-colors ${
+                view === "general"
+                  ? "border-primary/20 bg-primary/10 text-primary"
+                  : "border-transparent hover:bg-accent"
+              }`}
+            >
+              <div className="flex items-center">
+                <MessageSquare className="mr-3 h-5 w-5" />
+                <div>
+                  <div className="font-medium">General messages</div>
+                  <div className="text-xs text-muted-foreground">
+                    {generalMessages.length} messages
                   </div>
                 </div>
-              </button>
+              </div>
+            </button>
+
+            {/* Questions */}
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Questions
+              </h2>
+              <Button
+                onClick={() => setShowCreateDialog(true)}
+                size="sm"
+                className="h-8 px-3"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                New
+              </Button>
             </div>
 
-            {/* Questions Section */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-medium text-gray-900">Questions</h2>
-                <Button
-                  onClick={() => setShowCreateDialog(true)}
-                  size="sm"
-                  className="h-8 px-3"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  New
-                </Button>
-              </div>
+            {teams.length > 0 && (
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                className="mb-3 w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All teams</option>
+                <option value="none">Organization-wide</option>
+                {teams.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
 
-              {teams.length > 0 && (
-                <select
-                  value={teamFilter}
-                  onChange={(e) => setTeamFilter(e.target.value)}
-                  className="w-full mb-3 text-sm border border-gray-200 rounded-md px-2 py-1.5"
+            <div className="space-y-1.5">
+              {filteredQuestions.map((question) => (
+                <button
+                  key={question._id}
+                  onClick={() => handleQuestionSelect(question)}
+                  className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                    selectedQuestion?._id === question._id
+                      ? "border-primary/20 bg-primary/10"
+                      : "border-transparent hover:bg-accent"
+                  }`}
                 >
-                  <option value="all">All teams</option>
-                  <option value="none">Organization-wide</option>
-                  {teams.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              <div className="space-y-2">
-                {filteredQuestions.map((question) => (
-                  <button
-                    key={question._id}
-                    onClick={() => handleQuestionSelect(question)}
-                    className={`w-full text-left p-3 rounded-lg transition-colors ${
-                      selectedQuestion?._id === question._id
-                        ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                        : "hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start min-w-0 flex-1">
-                        <HelpCircle className="h-4 w-4 mr-2 mt-1 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm truncate">
-                            {question.questionText}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {question.responseCount} responses
-                          </div>
-                          {teams.length > 0 && (
-                            <div className="text-[10px] text-gray-400 mt-0.5">
-                              {question.teamId
-                                ? teamNameById[String(question.teamId)] || "Team"
-                                : "Organization-wide"}
-                            </div>
-                          )}
-                          <div className="flex items-center mt-1">
-                            <div
-                              className={`h-2 w-2 rounded-full mr-2 ${
-                                question.isActive
-                                  ? "bg-green-400"
-                                  : "bg-gray-400"
-                              }`}
-                            />
-                            <span className="text-xs text-gray-500">
-                              {question.isActive ? "Active" : "Inactive"}
-                            </span>
-                          </div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex min-w-0 flex-1 items-start">
+                      <HelpCircle className="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">
+                          {question.questionText}
                         </div>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center space-x-1 ml-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleActive(question._id, question.isActive);
-                          }}
-                          className="h-8 w-8 p-0"
-                          title={
-                            question.isActive
-                              ? "Deactivate question"
-                              : "Activate question"
-                          }
-                        >
-                          {question.isActive ? (
-                            <PowerOff className="h-4 w-4 text-yellow-600" />
-                          ) : (
-                            <Power className="h-4 w-4 text-green-600" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRefreshQuestion(question._id);
-                          }}
-                          className="h-8 w-8 p-0"
-                          title="Refresh question messages"
-                          disabled={refreshingQuestionId === question._id}
-                        >
-                          <RefreshCw
-                            className={`h-4 w-4 text-blue-600 ${
-                              refreshingQuestionId === question._id
-                                ? "animate-spin"
-                                : ""
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {question.responseCount} responses
+                        </div>
+                        {teams.length > 0 && (
+                          <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+                            {question.teamId
+                              ? teamNameById[String(question.teamId)] || "Team"
+                              : "Organization-wide"}
+                          </div>
+                        )}
+                        <div className="mt-1.5 flex items-center">
+                          <span
+                            className={`mr-2 h-2 w-2 rounded-full ${
+                              question.isActive
+                                ? "bg-emerald-500"
+                                : "bg-muted-foreground/50"
                             }`}
                           />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteQuestion(question._id);
-                          }}
-                          className="h-8 w-8 p-0"
-                          title="Delete question"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {question.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </button>
-                ))}
 
-                {filteredQuestions.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <HelpCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm">No questions yet</p>
-                    <p className="text-xs">
-                      Create your first question to get started
-                    </p>
+                    <div className="ml-2 flex items-center space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleActive(question._id, question.isActive);
+                        }}
+                        className="h-8 w-8 p-0"
+                        title={
+                          question.isActive
+                            ? "Deactivate question"
+                            : "Activate question"
+                        }
+                      >
+                        {question.isActive ? (
+                          <PowerOff className="h-4 w-4 text-amber-500" />
+                        ) : (
+                          <Power className="h-4 w-4 text-emerald-500" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRefreshQuestion(question._id);
+                        }}
+                        className="h-8 w-8 p-0"
+                        title="Refresh question messages"
+                        disabled={refreshingQuestionId === question._id}
+                      >
+                        <RefreshCw
+                          className={`h-4 w-4 text-primary ${
+                            refreshingQuestionId === question._id
+                              ? "animate-spin"
+                              : ""
+                          }`}
+                        />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteQuestion(question._id);
+                        }}
+                        className="h-8 w-8 p-0"
+                        title="Delete question"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </div>
+                </button>
+              ))}
+
+              {filteredQuestions.length === 0 && (
+                <div className="py-10 text-center">
+                  <HelpCircle className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm text-foreground">No questions yet</p>
+                  <p className="text-xs text-muted-foreground">
+                    Create your first question to get started
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-6">
+        {/* Main content */}
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto max-w-3xl p-6 lg:p-8">
             {view === "general" ? (
               <div>
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                    General Messages
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                    General messages
                   </h2>
-                  <p className="text-gray-600">
-                    Messages sent to your general feedback link
+                  <p className="mt-1 text-muted-foreground">
+                    Messages sent to your organization&apos;s feedback link
                   </p>
                 </div>
 
-                {/* General link sharing */}
                 <Card className="mb-6">
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="font-medium">
-                          Your General Feedback Link
+                        <p className="font-medium text-foreground">
+                          Your feedback link
                         </p>
-                        <p className="text-sm text-gray-600">
-                          Share this link to collect general feedback
+                        <p className="text-sm text-muted-foreground">
+                          Share this link to collect anonymous feedback
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -475,17 +475,15 @@ export default function DashboardPage() {
                             toast.success("Link copied to clipboard!");
                           }}
                         >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Link
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy link
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            window.open(`/o/${orgSlug}`, "_blank");
-                          }}
+                          onClick={() => window.open(`/o/${orgSlug}`, "_blank")}
                         >
-                          <ExternalLink className="h-4 w-4 mr-2" />
+                          <ExternalLink className="mr-2 h-4 w-4" />
                           Preview
                         </Button>
                       </div>
@@ -493,7 +491,6 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
 
-                {/* Messages */}
                 <div className="space-y-4">
                   {generalMessages.map((message) => (
                     <MessageCard
@@ -504,12 +501,12 @@ export default function DashboardPage() {
                   ))}
 
                   {generalMessages.length === 0 && (
-                    <div className="text-center py-12">
-                      <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    <div className="rounded-2xl border border-dashed border-border py-16 text-center">
+                      <MessageSquare className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
+                      <h3 className="mb-1 text-lg font-medium text-foreground">
                         No messages yet
                       </h3>
-                      <p className="text-gray-600 mb-4">
+                      <p className="text-muted-foreground">
                         Share your link to start receiving feedback
                       </p>
                     </div>
@@ -519,41 +516,45 @@ export default function DashboardPage() {
             ) : selectedQuestion ? (
               <div>
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">
                     {selectedQuestion.questionText}
                   </h2>
                   {selectedQuestion.description && (
-                    <p className="text-gray-600 mb-4">
+                    <p className="mt-1 text-muted-foreground">
                       {selectedQuestion.description}
                     </p>
                   )}
-                  <div className="flex gap-4">
+                  <div className="mt-4 flex gap-3">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => copyQuestionLink(selectedQuestion.slug)}
                     >
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy Link
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy link
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        window.open(`/q/${selectedQuestion.slug}`, "_blank")
+                        window.open(
+                          orgSlug
+                            ? `/o/${orgSlug}/q/${selectedQuestion.slug}`
+                            : `/q/${selectedQuestion.slug}`,
+                          "_blank"
+                        )
                       }
                     >
-                      <ExternalLink className="h-4 w-4 mr-2" />
+                      <ExternalLink className="mr-2 h-4 w-4" />
                       Preview
                     </Button>
                   </div>
                 </div>
 
-                {/* Messages */}
                 <div className="space-y-4">
                   {messagesLoading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                    <div className="py-10 text-center">
+                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     </div>
                   ) : (
                     <>
@@ -566,12 +567,12 @@ export default function DashboardPage() {
                       ))}
 
                       {messages.length === 0 && (
-                        <div className="text-center py-12">
-                          <HelpCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                          <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        <div className="rounded-2xl border border-dashed border-border py-16 text-center">
+                          <HelpCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
+                          <h3 className="mb-1 text-lg font-medium text-foreground">
                             No responses yet
                           </h3>
-                          <p className="text-gray-600 mb-4">
+                          <p className="text-muted-foreground">
                             Share your question link to start collecting
                             responses
                           </p>
@@ -583,10 +584,9 @@ export default function DashboardPage() {
               </div>
             ) : null}
           </div>
-        </div>
+        </main>
       </div>
 
-      {/* Create Question Dialog */}
       <CreateQuestionDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}

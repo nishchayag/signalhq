@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SessionWrapper from "@/components/SessionWrapper";
+import ThemeProvider from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -45,7 +46,7 @@ export default function RootLayout({
   const softwareAppJsonLd = generateJsonLd({ type: "SoftwareApplication" });
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <Script
           id="json-ld-website"
@@ -100,11 +101,18 @@ export default function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-          <Navbar />
-          {children}
-          <Footer />
-          {/* Sonner Toast Notifications */}
-          <Toaster position="top-right" expand={true} richColors />
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <Navbar />
+            {children}
+            <Footer />
+            {/* Sonner Toast Notifications */}
+            <Toaster position="top-right" expand={true} richColors />
+          </ThemeProvider>
         </body>
       </SessionWrapper>
     </html>
