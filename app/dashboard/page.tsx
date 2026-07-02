@@ -27,8 +27,23 @@ import CreateQuestionDialog from "@/components/CreateQuestionDialog";
 import OrgSwitcher from "@/components/OrgSwitcher";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { can } from "@/lib/permissions";
 import type { MembershipRole } from "@/models/membership.model";
+
+interface ThreadEntry {
+  authorRole: "member" | "org";
+  content: string;
+  createdAt: string;
+}
+
+interface ThreadSummary {
+  _id: string;
+  content: string;
+  createdAt: string;
+  replies: ThreadEntry[];
+  authorUserId?: { _id: string; name: string; username: string } | null;
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -49,6 +64,11 @@ export default function DashboardPage() {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [isAcceptingMessages, setIsAcceptingMessages] = useState(true);
   const [acceptToggleLoading, setAcceptToggleLoading] = useState(false);
+  const [internalThreads, setInternalThreads] = useState<ThreadSummary[]>([]);
+  const [myThread, setMyThread] = useState<ThreadSummary | null>(null);
+  const [internalLoading, setInternalLoading] = useState(false);
+  const [answerDraft, setAnswerDraft] = useState("");
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
   const fetchAcceptingMessages = async () => {
     try {
@@ -151,16 +171,75 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchInternalQuestionData = async (
+    questionId: string,
+    viewAllReplies: boolean
+  ) => {
+    setInternalLoading(true);
+    try {
+      if (viewAllReplies) {
+        const res = await axios.get(`/api/questions/${questionId}/replies`);
+        if (res.data.success) setInternalThreads(res.data.threads);
+      } else {
+        const res = await axios.get(`/api/questions/${questionId}/answer`);
+        if (res.data.success) setMyThread(res.data.thread);
+      }
+    } catch (error) {
+      console.error("Error fetching internal question replies:", error);
+      toast.error("Failed to load replies");
+    } finally {
+      setInternalLoading(false);
+    }
+  };
+
   const handleQuestionSelect = (question: IQuestion) => {
     setSelectedQuestion(question);
     setView("question");
-    fetchQuestionMessages(question._id);
+    setInternalThreads([]);
+    setMyThread(null);
+    setAnswerDraft("");
+    if (question.visibility === "internal") {
+      fetchInternalQuestionData(
+        question._id,
+        can(
+          session?.user?.activeOrgRole as MembershipRole | undefined,
+          "question:viewAllReplies"
+        )
+      );
+    } else {
+      fetchQuestionMessages(question._id);
+    }
+  };
+
+  const handleSubmitAnswer = async () => {
+    if (!selectedQuestion || !answerDraft.trim()) return;
+    setSubmittingAnswer(true);
+    try {
+      const res = await axios.post(
+        `/api/questions/${selectedQuestion._id}/answer`,
+        { content: answerDraft.trim() }
+      );
+      if (res.data.success) {
+        setAnswerDraft("");
+        toast.success("Answer submitted");
+        fetchInternalQuestionData(selectedQuestion._id, false);
+      } else {
+        toast.error(res.data.message || "Failed to submit answer");
+      }
+    } catch (error) {
+      const msg = axios.isAxiosError(error) ? error.response?.data?.message : null;
+      toast.error(msg || "Failed to submit answer");
+    } finally {
+      setSubmittingAnswer(false);
+    }
   };
 
   const handleGeneralView = () => {
     setView("general");
     setSelectedQuestion(null);
     setMessages([]);
+    setInternalThreads([]);
+    setMyThread(null);
   };
 
   const orgSlug = session?.user?.activeOrgSlug;
@@ -200,6 +279,10 @@ export default function DashboardPage() {
   const canReply = can(
     session?.user?.activeOrgRole as MembershipRole | undefined,
     "message:reply"
+  );
+  const canViewAllReplies = can(
+    session?.user?.activeOrgRole as MembershipRole | undefined,
+    "question:viewAllReplies"
   );
 
   const handleQuestionCreated = (newQuestion: IQuestion) => {
@@ -428,8 +511,15 @@ export default function DashboardPage() {
                     <div className="flex min-w-0 flex-1 items-start">
                       <HelpCircle className="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-bold text-foreground">
-                          {question.questionText}
+                        <div className="flex items-center gap-1.5">
+                          <div className="truncate text-sm font-bold text-foreground">
+                            {question.questionText}
+                          </div>
+                          {question.visibility === "internal" && (
+                            <span className="shrink-0 rounded border border-ink bg-brand-blue/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-foreground">
+                              Internal
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1 text-xs font-medium text-muted-foreground">
                           {question.responseCount} responses
@@ -614,33 +704,135 @@ export default function DashboardPage() {
                       {selectedQuestion.description}
                     </p>
                   )}
-                  <div className="mt-4 flex gap-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyQuestionLink(selectedQuestion.slug)}
-                    >
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy link
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        window.open(
-                          orgSlug
-                            ? `/o/${orgSlug}/q/${selectedQuestion.slug}`
-                            : `/q/${selectedQuestion.slug}`,
-                          "_blank"
-                        )
-                      }
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Preview
-                    </Button>
-                  </div>
+                  {selectedQuestion.visibility !== "internal" && (
+                    <div className="mt-4 flex gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyQuestionLink(selectedQuestion.slug)}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy link
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          window.open(
+                            orgSlug
+                              ? `/o/${orgSlug}/q/${selectedQuestion.slug}`
+                              : `/q/${selectedQuestion.slug}`,
+                            "_blank"
+                          )
+                        }
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Preview
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
+                {selectedQuestion.visibility === "internal" ? (
+                  <div className="space-y-4">
+                    {internalLoading ? (
+                      <div className="py-10 text-center">
+                        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      </div>
+                    ) : canViewAllReplies ? (
+                      internalThreads.length === 0 ? (
+                        <div className="rounded-2xl border-2 border-dashed border-ink/40 py-16 text-center">
+                          <MessageSquare className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
+                          <h3 className="mb-1 text-lg font-bold text-foreground">
+                            No answers yet
+                          </h3>
+                          <p className="text-muted-foreground">
+                            Each team member&apos;s private thread will show up here
+                            once they answer.
+                          </p>
+                        </div>
+                      ) : (
+                        internalThreads.map((thread) => (
+                          <Card key={thread._id}>
+                            <CardContent className="p-4 flex items-center justify-between gap-4">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold text-foreground truncate">
+                                    {thread.authorUserId?.name || "Unknown member"}
+                                  </p>
+                                  <span className="text-xs text-muted-foreground">
+                                    @{thread.authorUserId?.username || "unknown"}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm text-muted-foreground truncate">
+                                  {thread.content}
+                                </p>
+                                {thread.replies.length > 0 && (
+                                  <p className="mt-1 text-xs text-muted-foreground/70">
+                                    {thread.replies.length} follow-up
+                                    {thread.replies.length === 1 ? "" : "s"}
+                                  </p>
+                                )}
+                              </div>
+                              <Link
+                                href={`/dashboard/questions/${selectedQuestion._id}/replies/${thread._id}`}
+                              >
+                                <Button variant="outline" size="sm">
+                                  View thread
+                                </Button>
+                              </Link>
+                            </CardContent>
+                          </Card>
+                        ))
+                      )
+                    ) : myThread ? (
+                      <Card>
+                        <CardContent className="p-4 flex items-center justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-foreground">Your answer</p>
+                            <p className="mt-1 text-sm text-muted-foreground truncate">
+                              {myThread.content}
+                            </p>
+                            {myThread.replies.length > 0 && (
+                              <p className="mt-1 text-xs text-muted-foreground/70">
+                                {myThread.replies.length} follow-up
+                                {myThread.replies.length === 1 ? "" : "s"}
+                              </p>
+                            )}
+                          </div>
+                          <Link
+                            href={`/dashboard/questions/${selectedQuestion._id}/replies/${myThread._id}`}
+                          >
+                            <Button variant="outline" size="sm">
+                              View thread
+                            </Button>
+                          </Link>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="rounded-2xl border-2 border-ink bg-card p-5 shadow-solid-sm">
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Your answer creates a private thread only you and the
+                          org&apos;s owner/admins can see.
+                        </p>
+                        <Textarea
+                          value={answerDraft}
+                          onChange={(e) => setAnswerDraft(e.target.value)}
+                          placeholder="Write your answer..."
+                          className="min-h-[100px] resize-none"
+                          disabled={submittingAnswer}
+                        />
+                        <Button
+                          className="mt-3"
+                          onClick={handleSubmitAnswer}
+                          disabled={submittingAnswer || !answerDraft.trim()}
+                        >
+                          {submittingAnswer ? "Submitting..." : "Submit answer"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
                 <div className="space-y-4">
                   {messagesLoading ? (
                     <div className="py-10 text-center">
@@ -673,6 +865,7 @@ export default function DashboardPage() {
                     </>
                   )}
                 </div>
+                )}
               </div>
             ) : null}
           </div>

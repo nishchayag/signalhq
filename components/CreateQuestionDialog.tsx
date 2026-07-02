@@ -50,6 +50,7 @@ export default function CreateQuestionDialog({
     reset,
   } = useForm<CreateQuestionRequest>({
     resolver: zodResolver(createQuestionSchema),
+    defaultValues: { visibility: "public" },
   });
 
   // Load the active org's teams when the dialog opens so the question can be
@@ -137,6 +138,21 @@ export default function CreateQuestionDialog({
                 {errors.description.message}
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="visibility">Who can answer</Label>
+            <select
+              id="visibility"
+              {...register("visibility")}
+              disabled={loading}
+              className="flex h-11 w-full rounded-lg border-2 border-ink bg-card px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="public">Public — anyone with the link can respond</option>
+              <option value="internal">
+                Internal — only your team can privately answer
+              </option>
+            </select>
           </div>
 
           {teams.length > 0 && (
