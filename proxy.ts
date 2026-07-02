@@ -29,9 +29,19 @@ const isPublicPage = (path: string) => {
 };
 
 export async function proxy(request: NextRequest) {
+  // Explicit, not inferred: getToken()'s default heuristic derives this from
+  // NEXTAUTH_URL starting with "https://" (falling back to `!!process.env
+  // .VERCEL` only when NEXTAUTH_URL is entirely unset) — a bare-domain
+  // NEXTAUTH_URL (no scheme) silently resolves to `false` and makes getToken
+  // look for the wrong cookie name, breaking auth in production. Base it on
+  // the actual request instead.
+  const secureCookie =
+    request.nextUrl.protocol === "https:" ||
+    request.headers.get("x-forwarded-proto") === "https";
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
+    secureCookie,
   });
   const currUrl = request.nextUrl.pathname;
   // Force login for protected pages.
