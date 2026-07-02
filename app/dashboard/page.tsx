@@ -50,15 +50,6 @@ export default function DashboardPage() {
   const [isAcceptingMessages, setIsAcceptingMessages] = useState(true);
   const [acceptToggleLoading, setAcceptToggleLoading] = useState(false);
 
-  useEffect(() => {
-    if (session) {
-      fetchQuestions();
-      fetchGeneralMessages();
-      fetchTeams();
-      fetchAcceptingMessages();
-    }
-  }, [session]);
-
   const fetchAcceptingMessages = async () => {
     try {
       const response = await axios.get("/api/acceptMessages");
@@ -131,6 +122,18 @@ export default function DashboardPage() {
       console.error("Error fetching general messages:", error);
     }
   };
+
+  useEffect(() => {
+    // Standard fetch-on-mount/session-change.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (session) {
+      fetchQuestions();
+      fetchGeneralMessages();
+      fetchTeams();
+      fetchAcceptingMessages();
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [session]);
 
   const fetchQuestionMessages = async (questionId: string) => {
     setMessagesLoading(true);

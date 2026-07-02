@@ -38,7 +38,7 @@ export default function VerificationEmail({
           </Section>
 
           <Text style={text}>
-            This code will expire in 5 minutes. If you didn't request this, you
+            This code will expire in 5 minutes. If you didn&apos;t request this, you
             can safely ignore this email.
           </Text>
 

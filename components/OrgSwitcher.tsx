@@ -43,6 +43,8 @@ export default function OrgSwitcher() {
   };
 
   useEffect(() => {
+    // Standard fetch-on-mount/session-change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (session) fetchOrgs();
   }, [session]);
 

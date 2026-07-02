@@ -14,6 +14,9 @@ export default function ThemeToggle({
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
+  // One-time hydration-safety flag, not a cascading update — no external
+  // system to subscribe to instead.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => setMounted(true), []);
 
   const isDark = resolvedTheme === "dark";

@@ -110,6 +110,8 @@ export default function OrganizationPage() {
   }, [orgId, role]);
 
   useEffect(() => {
+    // Standard fetch-on-mount/session-change; `load` is a stable useCallback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (session) load();
   }, [session, load]);
 
