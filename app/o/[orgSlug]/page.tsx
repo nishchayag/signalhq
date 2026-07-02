@@ -23,6 +23,10 @@ export default async function OrgPublicPage({ params }: PageProps) {
   const questions = await QuestionModel.find({
     organizationId: organization._id,
     isActive: true,
+    // Internal questions are never listed on the public page. `$ne` (not
+    // `visibility: "public"`) so pre-migration questions with no stored
+    // `visibility` field still show up — they default to public.
+    visibility: { $ne: "internal" },
   })
     .sort({ createdAt: -1 })
     .select("questionText slug")

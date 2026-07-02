@@ -1,5 +1,14 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export type MessageAuthorType = "anonymous" | "member";
+export type ThreadEntryAuthorRole = "member" | "org";
+
+export interface IThreadEntry {
+  authorRole: ThreadEntryAuthorRole;
+  content: string;
+  createdAt: Date;
+}
+
 export interface IMessage extends Document {
   content: string;
   createdAt: Date;
@@ -18,11 +27,21 @@ export interface IMessage extends Document {
   // doesn't fail validation on save.
   replyToken?: string;
   // Single reply from the recipient, if any — deliberately one reply per
-  // message, not an open thread.
+  // message, not an open thread. Still the only reply mechanism for
+  // anonymous (public-question) messages; untouched by member threading.
   reply?: {
     content: string;
     repliedAt: Date;
   };
+  // Identifies a member's private answer to an internal question. Absent
+  // (undefined) for every anonymous/public-question message — the default,
+  // pre-existing behavior. Set only via the internal-question answer flow.
+  authorType?: MessageAuthorType;
+  authorUserId?: mongoose.Types.ObjectId; // ref: User — set iff authorType === "member"
+  // Ordered thread continuation for a member's private answer: their own
+  // follow-ups (authorRole "member") interleaved with OWNER/ADMIN replies
+  // (authorRole "org"). `content` above is always the thread's first turn.
+  replies?: IThreadEntry[];
 }
 
 const messageSchema: Schema<IMessage> = new Schema({
@@ -74,6 +93,31 @@ const messageSchema: Schema<IMessage> = new Schema({
       },
       { _id: false }
     ),
+    required: false,
+  },
+  authorType: {
+    type: String,
+    enum: ["anonymous", "member"],
+    required: false,
+  },
+  authorUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: false,
+    index: true,
+  },
+  replies: {
+    type: [
+      new Schema(
+        {
+          authorRole: { type: String, enum: ["member", "org"], required: true },
+          content: { type: String, required: true },
+          createdAt: { type: Date, required: true, default: Date.now },
+        },
+        { _id: true }
+      ),
+    ],
+    default: [],
     required: false,
   },
 });

@@ -12,6 +12,9 @@ export const createQuestionSchema = z.object({
     .optional(),
   // Optional team to scope the question to (within the active org).
   teamId: z.string().optional(),
+  // "public" (default): anyone with the link can answer anonymously.
+  // "internal": only logged-in org members can answer, each privately.
+  visibility: z.enum(["public", "internal"]).optional(),
 });
 
 export const updateQuestionSchema = z.object({

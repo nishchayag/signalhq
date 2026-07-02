@@ -88,7 +88,15 @@ export async function GET(
     const authz = await loadAndAuthorize(questionId);
     if (!authz.ok) return authz.response;
 
-    const messages = await MessageModel.find({ questionId }).sort({
+    // Member-authored private threads (internal questions) are never
+    // returned here — this general endpoint is org-membership-gated only,
+    // not per-thread-owner-gated. They're only reachable through the
+    // dedicated question:answer / question:viewAllReplies routes, which
+    // enforce per-member thread privacy.
+    const messages = await MessageModel.find({
+      questionId,
+      authorType: { $ne: "member" },
+    }).sort({
       createdAt: -1,
     });
 

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { questionText, description, teamId } = result.data;
+    const { questionText, description, teamId, visibility } = result.data;
 
     // Validate the team (if any) belongs to this org.
     if (teamId) {
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       organizationId: ctx.organizationId,
       teamId: teamId || undefined,
       slug,
+      visibility: visibility || "public",
     });
 
     return NextResponse.json(
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
           slug: question.slug,
           isActive: question.isActive,
           teamId: question.teamId,
+          visibility: question.visibility,
           responseCount: question.responseCount,
           createdAt: question.createdAt,
         },
@@ -135,7 +137,7 @@ export async function GET() {
     const questions = await QuestionModel.find(filter)
       .sort({ createdAt: -1 })
       .select(
-        "questionText description slug isActive teamId responseCount createdAt"
+        "questionText description slug isActive teamId visibility responseCount createdAt"
       );
 
     return NextResponse.json({ success: true, questions }, { status: 200 });

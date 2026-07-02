@@ -17,7 +17,15 @@ export async function GET(
   try {
     const { slug } = await params;
 
-    const question = await QuestionModel.findOne({ slug, isActive: true })
+    // "internal" questions have no public access at all — treated as
+    // not-found here, same as an inactive question. `$ne: "internal"`
+    // (not `visibility: "public"`) so pre-migration questions with no
+    // `visibility` field stored yet still match — they default to public.
+    const question = await QuestionModel.findOne({
+      slug,
+      isActive: true,
+      visibility: { $ne: "internal" },
+    })
       .populate("userId", "username")
       .select("questionText description slug userId");
 
@@ -99,7 +107,11 @@ export async function POST(
       );
     }
 
-    const question = await QuestionModel.findOne({ slug, isActive: true });
+    const question = await QuestionModel.findOne({
+      slug,
+      isActive: true,
+      visibility: { $ne: "internal" },
+    });
 
     if (!question) {
       return NextResponse.json(

@@ -12,6 +12,16 @@ import type { MembershipRole } from "@/models/membership.model";
  * `message:reply` (replying to a message on behalf of the org, visible to
  * the anonymous sender) is OWNER/ADMIN only — it speaks for the org
  * externally, closer to an administrative action than to reading feedback.
+ * Also used for OWNER/ADMIN replying inside a member's private thread on an
+ * internal question — same "speaks for the org" framing.
+ *
+ * `question:answer` (privately answering an internal-visibility question)
+ * is available to every role, including MEMBER — unlike `message:reply`,
+ * answering doesn't speak for the org, it's the member's own private input.
+ *
+ * `question:viewAllReplies` (the "View replies" oversight page listing
+ * every member's private thread on a question) is OWNER/ADMIN only — a
+ * MEMBER only ever sees their own thread, never the full list.
  *
  * `org:billing` (switching the org's plan tier) is OWNER only — a financial
  * decision, same tier as org:rename/org:delete.
@@ -29,6 +39,8 @@ export type Permission =
   | "question:create"
   | "question:update"
   | "question:delete"
+  | "question:answer"
+  | "question:viewAllReplies"
   | "message:read"
   | "message:reply";
 
@@ -46,6 +58,8 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:create",
     "question:update",
     "question:delete",
+    "question:answer",
+    "question:viewAllReplies",
     "message:read",
     "message:reply",
   ],
@@ -59,10 +73,12 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:create",
     "question:update",
     "question:delete",
+    "question:answer",
+    "question:viewAllReplies",
     "message:read",
     "message:reply",
   ],
-  MEMBER: ["question:create", "message:read"],
+  MEMBER: ["question:create", "question:answer", "message:read"],
 };
 
 /** Does `role` grant `permission`? */

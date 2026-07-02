@@ -1,5 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+export type QuestionVisibility = "public" | "internal";
+
 export interface IQuestion extends Document {
   _id: string;
   questionText: string;
@@ -13,6 +15,11 @@ export interface IQuestion extends Document {
   // scoped to that team; when null it is an org-level question.
   teamId?: mongoose.Types.ObjectId;
   slug: string; // Unique identifier for the question URL
+  // "public" (default): anyone with the link can answer anonymously, as
+  // today. "internal": no public link access at all — only logged-in org
+  // members (team-scoped) can answer, and each member's answer is a private
+  // thread visible only to them + OWNER/ADMIN, not to other members.
+  visibility: QuestionVisibility;
   createdAt: Date;
   updatedAt: Date;
   responseCount: number;
@@ -55,6 +62,12 @@ const QuestionSchema: Schema<IQuestion> = new Schema(
       required: true,
       trim: true,
       lowercase: true,
+    },
+    visibility: {
+      type: String,
+      enum: ["public", "internal"],
+      default: "public",
+      required: true,
     },
     responseCount: {
       type: Number,
