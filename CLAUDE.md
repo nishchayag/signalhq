@@ -20,7 +20,8 @@ There is no test runner configured. `npm run lighthouse` and `npm run seo-check`
 
 ## Stack
 
-- **Next.js 15 App Router** (`app/`), **React 19**, **TypeScript** (strict), **Tailwind CSS v4** (via `@tailwindcss/postcss`, no `tailwind.config` — config is CSS-first in `app/globals.css`).
+- **Next.js 16 App Router** (`app/`, Turbopack by default for both `dev` and `build`), **React 19**, **TypeScript** (strict), **Tailwind CSS v4** (via `@tailwindcss/postcss`, no `tailwind.config` — config is CSS-first in `app/globals.css`).
+- `next-auth@4` declares a peer range that excludes Next 16 (stale package.json, not a real incompatibility — verified via live login/session/proxy testing). `.npmrc` sets `legacy-peer-deps=true` so `npm install` doesn't fail on it; don't remove that without re-verifying auth end-to-end.
 - **MongoDB via Mongoose**, **NextAuth** (credentials + JWT), **Resend** for transactional email, **Zod** + **react-hook-form** for validation, **shadcn/Radix UI** primitives in `components/ui/`, **sonner** for toasts.
 - Path alias: `@/*` maps to repo root (e.g. `@/lib/connectDB`, `@/models/user.model`).
 
@@ -50,7 +51,7 @@ There is no test runner configured. `npm run lighthouse` and `npm run seo-check`
 - Server-side: gate routes/pages with `getServerSession(authOptions)`, or for org-scoped API routes prefer `requireOrgAccess` (see above).
 - Note: `pages.signIn` is `/Login` but the actual route is `app/login/` — be careful with casing on redirects.
 
-### Middleware (`middleware.ts`)
+### Proxy (`proxy.ts`, renamed from `middleware.ts` in Next 16 — the exported function is `proxy`, not `middleware`; runtime is always `nodejs`, edge is no longer an option)
 - Redirects logged-out users away from protected pages to `/login`, and logged-in users away from `authPages` (`/`, `/login`, `/signup`, `/forgotPassword`, `/resetPassword`, `/verifyEmail`) to `/dashboard`.
 - Public without a session: `/u/*`, `/o/*`, `/q/*`, `/invite/*` (invite pages are also viewable while logged in — that's how an invitee accepts).
 

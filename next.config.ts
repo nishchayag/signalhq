@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    domains: ["i.pravatar.cc", "tse3.mm.bing.net"],
+    remotePatterns: [
+      { protocol: "https", hostname: "i.pravatar.cc" },
+      { protocol: "https", hostname: "tse3.mm.bing.net" },
+    ],
   },
 };
 

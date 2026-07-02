@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "analyze": "ANALYZE=true npm run build",
     "lighthouse": "lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html",
     "seo-check": "echo 'Run: npm run build && npm run start, then visit http://localhost:3000/sitemap.xml and http://localhost:3000/robots.txt'"
@@ -33,13 +33,13 @@
     "lucide-react": "^0.525.0",
     "mongoose": "^8.16.3",
     "nanoid": "^5.1.6",
-    "next": "15.3.5",
+    "next": "16.2.10",
     "next-auth": "^4.24.11",
     "next-themes": "^0.4.6",
     "obscenity": "^0.4.6",
     "openai": "^5.9.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "react-email": "^4.1.1",
     "react-hook-form": "^7.60.0",
     "react-icons": "^5.5.0",
@@ -50,15 +50,18 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.5",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3"
   }
 }
