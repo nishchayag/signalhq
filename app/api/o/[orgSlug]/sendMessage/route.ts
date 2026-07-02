@@ -3,6 +3,9 @@ import connectDB from "@/lib/connectDB";
 import OrganizationModel from "@/models/organization.model";
 import MessageModel from "@/models/message.model";
 import { questionResponseSchema } from "@/schemas/questionSchema";
+import { nanoid } from "nanoid";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/getClientIp";
 
 // POST /api/o/:orgSlug/sendMessage — anonymous general feedback to an org.
 export async function POST(
@@ -11,6 +14,18 @@ export async function POST(
 ) {
   await connectDB();
   try {
+    const ip = getClientIp(request);
+    const allowed = await checkRateLimit(`orgSendMessage:${ip}`, 5, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Too many messages sent from this location. Please try again in a few minutes.",
+        },
+        { status: 429 }
+      );
+    }
+
     const { orgSlug } = await params;
     const body = await request.json();
 
@@ -33,14 +48,16 @@ export async function POST(
 
     // `createdFor` is required and refs a User; org-level messages are owned by
     // the org (organizationId) and attributed to its creator for that field.
+    const replyToken = nanoid(32);
     await MessageModel.create({
       content: result.data.content,
       createdFor: organization.createdBy,
       organizationId: organization._id,
+      replyToken,
     });
 
     return NextResponse.json(
-      { success: true, message: "Message sent successfully" },
+      { success: true, message: "Message sent successfully", replyToken },
       { status: 201 }
     );
   } catch (error) {

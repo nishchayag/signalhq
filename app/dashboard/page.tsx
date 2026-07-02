@@ -23,6 +23,8 @@ import { IMessage } from "@/models/message.model";
 import MessageCard from "@/components/MessageCard";
 import CreateQuestionDialog from "@/components/CreateQuestionDialog";
 import OrgSwitcher from "@/components/OrgSwitcher";
+import { can } from "@/lib/permissions";
+import type { MembershipRole } from "@/models/membership.model";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -136,6 +138,26 @@ export default function DashboardPage() {
       setMessages(messages.filter((msg) => msg._id !== messageId));
     }
   };
+
+  const handleReplySaved = (
+    messageId: string,
+    reply: { content: string; repliedAt: string }
+  ) => {
+    const applyReply = (msgs: IMessage[]) =>
+      msgs.map((m) =>
+        m._id === messageId ? ({ ...m, reply } as unknown as IMessage) : m
+      );
+    if (view === "general") {
+      setGeneralMessages(applyReply(generalMessages));
+    } else {
+      setMessages(applyReply(messages));
+    }
+  };
+
+  const canReply = can(
+    session?.user?.activeOrgRole as MembershipRole | undefined,
+    "message:reply"
+  );
 
   const handleQuestionCreated = (newQuestion: IQuestion) => {
     setQuestions([newQuestion, ...questions]);
@@ -253,9 +275,9 @@ export default function DashboardPage() {
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="flex">
         {/* Sidebar */}
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 shrink-0 overflow-y-auto border-r border-border bg-card md:block">
-          <div className="border-b border-border p-5">
-            <h1 className="text-lg font-semibold tracking-tight text-foreground">
+        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 shrink-0 overflow-y-auto border-r-2 border-ink bg-card md:block">
+          <div className="border-b-2 border-ink p-5">
+            <h1 className="text-lg font-black tracking-tight text-foreground">
               Dashboard
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -264,11 +286,11 @@ export default function DashboardPage() {
           </div>
 
           {/* Organization switcher + management */}
-          <div className="space-y-2 border-b border-border p-4">
+          <div className="space-y-2 border-b-2 border-ink p-4">
             <OrgSwitcher />
             <Link
               href="/dashboard/organization"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
               Organization settings
@@ -279,17 +301,17 @@ export default function DashboardPage() {
             {/* General messages */}
             <button
               onClick={handleGeneralView}
-              className={`mb-6 w-full rounded-xl border p-3 text-left transition-colors ${
+              className={`mb-6 w-full rounded-xl border-2 p-3 text-left transition-colors ${
                 view === "general"
-                  ? "border-primary/20 bg-primary/10 text-primary"
-                  : "border-transparent hover:bg-accent"
+                  ? "border-ink bg-brand-yellow text-ink shadow-solid-sm"
+                  : "border-transparent hover:bg-secondary"
               }`}
             >
               <div className="flex items-center">
                 <MessageSquare className="mr-3 h-5 w-5" />
                 <div>
-                  <div className="font-medium">General messages</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="font-bold">General messages</div>
+                  <div className="text-xs font-medium opacity-80">
                     {generalMessages.length} messages
                   </div>
                 </div>
@@ -298,7 +320,7 @@ export default function DashboardPage() {
 
             {/* Questions */}
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
                 Questions
               </h2>
               <Button
@@ -315,7 +337,7 @@ export default function DashboardPage() {
               <select
                 value={teamFilter}
                 onChange={(e) => setTeamFilter(e.target.value)}
-                className="mb-3 w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mb-3 w-full rounded-lg border-2 border-ink bg-card px-2 py-1.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="all">All teams</option>
                 <option value="none">Organization-wide</option>
@@ -332,24 +354,24 @@ export default function DashboardPage() {
                 <button
                   key={question._id}
                   onClick={() => handleQuestionSelect(question)}
-                  className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                  className={`w-full rounded-xl border-2 p-3 text-left transition-colors ${
                     selectedQuestion?._id === question._id
-                      ? "border-primary/20 bg-primary/10"
-                      : "border-transparent hover:bg-accent"
+                      ? "border-ink bg-brand-mint shadow-solid-sm"
+                      : "border-transparent hover:bg-secondary"
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex min-w-0 flex-1 items-start">
                       <HelpCircle className="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-foreground">
+                        <div className="truncate text-sm font-bold text-foreground">
                           {question.questionText}
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
+                        <div className="mt-1 text-xs font-medium text-muted-foreground">
                           {question.responseCount} responses
                         </div>
                         {teams.length > 0 && (
-                          <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+                          <div className="mt-0.5 text-[10px] font-medium text-muted-foreground/70">
                             {question.teamId
                               ? teamNameById[String(question.teamId)] || "Team"
                               : "Organization-wide"}
@@ -357,13 +379,13 @@ export default function DashboardPage() {
                         )}
                         <div className="mt-1.5 flex items-center">
                           <span
-                            className={`mr-2 h-2 w-2 rounded-full ${
+                            className={`mr-2 h-2 w-2 rounded-full border border-ink ${
                               question.isActive
                                 ? "bg-emerald-500"
                                 : "bg-muted-foreground/50"
                             }`}
                           />
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs font-medium text-muted-foreground">
                             {question.isActive ? "Active" : "Inactive"}
                           </span>
                         </div>
@@ -428,9 +450,11 @@ export default function DashboardPage() {
               ))}
 
               {filteredQuestions.length === 0 && (
-                <div className="py-10 text-center">
+                <div className="rounded-xl border-2 border-dashed border-ink/40 py-10 text-center">
                   <HelpCircle className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-                  <p className="text-sm text-foreground">No questions yet</p>
+                  <p className="text-sm font-bold text-foreground">
+                    No questions yet
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Create your first question to get started
                   </p>
@@ -446,7 +470,7 @@ export default function DashboardPage() {
             {view === "general" ? (
               <div>
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                  <h2 className="text-2xl font-black tracking-tight text-foreground">
                     General messages
                   </h2>
                   <p className="mt-1 text-muted-foreground">
@@ -454,11 +478,11 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <Card className="mb-6">
+                <Card className="mb-6 bg-brand-blue/30">
                   <CardContent className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="font-medium text-foreground">
+                        <p className="font-bold text-foreground">
                           Your feedback link
                         </p>
                         <p className="text-sm text-muted-foreground">
@@ -497,13 +521,15 @@ export default function DashboardPage() {
                       key={message._id as string}
                       message={message}
                       onMessageDelete={handleDeleteMessage}
+                      canReply={canReply}
+                      onReplySaved={handleReplySaved}
                     />
                   ))}
 
                   {generalMessages.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-border py-16 text-center">
+                    <div className="rounded-2xl border-2 border-dashed border-ink/40 py-16 text-center">
                       <MessageSquare className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
-                      <h3 className="mb-1 text-lg font-medium text-foreground">
+                      <h3 className="mb-1 text-lg font-bold text-foreground">
                         No messages yet
                       </h3>
                       <p className="text-muted-foreground">
@@ -516,7 +542,7 @@ export default function DashboardPage() {
             ) : selectedQuestion ? (
               <div>
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                  <h2 className="text-2xl font-black tracking-tight text-foreground">
                     {selectedQuestion.questionText}
                   </h2>
                   {selectedQuestion.description && (
@@ -563,13 +589,15 @@ export default function DashboardPage() {
                           key={message._id as string}
                           message={message}
                           onMessageDelete={handleDeleteMessage}
+                          canReply={canReply}
+                          onReplySaved={handleReplySaved}
                         />
                       ))}
 
                       {messages.length === 0 && (
-                        <div className="rounded-2xl border border-dashed border-border py-16 text-center">
+                        <div className="rounded-2xl border-2 border-dashed border-ink/40 py-16 text-center">
                           <HelpCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
-                          <h3 className="mb-1 text-lg font-medium text-foreground">
+                          <h3 className="mb-1 text-lg font-bold text-foreground">
                             No responses yet
                           </h3>
                           <p className="text-muted-foreground">

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import axios from "axios";
 import { Loader2, Send } from "lucide-react";
+import ReplyReceiptCard from "@/components/ReplyReceiptCard";
 
 interface QuestionData {
   questionText: string;
@@ -29,7 +30,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
   const [question, setQuestion] = useState<QuestionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [replyToken, setReplyToken] = useState<string | null>(null);
 
   const {
     register,
@@ -66,13 +67,16 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
       if (response.data.success) {
         toast.success("Response submitted successfully!");
         reset();
-        setSubmitted(true);
+        setReplyToken(response.data.replyToken);
       } else {
         toast.error(response.data.message || "Failed to submit response");
       }
     } catch (error) {
       console.error("Error submitting response:", error);
-      toast.error("Failed to submit response");
+      const msg = axios.isAxiosError(error)
+        ? error.response?.data?.message
+        : null;
+      toast.error(msg || "Failed to submit response");
     } finally {
       setSubmitting(false);
     }
@@ -103,15 +107,15 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
     );
   }
 
-  if (submitted) {
+  if (replyToken) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-background px-4">
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-dot-grid px-4">
         <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 space-y-4">
             <div className="text-center">
-              <div className="w-12 h-12 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 border-2 border-ink bg-brand-mint rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
-                  className="w-6 h-6 text-emerald-500"
+                  className="w-6 h-6 text-ink"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -119,23 +123,24 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     d="M5 13l4 4L19 7"
                   />
                 </svg>
               </div>
-              <h2 className="text-xl font-semibold mb-2">Response Submitted!</h2>
+              <h2 className="text-xl font-black mb-2">Response Submitted!</h2>
               <p className="text-muted-foreground mb-4">
                 Your anonymous response has been sent.
               </p>
-              <Button
-                onClick={() => setSubmitted(false)}
-                variant="outline"
-                className="w-full"
-              >
-                Submit Another Response
-              </Button>
             </div>
+            <ReplyReceiptCard replyToken={replyToken} />
+            <Button
+              onClick={() => setReplyToken(null)}
+              variant="outline"
+              className="w-full"
+            >
+              Submit Another Response
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -143,10 +148,10 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background py-12 px-4">
+    <div className="min-h-[calc(100vh-4rem)] bg-dot-grid py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+          <h1 className="text-3xl font-black tracking-tight text-foreground mb-2">
             Anonymous Feedback
           </h1>
           <p className="text-muted-foreground">
@@ -156,7 +161,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl text-center">
+            <CardTitle className="text-xl text-center font-black">
               {question.questionText}
             </CardTitle>
             {question.description && (
@@ -201,8 +206,8 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
               </Button>
             </form>
 
-            <div className="mt-6 p-4 bg-muted/50 border border-border rounded-lg">
-              <h3 className="font-medium text-foreground mb-2">
+            <div className="mt-6 p-4 bg-brand-blue/25 border-2 border-ink rounded-lg">
+              <h3 className="font-bold text-foreground mb-2">
                 🔒 Your Privacy is Protected
               </h3>
               <ul className="text-sm text-muted-foreground space-y-1">

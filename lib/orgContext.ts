@@ -1,6 +1,9 @@
 import type { Session } from "next-auth";
 import mongoose from "mongoose";
-import OrganizationModel, { IOrganization } from "@/models/organization.model";
+import OrganizationModel, {
+  IOrganization,
+  OrganizationPlan,
+} from "@/models/organization.model";
 import MembershipModel, {
   IMembership,
   MembershipRole,
@@ -68,12 +71,19 @@ export async function resolveActiveContext(
 /**
  * Resolve the org fields to stamp onto a JWT. Used by the auth `jwt` callback
  * both at sign-in (no `desiredOrgId` → default/personal org) and when the org
- * switcher fires an update (`desiredOrgId` → validated switch).
+ * switcher fires an update (`desiredOrgId` → validated switch), as well as to
+ * refresh the currently active org's data in place (e.g. after a plan
+ * change) by passing the token's existing `activeOrgId` as `desiredOrgId`.
  */
 export async function getActiveOrgForToken(
   userId: string,
   desiredOrgId?: string
-): Promise<{ organizationId: string; slug: string; role: MembershipRole } | null> {
+): Promise<{
+  organizationId: string;
+  slug: string;
+  role: MembershipRole;
+  plan: OrganizationPlan;
+} | null> {
   let membership: IMembership | null = null;
   if (desiredOrgId) {
     membership = await MembershipModel.findOne({
@@ -89,7 +99,7 @@ export async function getActiveOrgForToken(
   if (!membership) return null;
 
   const org = await OrganizationModel.findById(membership.organizationId).select(
-    "slug"
+    "slug plan"
   );
   if (!org) return null;
 
@@ -97,6 +107,7 @@ export async function getActiveOrgForToken(
     organizationId: String(membership.organizationId),
     slug: org.slug,
     role: membership.role,
+    plan: org.plan,
   };
 }
 

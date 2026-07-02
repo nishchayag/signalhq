@@ -3,15 +3,31 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { User } from "next-auth";
-import { Menu, X, LayoutDashboard, LogOut, Radio } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut, Zap } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { PLAN_DISPLAY, type Plan } from "@/lib/plans";
+
+const PLAN_CHIP: Record<Plan, string> = {
+  FREE: "bg-brand-yellow",
+  PRO: "bg-brand-mint",
+  ENTERPRISE: "bg-brand-blue",
+};
+
+const PlanBadge = ({ plan }: { plan: Plan }) => (
+  <Link
+    href="/dashboard/organization"
+    className={`inline-flex items-center rounded-lg border-2 border-ink px-2.5 py-1 text-xs font-bold text-ink ${PLAN_CHIP[plan]}`}
+  >
+    {PLAN_DISPLAY[plan].name}
+  </Link>
+);
 
 const Logo = () => (
-  <Link href="/" className="flex items-center gap-2 group">
-    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-fuchsia-500 text-white shadow-sm">
-      <Radio className="h-4 w-4" />
+  <Link href="/" className="flex items-center gap-2.5 group">
+    <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-ink bg-brand-yellow text-ink shadow-solid-sm transition-transform group-hover:-translate-y-0.5">
+      <Zap className="h-4.5 w-4.5" strokeWidth={2.5} />
     </span>
-    <span className="text-lg font-semibold tracking-tight text-foreground">
+    <span className="text-xl font-black tracking-tight text-foreground">
       Signal<span className="text-primary">HQ</span>
     </span>
   </Link>
@@ -23,29 +39,38 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-border glass">
+    <nav className="sticky top-0 z-50 w-full border-b-2 border-ink bg-background">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
           <Logo />
 
           {/* Desktop */}
           <div className="hidden md:flex items-center gap-3">
+            <Link
+              href="/pricing"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
+            >
+              Pricing
+            </Link>
             <ThemeToggle />
             {session ? (
               <>
-                <span className="hidden lg:inline text-sm text-muted-foreground">
+                {session?.user?.activeOrgPlan && (
+                  <PlanBadge plan={session.user.activeOrgPlan} />
+                )}
+                <span className="hidden lg:inline text-sm font-medium text-muted-foreground">
                   {currUser?.name || currUser?.email}
                 </span>
                 <Link
                   href="/dashboard"
-                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
                 >
                   <LayoutDashboard className="h-4 w-4" />
                   Dashboard
                 </Link>
                 <button
                   onClick={() => signOut()}
-                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg border-2 border-ink bg-card px-3 py-2 text-sm font-semibold text-foreground pop"
                 >
                   <LogOut className="h-4 w-4" />
                   Log out
@@ -55,13 +80,13 @@ const Navbar = () => {
               <>
                 <Link
                   href="/login"
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
                 >
                   Log in
                 </Link>
                 <Link
                   href="/signup"
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+                  className="inline-flex items-center rounded-lg border-2 border-ink bg-primary px-4 py-2 text-sm font-bold text-primary-foreground pop"
                 >
                   Get started
                 </Link>
@@ -73,7 +98,7 @@ const Navbar = () => {
           <div className="flex md:hidden items-center gap-2">
             <ThemeToggle />
             <button
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 border-ink bg-card text-foreground pop"
               onClick={() => setIsOpen(!isOpen)}
               aria-label="Toggle menu"
             >
@@ -85,16 +110,28 @@ const Navbar = () => {
 
       {/* Mobile menu */}
       {isOpen && (
-        <div className="md:hidden border-t border-border bg-background px-6 py-4">
+        <div className="md:hidden border-t-2 border-ink bg-background px-6 py-4">
+          <Link
+            href="/pricing"
+            onClick={() => setIsOpen(false)}
+            className="mb-2 block rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
+          >
+            Pricing
+          </Link>
           {session ? (
             <div className="flex flex-col gap-2">
-              <span className="text-sm text-muted-foreground px-1">
-                {currUser?.name || currUser?.email}
-              </span>
+              <div className="flex items-center justify-between px-1">
+                <span className="text-sm font-medium text-muted-foreground">
+                  {currUser?.name || currUser?.email}
+                </span>
+                {session?.user?.activeOrgPlan && (
+                  <PlanBadge plan={session.user.activeOrgPlan} />
+                )}
+              </div>
               <Link
                 href="/dashboard"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
               >
                 <LayoutDashboard className="h-4 w-4" />
                 Dashboard
@@ -104,7 +141,7 @@ const Navbar = () => {
                   signOut();
                   setIsOpen(false);
                 }}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-2 rounded-lg border-2 border-ink bg-card px-3 py-2 text-sm font-semibold text-foreground"
               >
                 <LogOut className="h-4 w-4" />
                 Log out
@@ -115,14 +152,14 @@ const Navbar = () => {
               <Link
                 href="/login"
                 onClick={() => setIsOpen(false)}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
               >
                 Log in
               </Link>
               <Link
                 href="/signup"
                 onClick={() => setIsOpen(false)}
-                className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-primary-foreground"
+                className="rounded-lg border-2 border-ink bg-primary px-4 py-2.5 text-center text-sm font-bold text-primary-foreground"
               >
                 Get started
               </Link>

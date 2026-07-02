@@ -3,6 +3,9 @@ import connectDB from "@/lib/connectDB";
 import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
 import { questionResponseSchema } from "@/schemas/questionSchema";
+import { nanoid } from "nanoid";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/getClientIp";
 
 export async function GET(
   request: NextRequest,
@@ -59,6 +62,18 @@ export async function POST(
   await connectDB();
 
   try {
+    const ip = getClientIp(request);
+    const allowed = await checkRateLimit(`questionSubmit:${ip}`, 5, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Too many messages sent from this location. Please try again in a few minutes.",
+        },
+        { status: 429 }
+      );
+    }
+
     const { slug } = await params;
     const body = await request.json();
 
@@ -86,6 +101,7 @@ export async function POST(
 
     const { content } = result.data;
 
+    const replyToken = nanoid(32);
     const message = new MessageModel({
       content,
       createdFor: question.userId,
@@ -93,6 +109,7 @@ export async function POST(
       // Mirror the question's org/team onto the response for scoped reads.
       organizationId: question.organizationId,
       teamId: question.teamId,
+      replyToken,
     });
 
     await message.save();
@@ -106,6 +123,7 @@ export async function POST(
       {
         success: true,
         message: "Response submitted successfully",
+        replyToken,
       },
       { status: 201 }
     );

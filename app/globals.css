@@ -37,6 +37,11 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-mint: var(--brand-mint);
+  --color-brand-blue: var(--brand-blue);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -44,74 +49,88 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  /* Light theme — refined cool neutrals with a violet/indigo accent. */
-  --background: oklch(0.994 0.002 270);
-  --foreground: oklch(0.21 0.03 271);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.03 271);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.03 271);
-  --primary: oklch(0.55 0.214 277);
-  --primary-foreground: oklch(0.99 0.002 270);
-  --secondary: oklch(0.965 0.008 270);
-  --secondary-foreground: oklch(0.27 0.03 271);
-  --muted: oklch(0.967 0.007 270);
-  --muted-foreground: oklch(0.552 0.027 271);
-  --accent: oklch(0.955 0.022 277);
-  --accent-foreground: oklch(0.42 0.16 277);
+  --radius: 0.85rem;
+
+  /* Light theme — bold, warm, colorful SaaS. Cream paper background, ink-black
+     text/borders, one electric-violet brand color, plus a set of loud
+     secondary accents (yellow, pink, mint, blue) for feature/badge blocking. */
+  --background: oklch(0.975 0.014 84);
+  --foreground: oklch(0.19 0.024 45);
+  --ink: oklch(0.19 0.024 45);
+  --card: oklch(0.995 0.004 84);
+  --card-foreground: oklch(0.19 0.024 45);
+  --popover: oklch(0.995 0.004 84);
+  --popover-foreground: oklch(0.19 0.024 45);
+  --primary: oklch(0.5 0.232 281);
+  --primary-foreground: oklch(0.99 0.006 90);
+  --secondary: oklch(0.94 0.022 85);
+  --secondary-foreground: oklch(0.19 0.024 45);
+  --muted: oklch(0.94 0.018 85);
+  --muted-foreground: oklch(0.44 0.028 55);
+  --accent: oklch(0.87 0.16 97);
+  --accent-foreground: oklch(0.19 0.024 45);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0.01 271);
-  --input: oklch(0.922 0.01 271);
-  --ring: oklch(0.55 0.214 277);
-  --chart-1: oklch(0.55 0.214 277);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.99 0.003 270);
-  --sidebar-foreground: oklch(0.21 0.03 271);
-  --sidebar-primary: oklch(0.55 0.214 277);
-  --sidebar-primary-foreground: oklch(0.99 0.002 270);
-  --sidebar-accent: oklch(0.955 0.022 277);
-  --sidebar-accent-foreground: oklch(0.42 0.16 277);
-  --sidebar-border: oklch(0.922 0.01 271);
-  --sidebar-ring: oklch(0.55 0.214 277);
+  --border: oklch(0.19 0.024 45);
+  --input: oklch(0.19 0.024 45 / 55%);
+  --ring: oklch(0.5 0.232 281);
+  --brand-yellow: oklch(0.87 0.16 97);
+  --brand-pink: oklch(0.75 0.19 15);
+  --brand-mint: oklch(0.82 0.15 165);
+  --brand-blue: oklch(0.72 0.13 235);
+  --chart-1: oklch(0.5 0.232 281);
+  --chart-2: oklch(0.82 0.15 165);
+  --chart-3: oklch(0.72 0.13 235);
+  --chart-4: oklch(0.87 0.16 97);
+  --chart-5: oklch(0.75 0.19 15);
+  --sidebar: oklch(0.995 0.004 84);
+  --sidebar-foreground: oklch(0.19 0.024 45);
+  --sidebar-primary: oklch(0.5 0.232 281);
+  --sidebar-primary-foreground: oklch(0.99 0.006 90);
+  --sidebar-accent: oklch(0.87 0.16 97);
+  --sidebar-accent-foreground: oklch(0.19 0.024 45);
+  --sidebar-border: oklch(0.19 0.024 45);
+  --sidebar-ring: oklch(0.5 0.232 281);
 }
 
 .dark {
-  /* Dark theme — deep violet-black with a luminous indigo accent. */
-  --background: oklch(0.165 0.018 274);
-  --foreground: oklch(0.97 0.008 270);
-  --card: oklch(0.205 0.022 274);
-  --card-foreground: oklch(0.97 0.008 270);
-  --popover: oklch(0.205 0.022 274);
-  --popover-foreground: oklch(0.97 0.008 270);
-  --primary: oklch(0.66 0.196 277);
-  --primary-foreground: oklch(0.99 0.002 270);
-  --secondary: oklch(0.255 0.025 274);
-  --secondary-foreground: oklch(0.97 0.008 270);
-  --muted: oklch(0.245 0.022 274);
-  --muted-foreground: oklch(0.708 0.03 270);
-  --accent: oklch(0.295 0.04 277);
-  --accent-foreground: oklch(0.92 0.03 277);
+  /* Dark theme — deep ink background, off-white borders/text, same electric
+     violet brand color so the two modes stay recognizably the same product. */
+  --background: oklch(0.175 0.018 281);
+  --foreground: oklch(0.97 0.01 90);
+  --ink: oklch(0.97 0.01 90);
+  --card: oklch(0.225 0.022 281);
+  --card-foreground: oklch(0.97 0.01 90);
+  --popover: oklch(0.225 0.022 281);
+  --popover-foreground: oklch(0.97 0.01 90);
+  --primary: oklch(0.68 0.19 281);
+  --primary-foreground: oklch(0.14 0.02 281);
+  --secondary: oklch(0.28 0.026 281);
+  --secondary-foreground: oklch(0.97 0.01 90);
+  --muted: oklch(0.26 0.024 281);
+  --muted-foreground: oklch(0.72 0.03 90);
+  --accent: oklch(0.8 0.15 97);
+  --accent-foreground: oklch(0.16 0.02 281);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.66 0.196 277);
-  --chart-1: oklch(0.66 0.196 277);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.185 0.02 274);
-  --sidebar-foreground: oklch(0.97 0.008 270);
-  --sidebar-primary: oklch(0.66 0.196 277);
-  --sidebar-primary-foreground: oklch(0.99 0.002 270);
-  --sidebar-accent: oklch(0.295 0.04 277);
-  --sidebar-accent-foreground: oklch(0.92 0.03 277);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.66 0.196 277);
+  --border: oklch(0.97 0.01 90 / 35%);
+  --input: oklch(0.97 0.01 90 / 35%);
+  --ring: oklch(0.68 0.19 281);
+  --brand-yellow: oklch(0.8 0.15 97);
+  --brand-pink: oklch(0.7 0.18 15);
+  --brand-mint: oklch(0.75 0.14 165);
+  --brand-blue: oklch(0.68 0.12 235);
+  --chart-1: oklch(0.68 0.19 281);
+  --chart-2: oklch(0.75 0.14 165);
+  --chart-3: oklch(0.68 0.12 235);
+  --chart-4: oklch(0.8 0.15 97);
+  --chart-5: oklch(0.7 0.18 15);
+  --sidebar: oklch(0.2 0.02 281);
+  --sidebar-foreground: oklch(0.97 0.01 90);
+  --sidebar-primary: oklch(0.68 0.19 281);
+  --sidebar-primary-foreground: oklch(0.14 0.02 281);
+  --sidebar-accent: oklch(0.8 0.15 97);
+  --sidebar-accent-foreground: oklch(0.16 0.02 281);
+  --sidebar-border: oklch(0.97 0.01 90 / 20%);
+  --sidebar-ring: oklch(0.68 0.19 281);
 }
 
 @layer base {
@@ -127,35 +146,50 @@
 }
 
 @layer utilities {
-  /* Indigo→violet gradient text for hero headlines. */
-  .text-gradient {
-    background-image: linear-gradient(
-      100deg,
-      var(--color-primary),
-      oklch(0.66 0.2 312)
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  /* Hard, offset "sticker" shadow — the signature of the bold-SaaS look. */
+  .shadow-solid-sm {
+    box-shadow: 3px 3px 0 0 var(--color-ink);
   }
-  /* Translucent glass panel that adapts to the theme. */
-  .glass {
-    background-color: color-mix(in oklab, var(--color-card) 70%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+  .shadow-solid {
+    box-shadow: 5px 5px 0 0 var(--color-ink);
   }
-  /* Subtle dotted grid background for hero/section texture. */
-  .bg-grid {
+  .shadow-solid-lg {
+    box-shadow: 8px 8px 0 0 var(--color-ink);
+  }
+  .shadow-solid-primary {
+    box-shadow: 5px 5px 0 0 var(--color-primary);
+  }
+
+  /* Interactive "pop": lifts into its shadow on hover, flattens on press. */
+  .pop {
+    transition: transform 150ms ease, box-shadow 150ms ease;
+    box-shadow: 4px 4px 0 0 var(--color-ink);
+  }
+  .pop:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 0 var(--color-ink);
+  }
+  .pop:active {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 0 var(--color-ink);
+  }
+
+  /* Inline highlight block for hero/headline emphasis words. */
+  .highlight {
+    background-color: var(--color-accent);
+    color: var(--color-accent-foreground);
+    padding: 0.05em 0.35em;
+    border-radius: 0.4em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  /* Sparse dot-grid texture for section backgrounds. */
+  .bg-dot-grid {
     background-image: radial-gradient(
-      color-mix(in oklab, var(--color-foreground) 12%, transparent) 1px,
-      transparent 1px
+      color-mix(in oklab, var(--color-ink) 18%, transparent) 1.5px,
+      transparent 1.5px
     );
-    background-size: 22px 22px;
-  }
-  /* Soft accent glow for premium emphasis. */
-  .glow-primary {
-    box-shadow: 0 0 0 1px
-        color-mix(in oklab, var(--color-primary) 25%, transparent),
-      0 18px 50px -12px color-mix(in oklab, var(--color-primary) 45%, transparent);
+    background-size: 24px 24px;
   }
 }

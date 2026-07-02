@@ -8,10 +8,18 @@ import type { MembershipRole } from "@/models/membership.model";
  *  - ADMIN  : manage members (but not owners), full team & question control,
  *             read messages.
  *  - MEMBER : create and view questions, read messages.
+ *
+ * `message:reply` (replying to a message on behalf of the org, visible to
+ * the anonymous sender) is OWNER/ADMIN only — it speaks for the org
+ * externally, closer to an administrative action than to reading feedback.
+ *
+ * `org:billing` (switching the org's plan tier) is OWNER only — a financial
+ * decision, same tier as org:rename/org:delete.
  */
 export type Permission =
   | "org:rename"
   | "org:delete"
+  | "org:billing"
   | "member:invite"
   | "member:remove"
   | "member:role"
@@ -21,12 +29,14 @@ export type Permission =
   | "question:create"
   | "question:update"
   | "question:delete"
-  | "message:read";
+  | "message:read"
+  | "message:reply";
 
 const MATRIX: Record<MembershipRole, Permission[]> = {
   OWNER: [
     "org:rename",
     "org:delete",
+    "org:billing",
     "member:invite",
     "member:remove",
     "member:role",
@@ -37,6 +47,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:update",
     "question:delete",
     "message:read",
+    "message:reply",
   ],
   ADMIN: [
     "member:invite",
@@ -49,6 +60,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:update",
     "question:delete",
     "message:read",
+    "message:reply",
   ],
   MEMBER: ["question:create", "message:read"],
 };

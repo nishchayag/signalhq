@@ -13,6 +13,8 @@ import {
   Loader2,
   Copy,
   LogOut,
+  CreditCard,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,8 +29,9 @@ import {
 } from "@/components/ui/dialog";
 import { can } from "@/lib/permissions";
 import type { MembershipRole } from "@/models/membership.model";
+import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
 
-type Tab = "members" | "invitations" | "teams" | "settings";
+type Tab = "members" | "invitations" | "teams" | "settings" | "plan";
 
 interface Member {
   membershipId: string;
@@ -53,7 +56,7 @@ interface Team {
 }
 
 export default function OrganizationPage() {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
   const router = useRouter();
   const orgId = session?.user?.activeOrgId;
   const role = session?.user?.activeOrgRole as MembershipRole | undefined;
@@ -63,6 +66,8 @@ export default function OrganizationPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [plan, setPlan] = useState<Plan>("FREE");
+  const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Invite form
@@ -84,10 +89,12 @@ export default function OrganizationPage() {
     if (!orgId) return;
     setLoading(true);
     try {
-      const [m, t] = await Promise.all([
+      const [org, m, t] = await Promise.all([
+        axios.get(`/api/organizations/${orgId}`),
         axios.get(`/api/organizations/${orgId}/members`),
         axios.get(`/api/organizations/${orgId}/teams`),
       ]);
+      if (org.data.success) setPlan(org.data.organization.plan);
       if (m.data.success) setMembers(m.data.members);
       if (t.data.success) setTeams(t.data.teams);
       if (can(role, "member:invite")) {
@@ -265,6 +272,29 @@ export default function OrganizationPage() {
     }
   };
 
+  // ---- Plan ----
+  const switchPlan = async (newPlan: Plan) => {
+    setSwitchingPlan(newPlan);
+    try {
+      const res = await axios.patch(`/api/organizations/${orgId}/plan`, {
+        plan: newPlan,
+      });
+      if (res.data.success) {
+        toast.success(`Switched to ${PLAN_DISPLAY[newPlan].name}`);
+        setPlan(newPlan);
+        // Refresh the session so the navbar's plan badge updates immediately.
+        await update();
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (e) {
+      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
+      toast.error(msg || "Failed to switch plan");
+    } finally {
+      setSwitchingPlan(null);
+    }
+  };
+
   const leaveOrg = async () => {
     const self = members.find((m) => m.isSelf);
     if (!self) return;
@@ -287,6 +317,7 @@ export default function OrganizationPage() {
     { key: "members", label: "Members", icon: <Users className="h-4 w-4" /> },
     { key: "invitations", label: "Invitations", icon: <Mail className="h-4 w-4" /> },
     { key: "teams", label: "Teams", icon: <FolderKanban className="h-4 w-4" /> },
+    { key: "plan", label: "Plan", icon: <CreditCard className="h-4 w-4" /> },
     { key: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> },
   ];
 
@@ -294,7 +325,7 @@ export default function OrganizationPage() {
     <div className="min-h-[calc(100vh-4rem)] bg-background py-10 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
             Organization settings
           </h1>
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
@@ -303,12 +334,12 @@ export default function OrganizationPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b border-border">
+        <div className="flex gap-1 mb-6 border-b-2 border-ink">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-bold border-b-4 -mb-0.5 transition-colors ${
                 tab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -353,7 +384,7 @@ export default function OrganizationPage() {
                             onChange={(e) =>
                               changeRole(m, e.target.value as "ADMIN" | "MEMBER")
                             }
-                            className="text-sm border border-input bg-background text-foreground rounded-md px-2 py-1"
+                            className="text-sm border-2 border-ink bg-card text-foreground rounded-lg px-2 py-1 font-medium"
                           >
                             <option value="ADMIN">ADMIN</option>
                             <option value="MEMBER">MEMBER</option>
@@ -396,7 +427,7 @@ export default function OrganizationPage() {
                           onChange={(e) =>
                             setInviteRole(e.target.value as "ADMIN" | "MEMBER")
                           }
-                          className="text-sm border border-input bg-background text-foreground rounded-md px-2 py-2"
+                          className="text-sm border-2 border-ink bg-card text-foreground rounded-lg px-2 py-2 font-medium"
                         >
                           <option value="MEMBER">Member</option>
                           <option value="ADMIN">Admin</option>
@@ -404,7 +435,7 @@ export default function OrganizationPage() {
                         <select
                           value={inviteTeam}
                           onChange={(e) => setInviteTeam(e.target.value)}
-                          className="text-sm border border-input bg-background text-foreground rounded-md px-2 py-2"
+                          className="text-sm border-2 border-ink bg-card text-foreground rounded-lg px-2 py-2 font-medium"
                         >
                           <option value="">No team</option>
                           {teams.map((t) => (
@@ -518,6 +549,90 @@ export default function OrganizationPage() {
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {tab === "plan" && (
+              <div className="space-y-6">
+                <Card className="bg-brand-yellow/25">
+                  <CardContent className="p-4">
+                    <p className="font-bold text-foreground">
+                      All plans are free during early access
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      No credit card required. Pricing isn&apos;t decided yet —
+                      switch tiers freely to unlock more teams.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <p className="text-sm text-muted-foreground">
+                  Using {teams.length} of{" "}
+                  {PLAN_LIMITS[plan].maxTeams ?? "unlimited"} teams on the{" "}
+                  <span className="font-bold text-foreground">
+                    {PLAN_DISPLAY[plan].name}
+                  </span>{" "}
+                  plan.
+                </p>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {PLAN_ORDER.map((p) => {
+                    const isActive = p === plan;
+                    const limit = PLAN_LIMITS[p].maxTeams;
+                    return (
+                      <Card
+                        key={p}
+                        className={isActive ? "bg-brand-mint/25" : undefined}
+                      >
+                        <CardContent className="p-4 space-y-3">
+                          <div>
+                            <p className="font-black text-lg text-foreground">
+                              {PLAN_DISPLAY[p].name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {PLAN_DISPLAY[p].tagline}
+                            </p>
+                          </div>
+                          <p className="text-2xl font-black text-foreground">
+                            {p === "FREE" ? "Free" : "???"}
+                          </p>
+                          <ul className="space-y-1.5 text-sm text-foreground">
+                            {PLAN_DISPLAY[p].features.map((f) => (
+                              <li key={f} className="flex items-start gap-1.5">
+                                <Check className="h-4 w-4 shrink-0 text-primary" />
+                                {f}
+                              </li>
+                            ))}
+                          </ul>
+                          {isActive ? (
+                            <span className="inline-block rounded-lg border-2 border-ink bg-secondary px-3 py-1.5 text-sm font-bold text-foreground">
+                              Current plan
+                            </span>
+                          ) : can(role, "org:billing") ? (
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              disabled={switchingPlan !== null}
+                              onClick={() => switchPlan(p)}
+                            >
+                              {switchingPlan === p ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Switch to this plan"
+                              )}
+                            </Button>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              {limit !== null
+                                ? `Up to ${limit} teams`
+                                : "Unlimited teams"}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -698,12 +813,13 @@ function ManageTeamDialog({
             {allMembers.map((m) => (
               <label
                 key={m.userId}
-                className="flex items-center gap-2 px-2 py-2 rounded hover:bg-accent cursor-pointer"
+                className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-secondary cursor-pointer"
               >
                 <input
                   type="checkbox"
                   checked={selected.includes(m.userId)}
                   onChange={() => toggle(m.userId)}
+                  className="h-4 w-4 accent-primary"
                 />
                 <span className="text-sm">
                   {m.name}{" "}

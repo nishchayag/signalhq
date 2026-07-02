@@ -7,7 +7,7 @@ import InvitationEmail from "@/emailTemplates/invitationTemplate";
 import { NextResponse } from "next/server";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM = "SignalHQ <feedback-io@nishchayag.live>";
+const FROM = process.env.RESEND_FROM_EMAIL as string;
 
 export const sendEmail = async ({
   email,

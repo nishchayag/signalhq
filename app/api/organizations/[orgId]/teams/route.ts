@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import TeamModel from "@/models/team.model";
+import OrganizationModel from "@/models/organization.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { createTeamSchema } from "@/schemas/teamSchema";
 import { uniqueSlug } from "@/lib/slug";
+import { teamLimitReached, PLAN_LIMITS } from "@/lib/plans";
 
 // GET /api/organizations/:orgId/teams — list teams (any member).
 export async function GET(
@@ -37,6 +39,26 @@ export async function POST(
   const { orgId } = await params;
   const auth = await requireOrgAccess(orgId, "team:create");
   if (!auth.ok) return auth.response;
+
+  const organization = await OrganizationModel.findById(orgId).select("plan");
+  const currentTeamCount = await TeamModel.countDocuments({
+    organizationId: orgId,
+  });
+  if (
+    organization &&
+    teamLimitReached(organization.plan, currentTeamCount)
+  ) {
+    const limit = PLAN_LIMITS[organization.plan].maxTeams;
+    return NextResponse.json(
+      {
+        success: false,
+        message: `Your ${organization.plan} plan allows up to ${limit} team${
+          limit === 1 ? "" : "s"
+        }. Upgrade to create more.`,
+      },
+      { status: 403 }
+    );
+  }
 
   const body = await request.json();
   const result = createTeamSchema.safeParse(body);

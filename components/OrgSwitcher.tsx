@@ -96,11 +96,11 @@ export default function OrgSwitcher() {
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={switching}
-        className="w-full flex items-center justify-between gap-2 p-3 rounded-lg border border-border bg-background hover:bg-accent transition-colors"
+        className="w-full flex items-center justify-between gap-2 p-3 rounded-lg border-2 border-ink bg-card pop"
       >
         <span className="flex items-center gap-2 min-w-0">
           <Building2 className="h-4 w-4 flex-shrink-0 text-primary" />
-          <span className="truncate text-sm font-medium">
+          <span className="truncate text-sm font-bold">
             {switching ? "Switching..." : active?.name || "No organization"}
           </span>
         </span>
@@ -112,16 +112,16 @@ export default function OrgSwitcher() {
       </button>
 
       {open && !switching && (
-        <div className="absolute z-20 mt-1 w-full bg-popover text-popover-foreground border border-border rounded-lg shadow-lg py-1">
+        <div className="absolute z-20 mt-1.5 w-full bg-popover text-popover-foreground border-2 border-ink rounded-lg shadow-solid py-1">
           {orgs.map((o) => (
             <button
               key={o._id}
               onClick={() => switchOrg(o._id)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-accent"
+              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium hover:bg-secondary"
             >
               <span className="flex items-center gap-2 min-w-0">
                 <span className="truncate">{o.name}</span>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                   {o.role}
                 </span>
               </span>
@@ -130,13 +130,13 @@ export default function OrgSwitcher() {
               )}
             </button>
           ))}
-          <div className="border-t border-border mt-1 pt-1">
+          <div className="border-t-2 border-ink mt-1 pt-1">
             <button
               onClick={() => {
                 setOpen(false);
                 setShowCreate(true);
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-accent"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm font-bold text-primary hover:bg-secondary"
             >
               <Plus className="h-4 w-4" />
               New organization

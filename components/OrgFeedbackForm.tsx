@@ -6,12 +6,14 @@ import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send } from "lucide-react";
+import ReplyReceiptCard from "@/components/ReplyReceiptCard";
 
 type FormData = { content: string };
 
 // Anonymous general-feedback form for an organization's public page.
 export default function OrgFeedbackForm({ orgSlug }: { orgSlug: string }) {
   const [submitting, setSubmitting] = useState(false);
+  const [replyToken, setReplyToken] = useState<string | null>(null);
   const { register, handleSubmit, reset } = useForm<FormData>({
     defaultValues: { content: "" },
   });
@@ -29,16 +31,36 @@ export default function OrgFeedbackForm({ orgSlug }: { orgSlug: string }) {
       if (res.data.success) {
         toast.success("Message sent successfully");
         reset();
+        setReplyToken(res.data.replyToken);
       } else {
         toast.error(res.data.message || "Failed to send message");
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      toast.error("Failed to send message");
+      const msg = axios.isAxiosError(error)
+        ? error.response?.data?.message
+        : null;
+      toast.error(msg || "Failed to send message");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (replyToken) {
+    return (
+      <div className="space-y-4">
+        <ReplyReceiptCard replyToken={replyToken} />
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={() => setReplyToken(null)}
+        >
+          Send another message
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

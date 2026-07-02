@@ -91,17 +91,17 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden px-4 py-16">
-      <div className="absolute inset-0 bg-grid opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
-      <div className="absolute left-1/2 top-0 h-72 w-[600px] -translate-x-1/2 rounded-full bg-primary/20 blur-[100px]" />
-
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-xl text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-dot-grid px-4 py-16">
+      <div className="relative w-full max-w-md rounded-2xl border-2 border-ink bg-card p-8 shadow-solid-lg text-center">
+        <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-blue text-ink">
+          <span className="text-lg font-black">#</span>
+        </span>
+        <h1 className="text-2xl font-black tracking-tight text-foreground">
           Verify your email
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Enter the 6-digit code sent to{" "}
-          <span className="font-medium text-foreground">{email}</span>
+          <span className="font-semibold text-foreground">{email}</span>
         </p>
 
         <form
@@ -124,7 +124,7 @@ export default function VerifyEmailPage() {
                   ref={(el) => {
                     inputRefs.current[index] = el;
                   }}
-                  className="h-12 w-11 rounded-lg border border-input bg-background text-center text-xl font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:w-12"
+                  className="h-12 w-11 rounded-lg border-2 border-ink bg-card text-center text-xl font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:w-12"
                 />
               );
             })}
@@ -133,7 +133,7 @@ export default function VerifyEmailPage() {
           <button
             type="submit"
             disabled={loading || !isComplete}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-ink bg-primary py-2.5 text-sm font-bold text-primary-foreground pop disabled:opacity-50"
           >
             {loading ? "Verifying..." : "Verify email"}
           </button>
@@ -141,7 +141,7 @@ export default function VerifyEmailPage() {
 
         <p className="mt-6 text-xs text-muted-foreground">
           Signed up as{" "}
-          <span className="font-medium text-foreground">{username}</span>
+          <span className="font-semibold text-foreground">{username}</span>
         </p>
       </div>
     </div>

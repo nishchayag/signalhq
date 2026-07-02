@@ -20,7 +20,9 @@ const isPublicPage = (path: string) => {
     path.startsWith("/u/") ||
     path.startsWith("/o/") ||
     path.startsWith("/q/") ||
-    path.startsWith("/invite/");
+    path.startsWith("/r/") ||
+    path.startsWith("/invite/") ||
+    path === "/pricing";
   return authPages.includes(path) || isPublicFeedback;
 };
 

@@ -1,5 +1,6 @@
 import "next-auth";
 import type { MembershipRole } from "@/models/membership.model";
+import type { OrganizationPlan } from "@/models/organization.model";
 
 declare module "next-auth" {
   interface User {
@@ -22,6 +23,7 @@ declare module "next-auth" {
       activeOrgId?: string;
       activeOrgSlug?: string;
       activeOrgRole?: MembershipRole;
+      activeOrgPlan?: OrganizationPlan;
     } & DefaultSession["user"];
   }
 }
@@ -36,5 +38,6 @@ declare module "next-auth/jwt" {
     activeOrgId?: string;
     activeOrgSlug?: string;
     activeOrgRole?: MembershipRole;
+    activeOrgPlan?: OrganizationPlan;
   }
 }

@@ -16,5 +16,10 @@ export const renameOrganizationSchema = z.object({
     .trim(),
 });
 
+export const updatePlanSchema = z.object({
+  plan: z.enum(["FREE", "PRO", "ENTERPRISE"]),
+});
+
 export type CreateOrganizationRequest = z.infer<typeof createOrganizationSchema>;
 export type RenameOrganizationRequest = z.infer<typeof renameOrganizationSchema>;
+export type UpdatePlanRequest = z.infer<typeof updatePlanSchema>;

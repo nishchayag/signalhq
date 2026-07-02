@@ -53,16 +53,16 @@ const Page = () => {
   };
 
   const inputClass =
-    "w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition";
+    "w-full rounded-lg border-2 border-ink bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition";
 
   return (
-    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden px-4 py-16">
-      <div className="absolute inset-0 bg-grid opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
-      <div className="absolute left-1/2 top-0 h-72 w-[600px] -translate-x-1/2 rounded-full bg-primary/20 blur-[100px]" />
-
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-xl">
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-dot-grid px-4 py-16">
+      <div className="relative w-full max-w-md rounded-2xl border-2 border-ink bg-card p-8 shadow-solid-lg">
         <div className="mb-7 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-ink">
+            <LogIn className="h-5 w-5" strokeWidth={2.5} />
+          </span>
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
             Welcome back
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -74,7 +74,7 @@ const Page = () => {
           <div>
             <label
               htmlFor="identifier"
-              className="mb-1.5 block text-sm font-medium text-foreground"
+              className="mb-1.5 block text-sm font-semibold text-foreground"
             >
               Username or email
             </label>
@@ -90,7 +90,7 @@ const Page = () => {
           <div>
             <label
               htmlFor="password"
-              className="mb-1.5 block text-sm font-medium text-foreground"
+              className="mb-1.5 block text-sm font-semibold text-foreground"
             >
               Password
             </label>
@@ -118,7 +118,7 @@ const Page = () => {
             <div className="mt-2 text-right">
               <Link
                 href="/forgotPassword"
-                className="text-xs font-medium text-primary hover:underline"
+                className="text-xs font-bold text-primary hover:underline"
               >
                 Forgot password?
               </Link>
@@ -128,7 +128,7 @@ const Page = () => {
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-60"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-ink bg-primary py-2.5 text-sm font-bold text-primary-foreground pop disabled:opacity-60"
           >
             {loading ? (
               <>
@@ -146,7 +146,7 @@ const Page = () => {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-medium text-primary hover:underline">
+          <Link href="/signup" className="font-bold text-primary hover:underline">
             Sign up
           </Link>
         </p>

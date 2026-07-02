@@ -1,10 +1,17 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+export type OrganizationPlan = "FREE" | "PRO" | "ENTERPRISE";
+
 export interface IOrganization extends Document {
   _id: string;
   name: string;
   slug: string;
   createdBy: mongoose.Types.ObjectId;
+  // Billing tier. No payment processing exists yet — every plan is free to
+  // use during early access, but the feature limits per tier (see
+  // lib/plans.ts) are enforced now so the gating logic is already correct
+  // once pricing goes live.
+  plan: OrganizationPlan;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +36,12 @@ const OrganizationSchema: Schema<IOrganization> = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: [true, "Owner is required"],
+    },
+    plan: {
+      type: String,
+      enum: ["FREE", "PRO", "ENTERPRISE"],
+      default: "FREE",
+      required: true,
     },
   },
   {

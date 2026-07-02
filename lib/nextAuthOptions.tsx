@@ -72,20 +72,30 @@ const authOptions: AuthOptions = {
         token.activeOrgId = org?.organizationId;
         token.activeOrgSlug = org?.slug;
         token.activeOrgRole = org?.role;
+        token.activeOrgPlan = org?.plan;
       }
 
-      // Org switcher: client calls `update({ activeOrgId })`. Validate the
-      // membership server-side before trusting the requested org.
-      if (trigger === "update" && session?.activeOrgId && token._id) {
-        await connectDB();
-        const org = await getActiveOrgForToken(
-          token._id as string,
-          session.activeOrgId as string
-        );
-        if (org) {
-          token.activeOrgId = org.organizationId;
-          token.activeOrgSlug = org.slug;
-          token.activeOrgRole = org.role;
+      // Client calls `update({ activeOrgId })` to switch orgs, or a bare
+      // `update()` to refresh the currently active org's data in place (e.g.
+      // after switching plans, so the navbar badge updates without a full
+      // reload). Falls back to the token's current org when no explicit
+      // `activeOrgId` is requested. Always DB-validated.
+      if (trigger === "update" && token._id) {
+        const desiredOrgId =
+          (session?.activeOrgId as string | undefined) ??
+          (token.activeOrgId as string | undefined);
+        if (desiredOrgId) {
+          await connectDB();
+          const org = await getActiveOrgForToken(
+            token._id as string,
+            desiredOrgId
+          );
+          if (org) {
+            token.activeOrgId = org.organizationId;
+            token.activeOrgSlug = org.slug;
+            token.activeOrgRole = org.role;
+            token.activeOrgPlan = org.plan;
+          }
         }
       }
       return token;
@@ -100,6 +110,7 @@ const authOptions: AuthOptions = {
         session.user.activeOrgId = token.activeOrgId;
         session.user.activeOrgSlug = token.activeOrgSlug;
         session.user.activeOrgRole = token.activeOrgRole;
+        session.user.activeOrgPlan = token.activeOrgPlan;
       }
       return session;
     },

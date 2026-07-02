@@ -11,6 +11,18 @@ export interface IMessage extends Document {
   // Optional owning team, mirrored from the question it answers (if any) so
   // team-scoped reads don't need to join through Question.
   teamId?: mongoose.Types.ObjectId;
+  // Unguessable token letting the anonymous sender check for a reply later
+  // (e.g. /r/[replyToken]), with no account/session involved. Always set by
+  // every message-creation route going forward; optional at the schema level
+  // (not backfilled) so replying to a pre-existing message without one
+  // doesn't fail validation on save.
+  replyToken?: string;
+  // Single reply from the recipient, if any — deliberately one reply per
+  // message, not an open thread.
+  reply?: {
+    content: string;
+    repliedAt: Date;
+  };
 }
 
 const messageSchema: Schema<IMessage> = new Schema({
@@ -44,6 +56,25 @@ const messageSchema: Schema<IMessage> = new Schema({
     ref: "Team",
     required: false,
     index: true,
+  },
+  replyToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  // A true sub-schema (not a plain nested object) so `reply` itself stays
+  // `undefined` until a reply is actually saved — a plain nested object path
+  // would default every new document to `{}` (truthy, with undefined leaves)
+  // instead, breaking `if (message.reply)` checks everywhere.
+  reply: {
+    type: new Schema(
+      {
+        content: { type: String },
+        repliedAt: { type: Date },
+      },
+      { _id: false }
+    ),
+    required: false,
   },
 });
 

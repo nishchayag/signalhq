@@ -35,25 +35,26 @@ const faqs = [
 
 export default function FAQSection() {
   return (
-    <section className="relative border-t border-border bg-muted/30 py-24 px-6">
+    <section className="relative border-t-2 border-ink bg-secondary py-24 px-6">
       <div className="max-w-5xl mx-auto text-center">
-        <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-foreground">
+        <h2 className="text-3xl sm:text-4xl font-black mb-4 text-foreground">
           Frequently asked questions
         </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto mb-12 text-lg">
-          Find quick answers to the most common questions about using SignalHQ.
+          Find quick answers to the most common questions about using
+          SignalHQ.
         </p>
       </div>
 
-      <div className="max-w-3xl mx-auto rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+      <div className="max-w-3xl mx-auto rounded-2xl border-2 border-ink bg-card p-6 shadow-solid sm:p-8">
         <Accordion type="multiple" className="space-y-3">
           {faqs.map((faq, index) => (
             <AccordionItem
               key={index}
               value={`item-${index}`}
-              className="rounded-xl border border-border px-1 transition hover:border-primary/40"
+              className="rounded-xl border-2 border-ink px-1 last:border-b-2"
             >
-              <AccordionTrigger className="text-left text-base font-medium text-foreground px-3 py-4 flex items-center gap-2 hover:no-underline rounded-md">
+              <AccordionTrigger className="text-left text-base font-bold text-foreground px-3 py-4 flex items-center gap-2 hover:no-underline rounded-md">
                 {faq.icon}
                 {faq.question}
               </AccordionTrigger>

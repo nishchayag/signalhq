@@ -63,10 +63,8 @@ export default function AcceptInvitePage() {
   };
 
   const wrap = (children: React.ReactNode) => (
-    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-background px-4">
-      <div className="absolute inset-0 bg-grid opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
-      <div className="absolute left-1/2 top-1/4 -z-0 h-64 w-[500px] -translate-x-1/2 rounded-full bg-primary/15 blur-[100px]" />
-      <Card className="relative z-10 w-full max-w-md shadow-xl">{children}</Card>
+    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-dot-grid px-4">
+      <Card className="relative z-10 w-full max-w-md shadow-solid-lg">{children}</Card>
     </div>
   );
 
@@ -81,7 +79,7 @@ export default function AcceptInvitePage() {
   if (!info || !info.organization) {
     return wrap(
       <CardContent className="py-10 text-center">
-        <h2 className="text-xl font-semibold mb-2">Invitation not found</h2>
+        <h2 className="text-xl font-black mb-2">Invitation not found</h2>
         <p className="text-muted-foreground">
           This invitation link is invalid or no longer exists.
         </p>
@@ -92,7 +90,7 @@ export default function AcceptInvitePage() {
   if (!info.valid) {
     return wrap(
       <CardContent className="py-10 text-center">
-        <h2 className="text-xl font-semibold mb-2">
+        <h2 className="text-xl font-black mb-2">
           This invitation is {info.status.toLowerCase()}
         </h2>
         <p className="text-muted-foreground">
@@ -105,7 +103,10 @@ export default function AcceptInvitePage() {
   return wrap(
     <>
       <CardHeader>
-        <CardTitle className="text-center text-2xl">
+        <span className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-pink text-ink text-xl font-black">
+          {info.organization.name.charAt(0).toUpperCase()}
+        </span>
+        <CardTitle className="text-center text-2xl font-black">
           Join {info.organization.name}
         </CardTitle>
       </CardHeader>

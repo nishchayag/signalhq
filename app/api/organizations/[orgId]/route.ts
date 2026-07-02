@@ -19,7 +19,7 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const organization = await OrganizationModel.findById(orgId).select(
-    "name slug createdBy createdAt"
+    "name slug createdBy createdAt plan"
   );
   if (!organization) {
     return NextResponse.json(
