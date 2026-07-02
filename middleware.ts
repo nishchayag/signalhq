@@ -22,7 +22,9 @@ const isPublicPage = (path: string) => {
     path.startsWith("/q/") ||
     path.startsWith("/r/") ||
     path.startsWith("/invite/") ||
-    path === "/pricing";
+    path === "/pricing" ||
+    path === "/terms" ||
+    path === "/privacy";
   return authPages.includes(path) || isPublicFeedback;
 };
 
@@ -46,5 +48,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|api/).*)"],
+  matcher: [
+    "/((?!_next|favicon.ico|sitemap.xml|robots.txt|manifest.webmanifest|api/).*)",
+  ],
 };

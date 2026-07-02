@@ -29,7 +29,7 @@ const faqs = [
     icon: <Trash2 className="text-primary w-5 h-5 mr-2 shrink-0" />,
     question: "Can I report inappropriate messages?",
     answer:
-      "We're working on moderation features. For now, you can delete any message you find inappropriate from your dashboard.",
+      "We automatically block clearly abusive, hateful, or threatening language before it's ever sent to you. You can also delete any message you find inappropriate from your dashboard.",
   },
 ];
 

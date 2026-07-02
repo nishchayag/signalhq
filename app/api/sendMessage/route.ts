@@ -5,6 +5,8 @@ import connectDB from "@/lib/connectDB";
 import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
+import { getPersonalOrganizationId } from "@/lib/orgContext";
+import { moderateContent } from "@/lib/contentModeration";
 
 export async function POST(request: NextRequest) {
   await connectDB();
@@ -36,11 +38,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User is not accepting messages" });
     }
 
+    const moderation = moderateContent(content);
+    if (!moderation.allowed) {
+      return NextResponse.json(
+        { error: moderation.reason, success: false },
+        { status: 400 }
+      );
+    }
+
+    // Stamp the recipient's personal org so this shows up in their org-scoped
+    // dashboard (getMessages filters strictly by organizationId) — without
+    // this, messages sent through the legacy /u/[username] link are invisible
+    // there even though they're saved.
+    const organizationId = await getPersonalOrganizationId(user._id);
+
     const replyToken = nanoid(32);
     const newMessage = await messageModel.create({
       content,
       createdAt: new Date(),
       createdFor: user._id,
+      ...(organizationId && { organizationId }),
       replyToken,
     });
 

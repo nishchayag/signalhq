@@ -40,6 +40,18 @@ const Footer = () => {
             >
               Dashboard
             </Link>
+            <Link
+              href="/terms"
+              className="text-foreground hover:text-primary transition-colors"
+            >
+              Terms
+            </Link>
+            <Link
+              href="/privacy"
+              className="text-foreground hover:text-primary transition-colors"
+            >
+              Privacy
+            </Link>
           </nav>
         </div>
 

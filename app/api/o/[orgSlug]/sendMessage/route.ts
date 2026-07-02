@@ -6,6 +6,7 @@ import { questionResponseSchema } from "@/schemas/questionSchema";
 import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
+import { moderateContent } from "@/lib/contentModeration";
 
 // POST /api/o/:orgSlug/sendMessage — anonymous general feedback to an org.
 export async function POST(
@@ -34,6 +35,14 @@ export async function POST(
     if (!result.success) {
       return NextResponse.json(
         { success: false, message: "Invalid input", errors: result.error.format() },
+        { status: 400 }
+      );
+    }
+
+    const moderation = moderateContent(result.data.content);
+    if (!moderation.allowed) {
+      return NextResponse.json(
+        { success: false, message: moderation.reason },
         { status: 400 }
       );
     }

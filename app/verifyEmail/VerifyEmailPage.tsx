@@ -1,11 +1,10 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
 import axios from "axios";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-type OtpField = "otp1" | "otp2" | "otp3" | "otp4" | "otp5" | "otp6";
+import OtpInput from "@/components/OtpInput";
 
 export default function VerifyEmailPage() {
   const params = useSearchParams();
@@ -14,51 +13,34 @@ export default function VerifyEmailPage() {
   const callbackUrl = params.get("callbackUrl");
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
+  const isComplete = otp.every((val) => val.length === 1);
 
-  const { register, handleSubmit, setValue, getValues, watch } = useForm({
-    defaultValues: {
-      otp1: "",
-      otp2: "",
-      otp3: "",
-      otp4: "",
-      otp5: "",
-      otp6: "",
-    },
-  });
-
-  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const otpValues = watch(["otp1", "otp2", "otp3", "otp4", "otp5", "otp6"]);
-  const isComplete = otpValues.every((val) => val && val.length === 1);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    const value = e.target.value;
-    if (!/^\d?$/.test(value)) return;
-
-    const field: OtpField = `otp${index + 1}` as OtpField;
-    setValue(field, value);
-
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      const response = await axios.post("/api/auth/resendOtp", {
+        email,
+        username,
+      });
+      toast.success(response.data.message || "A new code has been sent");
+      setOtp(Array(6).fill(""));
+    } catch (error) {
+      const msg = axios.isAxiosError(error)
+        ? error.response?.data?.error
+        : null;
+      toast.error(msg || "Failed to resend code");
+    } finally {
+      setResending(false);
     }
   };
 
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    const field: OtpField = `otp${index + 1}` as OtpField;
-    if (e.key === "Backspace" && !getValues(field) && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const onSubmit = async (data: Record<OtpField, string>) => {
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
     try {
-      const otpCode = Object.values(data).join("");
+      const otpCode = otp.join("");
       const response = await axios.post("/api/auth/verifyEmail", {
         email,
         username,
@@ -105,30 +87,10 @@ export default function VerifyEmailPage() {
         </p>
 
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={onSubmit}
           className="mt-8 flex flex-col items-center gap-6"
         >
-          <div className="flex justify-center gap-2">
-            {[...Array(6)].map((_, index) => {
-              const field: OtpField = `otp${index + 1}` as OtpField;
-              return (
-                <input
-                  key={index}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  autoComplete="one-time-code"
-                  {...register(field, { required: true })}
-                  onChange={(e) => handleChange(e, index)}
-                  onKeyDown={(e) => handleKeyDown(e, index)}
-                  ref={(el) => {
-                    inputRefs.current[index] = el;
-                  }}
-                  className="h-12 w-11 rounded-lg border-2 border-ink bg-card text-center text-xl font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:w-12"
-                />
-              );
-            })}
-          </div>
+          <OtpInput value={otp} onChange={setOtp} />
 
           <button
             type="submit"
@@ -139,7 +101,19 @@ export default function VerifyEmailPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-xs text-muted-foreground">
+        <p className="mt-4 text-sm text-muted-foreground">
+          Didn&apos;t get a code?{" "}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending}
+            className="font-bold text-primary hover:underline disabled:opacity-50"
+          >
+            {resending ? "Sending..." : "Resend code"}
+          </button>
+        </p>
+
+        <p className="mt-4 text-xs text-muted-foreground">
           Signed up as{" "}
           <span className="font-semibold text-foreground">{username}</span>
         </p>

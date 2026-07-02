@@ -14,6 +14,7 @@ import {
   PowerOff,
   RefreshCw,
   Settings,
+  User,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -294,6 +295,13 @@ export default function DashboardPage() {
             >
               <Settings className="h-4 w-4" />
               Organization settings
+            </Link>
+            <Link
+              href="/dashboard/account"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <User className="h-4 w-4" />
+              Account settings
             </Link>
           </div>
 
