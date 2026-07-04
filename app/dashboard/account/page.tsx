@@ -4,9 +4,12 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { toast } from "sonner";
-import { Loader2, Trash2, User } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, Loader2, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import PlanBadge from "@/components/PlanBadge";
+import { PLAN_DISPLAY } from "@/lib/plans";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -23,6 +26,7 @@ import {
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
+  const activePlan = session?.user?.activeOrgPlan;
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -89,6 +93,28 @@ export default function AccountSettingsPage() {
                 <dd className="font-medium">{session?.user?.email}</dd>
               </div>
             </dl>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-bold text-foreground">Plan &amp; billing</h2>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {activePlan && <PlanBadge plan={activePlan} />}
+                <p className="text-sm text-muted-foreground">
+                  {activePlan
+                    ? PLAN_DISPLAY[activePlan].tagline
+                    : "Your current organization's plan"}
+                </p>
+              </div>
+              <Button asChild variant="outline">
+                <Link href="/pricing">View plans</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

@@ -5,22 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { User } from "next-auth";
 import { Menu, X, LayoutDashboard, LogOut, Zap } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import { PLAN_DISPLAY, type Plan } from "@/lib/plans";
-
-const PLAN_CHIP: Record<Plan, string> = {
-  FREE: "bg-brand-yellow",
-  PRO: "bg-brand-mint",
-  ENTERPRISE: "bg-brand-blue",
-};
-
-const PlanBadge = ({ plan }: { plan: Plan }) => (
-  <Link
-    href="/dashboard/organization"
-    className={`inline-flex items-center rounded-lg border-2 border-ink px-2.5 py-1 text-xs font-bold text-ink ${PLAN_CHIP[plan]}`}
-  >
-    {PLAN_DISPLAY[plan].name}
-  </Link>
-);
+import PlanBadge from "@/components/PlanBadge";
 
 const Logo = () => (
   <Link href="/" className="flex items-center gap-2.5 group">
@@ -46,12 +31,6 @@ const Navbar = () => {
 
           {/* Desktop */}
           <div className="hidden md:flex items-center gap-3">
-            <Link
-              href="/pricing"
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
-            >
-              Pricing
-            </Link>
             <ThemeToggle />
             {session ? (
               <>
@@ -78,6 +57,14 @@ const Navbar = () => {
               </>
             ) : (
               <>
+                {/* Marketing surface for visitors; logged-in users find plans
+                    under Account settings → Plan & billing. */}
+                <Link
+                  href="/pricing"
+                  className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
+                >
+                  Pricing
+                </Link>
                 <Link
                   href="/login"
                   className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
@@ -111,13 +98,6 @@ const Navbar = () => {
       {/* Mobile menu */}
       {isOpen && (
         <div className="md:hidden border-t-2 border-ink bg-background px-6 py-4">
-          <Link
-            href="/pricing"
-            onClick={() => setIsOpen(false)}
-            className="mb-2 block rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
-          >
-            Pricing
-          </Link>
           {session ? (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between px-1">
@@ -149,6 +129,13 @@ const Navbar = () => {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
+              <Link
+                href="/pricing"
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
+              >
+                Pricing
+              </Link>
               <Link
                 href="/login"
                 onClick={() => setIsOpen(false)}
