@@ -16,7 +16,13 @@ const Footer = () => {
             </p>
           </div>
 
-          <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold">
+          <nav className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm font-semibold">
+            <Link
+              href="/guide"
+              className="pop inline-flex items-center rounded-lg border-2 border-ink bg-brand-yellow px-3 py-1.5 text-ink"
+            >
+              User Guide
+            </Link>
             <Link
               href="/signup"
               className="text-foreground hover:text-primary transition-colors"

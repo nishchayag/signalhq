@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Accordion,
   AccordionContent,
@@ -71,6 +72,15 @@ export default function FAQSection() {
             </AccordionItem>
           ))}
         </Accordion>
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          New to SignalHQ?{" "}
+          <Link
+            href="/guide"
+            className="font-bold text-foreground underline underline-offset-2 transition-colors hover:text-primary"
+          >
+            Read the full User Guide
+          </Link>
+        </p>
       </div>
     </section>
   );

@@ -23,6 +23,8 @@ const isPublicPage = (path: string) => {
     path.startsWith("/r/") ||
     path.startsWith("/invite/") ||
     path === "/pricing" ||
+    // startsWith: also covers the guide's screenshot assets (/guide/*.png)
+    path.startsWith("/guide") ||
     path === "/terms" ||
     path === "/privacy";
   return authPages.includes(path) || isPublicFeedback;
