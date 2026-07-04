@@ -55,10 +55,17 @@ export default function FAQSection() {
               className="rounded-xl border-2 border-ink px-1 last:border-b-2"
             >
               <AccordionTrigger className="text-left text-base font-bold text-foreground px-3 py-4 flex items-center gap-2 hover:no-underline rounded-md">
-                {faq.icon}
-                {faq.question}
+                {/* Span keeps the icon out of reach of the trigger's
+                    [&[data-state=open]>svg] chevron rotation. */}
+                <span className="flex items-center">{faq.icon}</span>
+                {/* flex-1 keeps the question hugging the icon; without it the
+                    trigger's justify-between centers short questions. */}
+                <span className="flex-1">{faq.question}</span>
               </AccordionTrigger>
-              <AccordionContent className="px-3 pb-4 text-muted-foreground text-sm">
+              {/* Indented past where the question text starts (12px padding +
+                  28px icon block + 8px gap = 48px) so the answer reads like a
+                  reply; exact-aligned on mobile, a notch further on desktop. */}
+              <AccordionContent className="pl-12 sm:pl-14 pr-3 pb-4 text-muted-foreground text-sm">
                 {faq.answer}
               </AccordionContent>
             </AccordionItem>
