@@ -88,17 +88,8 @@ export function generateMetadata(pageSEO: PageSEO = {}): Metadata {
       statusBarStyle: "default",
     },
 
-    // Icons
-    icons: {
-      icon: [
-        { url: "/favicon.ico", sizes: "any" },
-        { url: "/icon-16.png", sizes: "16x16", type: "image/png" },
-        { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
-      ],
-      apple: [
-        { url: "/apple-icon-180.png", sizes: "180x180", type: "image/png" },
-      ],
-    },
+    // Icons come from the app/ file conventions (favicon.ico, icon.svg,
+    // apple-icon.png) — Next emits those link tags itself.
 
     // Verification (add your actual verification codes)
     verification: {

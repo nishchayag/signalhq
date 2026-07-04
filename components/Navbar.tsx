@@ -3,20 +3,10 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { User } from "next-auth";
-import { Menu, X, LayoutDashboard, LogOut, Zap } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import PlanBadge from "@/components/PlanBadge";
-
-const Logo = () => (
-  <Link href="/" className="flex items-center gap-2.5 group">
-    <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-ink bg-brand-yellow text-ink shadow-solid-sm transition-transform group-hover:-translate-y-0.5">
-      <Zap className="h-4.5 w-4.5" strokeWidth={2.5} />
-    </span>
-    <span className="text-xl font-black tracking-tight text-foreground">
-      Signal<span className="text-primary">HQ</span>
-    </span>
-  </Link>
-);
+import Logo from "@/components/Logo";
 
 const Navbar = () => {
   const { data: session } = useSession();
@@ -27,7 +17,9 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 w-full border-b-2 border-ink bg-background">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 items-center justify-between">
-          <Logo />
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <Logo markClassName="h-10 w-10 transition-transform group-hover:-translate-y-0.5" />
+          </Link>
 
           {/* Desktop */}
           <div className="hidden md:flex items-center gap-3">

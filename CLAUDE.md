@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Anonymous feedback platform (package name `anonymous-feedback`, branded **Feedbacker.io**, repo **SignalHQ**). Users sign up, get a shareable link, and receive anonymous messages — optionally tied to specific feedback "questions". The app is mid-migration from single-user ownership to a multi-tenant Organization/Team model (see below).
+Anonymous feedback platform (package name `anonymous-feedback`, branded **SignalHQ**, repo also **SignalHQ**). Users sign up, get a shareable link, and receive anonymous messages — optionally tied to specific feedback "questions". The app is mid-migration from single-user ownership to a multi-tenant Organization/Team model (see below).
 
 ## Commands
 

@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Turn honest, anonymous feedback into signal for your team — collected through simple shareable links.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#4f46e5",
+    background_color: "#f9f7f1",
+    theme_color: "#573de0",
     orientation: "portrait",
     icons: [
       {

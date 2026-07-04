@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Zap } from "lucide-react";
+import Logo from "@/components/Logo";
 
 const Footer = () => {
   return (
@@ -9,12 +9,7 @@ const Footer = () => {
         <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
           <div className="max-w-sm">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-ink bg-brand-yellow text-ink shadow-solid-sm">
-                <Zap className="h-4.5 w-4.5" strokeWidth={2.5} />
-              </span>
-              <span className="text-xl font-black tracking-tight text-foreground">
-                Signal<span className="text-primary">HQ</span>
-              </span>
+              <Logo markClassName="h-10 w-10" />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
               Turn honest, anonymous feedback into signal for your team.
