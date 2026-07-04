@@ -30,8 +30,11 @@ const authOptions: AuthOptions = {
         }
         await connectDB();
         try {
+          // Usernames/emails are stored lowercase; normalize so "Abc"
+          // logs in as "abc".
+          const normalized = identifier.trim().toLowerCase();
           const userInDB = await userModel.findOne({
-            $or: [{ email: identifier }, { username: identifier }],
+            $or: [{ email: normalized }, { username: normalized }],
           });
           if (!userInDB) {
             throw new Error("No user found with the provided email/username");

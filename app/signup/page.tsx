@@ -32,6 +32,9 @@ const Page = () => {
       confirmPassword: "",
     },
   });
+  // Registered once so the custom onChange below can forward to it (the
+  // inline minLength rule is redundant with the zod resolver anyway).
+  const usernameField = register("username");
 
   useEffect(() => {
     const checkUsernameUnique = async () => {
@@ -163,8 +166,16 @@ const Page = () => {
             <input
               type="text"
               id="username"
-              {...register("username", { minLength: 4 })}
-              onChange={(e) => setUsername(e.target.value)}
+              {...usernameField}
+              onChange={(e) => {
+                // Usernames are lowercase-unique; lowering as the user types
+                // beats rejecting "Abc" at submit. Forward to react-hook-form's
+                // onChange (which this prop otherwise replaces) so the form
+                // state stays in sync.
+                e.target.value = e.target.value.toLowerCase();
+                usernameField.onChange(e);
+                setUsername(e.target.value);
+              }}
               className={inputClass}
               placeholder="yourhandle"
             />

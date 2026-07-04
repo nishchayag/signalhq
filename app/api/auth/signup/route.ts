@@ -8,7 +8,12 @@ import { createPersonalOrganization } from "@/lib/orgContext";
 export async function POST(request: NextRequest) {
   await connectDB();
   try {
-    const { email, password, username, name } = await request.json();
+    const body = await request.json();
+    const { password, name } = body;
+    // Stored lowercase (lowercase-unique), so normalize before the
+    // existence checks too — "Abc" must collide with "abc".
+    const email = body.email?.toLowerCase();
+    const username = body.username?.toLowerCase();
     if (!email || !password || !username || !name) {
       return NextResponse.json({ error: "All fields are required" });
     }

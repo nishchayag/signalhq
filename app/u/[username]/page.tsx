@@ -13,7 +13,10 @@ export default async function LegacyUserPage({ params }: PageProps) {
   const { username } = await params;
   await connectDB();
 
-  const user = await UserModel.findOne({ username }).select("_id");
+  // Usernames are stored lowercase; old links like /u/Aditya must still work.
+  const user = await UserModel.findOne({
+    username: username.toLowerCase(),
+  }).select("_id");
   if (!user) notFound();
 
   // The personal org is the oldest org created by this user (from the backfill).

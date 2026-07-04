@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and content are required" });
     }
     const user = await UserModel.findOne({
-      $or: [{ username }, { email }],
+      $or: [
+        { username: username?.toLowerCase() },
+        { email: email?.toLowerCase() },
+      ],
     });
     if (!user) {
       return NextResponse.json({ error: "User not found" });

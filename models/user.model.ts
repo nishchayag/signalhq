@@ -1,4 +1,3 @@
-import { match } from "assert";
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
@@ -13,6 +12,7 @@ const userSchema = new mongoose.Schema({
     required: [true, "Username is required"],
     unique: true,
     trim: true,
+    lowercase: true,
   },
   password: {
     type: String,
@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
     required: [true, "Email is required"],
     unique: true,
     trim: true,
+    lowercase: true,
     match: [
       /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
       "Please enter a valid email address",
