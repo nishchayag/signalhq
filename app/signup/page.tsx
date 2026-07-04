@@ -98,16 +98,6 @@ const Page = () => {
   const handleSubmitForm = async (data: z.infer<typeof signupSchema>) => {
     setLoading(true);
     try {
-      if (
-        !data.password.match(
-          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/
-        )
-      ) {
-        toast.error(
-          "Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character."
-        );
-        return;
-      }
       if (data.password !== data.confirmPassword) {
         toast.error("Password and Confirm Password do not match.");
         return;
