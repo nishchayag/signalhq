@@ -9,6 +9,7 @@ import { Loader2, Send, User, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
+import { PageLoader } from "@/components/Loader";
 
 interface ThreadEntry {
   _id?: string;
@@ -84,11 +85,7 @@ export default function ThreadPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!thread) {

@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { can } from "@/lib/permissions";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
+import { PageLoader } from "@/components/Loader";
 import type { MembershipRole } from "@/models/membership.model";
 
 interface ThreadEntry {
@@ -398,9 +399,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
+      <PageLoader label="Loading your dashboard…" />
     );
   }
 

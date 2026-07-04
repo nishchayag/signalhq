@@ -5,8 +5,9 @@ import Link from "next/link";
 import axios from "axios";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { MessageSquare, Loader2, ChevronRight } from "lucide-react";
+import { MessageSquare, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Loader from "@/components/Loader";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface ThreadEntry {
@@ -78,7 +79,7 @@ export default function QuestionRepliesPage() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <Loader size="sm" />
           </div>
         ) : threads.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-ink/40 py-16 text-center">

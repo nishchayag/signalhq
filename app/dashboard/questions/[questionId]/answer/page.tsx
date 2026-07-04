@@ -7,6 +7,7 @@ import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
+import { PageLoader } from "@/components/Loader";
 
 // Entry point for a member answering an internal question: resolves their
 // own thread if it already exists (redirecting straight to it), or lets
@@ -66,11 +67,7 @@ export default function AnswerQuestionPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

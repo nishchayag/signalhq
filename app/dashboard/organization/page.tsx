@@ -17,6 +17,7 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Loader from "@/components/Loader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -355,7 +356,7 @@ export default function OrganizationPage() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <Loader size="sm" />
           </div>
         ) : (
           <>

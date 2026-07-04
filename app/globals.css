@@ -192,4 +192,28 @@
     );
     background-size: 24px 24px;
   }
+
+  /* Looping press of the .pop interaction — the branded loading animation
+     (see components/Loader.tsx): the chip pushes into its sticker shadow
+     and springs back. */
+  .animate-pop-press {
+    animation: pop-press 0.8s ease-in-out infinite;
+  }
+  @keyframes pop-press {
+    0%,
+    100% {
+      transform: translate(0, 0);
+      box-shadow: 4px 4px 0 0 var(--color-ink);
+    }
+    50% {
+      transform: translate(3px, 3px);
+      box-shadow: 1px 1px 0 0 var(--color-ink);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pop-press {
+      animation: none;
+      box-shadow: 4px 4px 0 0 var(--color-ink);
+    }
+  }
 }

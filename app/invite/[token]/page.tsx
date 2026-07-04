@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import Loader from "@/components/Loader";
 
 interface InviteInfo {
   email: string;
@@ -71,7 +72,7 @@ export default function AcceptInvitePage() {
   if (loading || status === "loading") {
     return wrap(
       <CardContent className="py-12 flex justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <Loader size="sm" label={null} />
       </CardContent>
     );
   }
