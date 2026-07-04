@@ -194,6 +194,12 @@ export default function DashboardPage() {
   };
 
   const handleQuestionSelect = (question: IQuestion) => {
+    // Clicking the already-selected question unselects it, returning to the
+    // general view (feedback link + general messages).
+    if (selectedQuestion?._id === question._id) {
+      handleGeneralView();
+      return;
+    }
     setSelectedQuestion(question);
     setView("question");
     setInternalThreads([]);
