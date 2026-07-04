@@ -1,4 +1,4 @@
-import "next-auth";
+import type { DefaultSession } from "next-auth";
 import type { MembershipRole } from "@/models/membership.model";
 import type { OrganizationPlan } from "@/models/organization.model";
 
