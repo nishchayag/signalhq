@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Loader2, Send, User, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 
 interface ThreadEntry {
   _id?: string;
@@ -161,12 +162,14 @@ export default function ThreadPage() {
           <Textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
+            onKeyDown={enterToSendWith(handleSend)}
             placeholder={
               isThreadOwner ? "Add a follow-up..." : "Reply to this member..."
             }
             className="min-h-[100px] resize-none"
             disabled={sending}
           />
+          <p className="text-xs text-muted-foreground">{enterToSendHint}</p>
           <Button onClick={handleSend} disabled={sending || !reply.trim()}>
             {sending ? (
               <>

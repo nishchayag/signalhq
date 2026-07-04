@@ -3,6 +3,7 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { enterToSend } from "@/lib/enterToSend";
 import { X, Reply as ReplyIcon, Loader2 } from "lucide-react";
 import {
   AlertDialog,
@@ -217,6 +218,7 @@ const MessageCard = ({
             <div className="space-y-2">
               <Textarea
                 {...register("content")}
+                onKeyDown={enterToSend}
                 placeholder="Write a reply the sender will see via their link..."
                 className="min-h-[100px] resize-none"
                 disabled={replying}

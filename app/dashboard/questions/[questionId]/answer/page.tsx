@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 
 // Entry point for a member answering an internal question: resolves their
 // own thread if it already exists (redirecting straight to it), or lets
@@ -96,10 +97,12 @@ export default function AnswerQuestionPage() {
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
+            onKeyDown={enterToSendWith(handleSubmit)}
             placeholder="Write your answer..."
             className="min-h-[120px] resize-none"
             disabled={submitting}
           />
+          <p className="text-xs text-muted-foreground">{enterToSendHint}</p>
           <Button onClick={handleSubmit} disabled={submitting || !content.trim()}>
             {submitting ? (
               <>

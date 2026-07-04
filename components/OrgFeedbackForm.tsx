@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send } from "lucide-react";
 import ReplyReceiptCard from "@/components/ReplyReceiptCard";
+import { enterToSend, enterToSendHint } from "@/lib/enterToSend";
 
 type FormData = { content: string };
 
@@ -64,12 +65,16 @@ export default function OrgFeedbackForm({ orgSlug }: { orgSlug: string }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <Textarea
-        {...register("content")}
-        placeholder="Share your anonymous feedback..."
-        className="min-h-[120px] resize-none"
-        disabled={submitting}
-      />
+      <div>
+        <Textarea
+          {...register("content")}
+          onKeyDown={enterToSend}
+          placeholder="Share your anonymous feedback..."
+          className="min-h-[120px] resize-none"
+          disabled={submitting}
+        />
+        <p className="text-xs text-muted-foreground mt-1">{enterToSendHint}</p>
+      </div>
       <Button type="submit" disabled={submitting} className="w-full" size="lg">
         {submitting ? (
           <>

@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { can } from "@/lib/permissions";
+import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import type { MembershipRole } from "@/models/membership.model";
 
 interface ThreadEntry {
@@ -818,10 +819,14 @@ export default function DashboardPage() {
                         <Textarea
                           value={answerDraft}
                           onChange={(e) => setAnswerDraft(e.target.value)}
+                          onKeyDown={enterToSendWith(handleSubmitAnswer)}
                           placeholder="Write your answer..."
                           className="min-h-[100px] resize-none"
                           disabled={submittingAnswer}
                         />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {enterToSendHint}
+                        </p>
                         <Button
                           className="mt-3"
                           onClick={handleSubmitAnswer}

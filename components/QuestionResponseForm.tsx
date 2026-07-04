@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import { Loader2, Send } from "lucide-react";
 import ReplyReceiptCard from "@/components/ReplyReceiptCard";
+import { enterToSend, enterToSendHint } from "@/lib/enterToSend";
 
 interface QuestionData {
   questionText: string;
@@ -175,6 +176,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
               <div>
                 <Textarea
                   {...register("content")}
+                  onKeyDown={enterToSend}
                   placeholder="Type your anonymous response here..."
                   className="min-h-[120px] resize-none"
                   disabled={submitting}
@@ -184,6 +186,9 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
                     {errors.content.message}
                   </p>
                 )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {enterToSendHint}
+                </p>
               </div>
 
               <Button
