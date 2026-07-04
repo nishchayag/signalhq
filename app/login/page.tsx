@@ -7,13 +7,11 @@ import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import * as z from "zod";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 const Page = () => {
   const { register, handleSubmit } = useForm<z.infer<typeof signinSchema>>();
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
-  const router = useRouter();
 
   const handleSubmitFunction = async (data: z.infer<typeof signinSchema>) => {
     setLoading(true);
@@ -42,7 +40,13 @@ const Page = () => {
           "callbackUrl"
         );
         const safe = cb && cb.startsWith("/") && !cb.startsWith("//");
-        router.push(safe ? cb! : "/dashboard");
+        // Hard navigation, deliberately not router.push: a soft nav can be
+        // served from the client router/segment cache populated while logged
+        // out (where /dashboard resolved to a login redirect), leaving the
+        // user stuck on /login. A full document load always hits the proxy
+        // with the fresh session cookie and re-initializes SessionProvider.
+        window.location.assign(safe ? cb! : "/dashboard");
+        return;
       }
     } catch (error) {
       console.error("Login error:", error);
