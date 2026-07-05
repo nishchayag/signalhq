@@ -292,6 +292,10 @@ export default function DashboardPage() {
     session?.user?.activeOrgRole as MembershipRole | undefined,
     "question:viewAllReplies"
   );
+  const canDelete = can(
+    session?.user?.activeOrgRole as MembershipRole | undefined,
+    "message:delete"
+  );
 
   const handleQuestionCreated = (newQuestion: IQuestion) => {
     setQuestions([newQuestion, ...questions]);
@@ -527,9 +531,12 @@ export default function DashboardPage() {
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 text-xs font-medium text-muted-foreground">
-                          {question.responseCount} responses
-                        </div>
+                        {(question.visibility !== "internal" ||
+                          canViewAllReplies) && (
+                          <div className="mt-1 text-xs font-medium text-muted-foreground">
+                            {question.responseCount} responses
+                          </div>
+                        )}
                         {teams.length > 0 && (
                           <div className="mt-0.5 text-[10px] font-medium text-muted-foreground/70">
                             {question.teamId
@@ -682,6 +689,7 @@ export default function DashboardPage() {
                       message={message}
                       onMessageDelete={handleDeleteMessage}
                       canReply={canReply}
+                      canDelete={canDelete}
                       onReplySaved={handleReplySaved}
                     />
                   ))}
@@ -856,6 +864,7 @@ export default function DashboardPage() {
                           message={message}
                           onMessageDelete={handleDeleteMessage}
                           canReply={canReply}
+                          canDelete={canDelete}
                           onReplySaved={handleReplySaved}
                         />
                       ))}

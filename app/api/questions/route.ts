@@ -140,7 +140,21 @@ export async function GET() {
         "questionText description slug isActive teamId visibility responseCount createdAt"
       );
 
-    return NextResponse.json({ success: true, questions }, { status: 200 });
+    // Members' answers to internal questions are private threads — exposing
+    // responseCount would let a MEMBER infer how many colleagues answered.
+    const canSeeAllReplies = can(ctx.role, "question:viewAllReplies");
+    const payload = questions.map((q) => {
+      const obj = q.toObject() as unknown as Record<string, unknown>;
+      if (!canSeeAllReplies && q.visibility === "internal") {
+        delete obj.responseCount;
+      }
+      return obj;
+    });
+
+    return NextResponse.json(
+      { success: true, questions: payload },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching questions:", error);
     return NextResponse.json(

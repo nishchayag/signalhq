@@ -187,6 +187,7 @@ const Page = () => {
               message={message}
               onMessageDelete={handleDeleteMessage}
               canReply={false}
+              canDelete={true}
               onReplySaved={() => {}}
             />
           ))}

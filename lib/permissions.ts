@@ -25,6 +25,10 @@ import type { MembershipRole } from "@/models/membership.model";
  *
  * `org:billing` (switching the org's plan tier) is OWNER only — a financial
  * decision, same tier as org:rename/org:delete.
+ *
+ * `message:delete` (permanently removing received feedback) is OWNER/ADMIN
+ * only, same framing as `message:reply` — destructive and administrative,
+ * whereas MEMBER access to messages is read-only.
  */
 export type Permission =
   | "org:rename"
@@ -42,7 +46,8 @@ export type Permission =
   | "question:answer"
   | "question:viewAllReplies"
   | "message:read"
-  | "message:reply";
+  | "message:reply"
+  | "message:delete";
 
 const MATRIX: Record<MembershipRole, Permission[]> = {
   OWNER: [
@@ -62,6 +67,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:viewAllReplies",
     "message:read",
     "message:reply",
+    "message:delete",
   ],
   ADMIN: [
     "member:invite",
@@ -77,6 +83,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:viewAllReplies",
     "message:read",
     "message:reply",
+    "message:delete",
   ],
   MEMBER: ["question:create", "question:answer", "message:read"],
 };

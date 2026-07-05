@@ -38,6 +38,7 @@ type MessageCardProps = {
   message: IMessage;
   onMessageDelete: (messageId: string) => void;
   canReply: boolean;
+  canDelete: boolean;
   onReplySaved: (
     messageId: string,
     reply: { content: string; repliedAt: string }
@@ -48,6 +49,7 @@ const MessageCard = ({
   message,
   onMessageDelete,
   canReply,
+  canDelete,
   onReplySaved,
 }: MessageCardProps) => {
   const [loading, setLoading] = React.useState(false);
@@ -138,6 +140,7 @@ const MessageCard = ({
             {message.content}
           </CardTitle>
         </div>
+        {canDelete && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
@@ -166,6 +169,7 @@ const MessageCard = ({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-4">

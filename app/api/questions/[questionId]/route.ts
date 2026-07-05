@@ -7,8 +7,10 @@ import MessageModel from "@/models/message.model";
 import MembershipModel from "@/models/membership.model";
 import { updateQuestionSchema } from "@/schemas/questionSchema";
 import { can, Permission } from "@/lib/permissions";
+import type { MembershipRole } from "@/models/membership.model";
 
-type AuthzOk = { ok: true; question: IQuestion };
+// `role` is null for legacy org-less questions (owner-only access, no org role).
+type AuthzOk = { ok: true; question: IQuestion; role: MembershipRole | null };
 type AuthzFail = { ok: false; response: NextResponse };
 
 /**
@@ -42,6 +44,7 @@ async function loadAndAuthorize(
     };
   }
 
+  let role: MembershipRole | null = null;
   if (question.organizationId) {
     const membership = await MembershipModel.findOne({
       organizationId: question.organizationId,
@@ -65,6 +68,7 @@ async function loadAndAuthorize(
         ),
       };
     }
+    role = membership.role;
   } else if (String(question.userId) !== String(session.user._id)) {
     return {
       ok: false,
@@ -75,7 +79,7 @@ async function loadAndAuthorize(
     };
   }
 
-  return { ok: true, question };
+  return { ok: true, question, role };
 }
 
 export async function GET(
@@ -100,8 +104,19 @@ export async function GET(
       createdAt: -1,
     });
 
+    // Same privacy rule as the list endpoint: a MEMBER must not learn how
+    // many colleagues answered an internal question.
+    const question = authz.question.toObject() as Record<string, unknown>;
+    if (
+      authz.question.visibility === "internal" &&
+      authz.role &&
+      !can(authz.role, "question:viewAllReplies")
+    ) {
+      delete question.responseCount;
+    }
+
     return NextResponse.json(
-      { success: true, question: authz.question, messages },
+      { success: true, question, messages },
       { status: 200 }
     );
   } catch (error) {
@@ -203,18 +218,23 @@ export async function DELETE(
     if (!authz.ok) return authz.response;
 
     const messagesToDelete = await MessageModel.find({ questionId }).select(
-      "_id"
+      "_id createdFor"
     );
     const messageIds = messagesToDelete.map((m) => m._id);
 
     const deletedMessages = await MessageModel.deleteMany({ questionId });
     await QuestionModel.findByIdAndDelete(questionId);
 
-    // Keep the owner's denormalized messages array consistent.
+    // Keep denormalized User.messages arrays consistent — pull from every
+    // recipient the messages actually point at (createdFor), not just the
+    // question creator's, in case those ever diverge.
     if (messageIds.length > 0) {
+      const recipientIds = [
+        ...new Set(messagesToDelete.map((m) => String(m.createdFor))),
+      ];
       const { default: UserModel } = await import("@/models/user.model");
-      await UserModel.updateOne(
-        { _id: authz.question.userId },
+      await UserModel.updateMany(
+        { _id: { $in: recipientIds } },
         { $pull: { messages: { $in: messageIds } } }
       );
     }
