@@ -257,6 +257,14 @@ export default function DashboardPage() {
     session?.user?.activeOrgRole as MembershipRole | undefined,
     "message:delete"
   );
+  const canUpdateQuestions = can(
+    session?.user?.activeOrgRole as MembershipRole | undefined,
+    "question:update"
+  );
+  const canDeleteQuestions = can(
+    session?.user?.activeOrgRole as MembershipRole | undefined,
+    "question:delete"
+  );
 
   const handleQuestionCreated = (newQuestion: IQuestion) => {
     setQuestions([newQuestion, ...questions]);
@@ -507,26 +515,28 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="ml-2 flex items-center space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleActive(question._id, question.isActive);
-                        }}
-                        className="h-8 w-8 p-0"
-                        title={
-                          question.isActive
-                            ? "Deactivate question"
-                            : "Activate question"
-                        }
-                      >
-                        {question.isActive ? (
-                          <PowerOff className="h-4 w-4 text-amber-500" />
-                        ) : (
-                          <Power className="h-4 w-4 text-emerald-500" />
-                        )}
-                      </Button>
+                      {canUpdateQuestions && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleActive(question._id, question.isActive);
+                          }}
+                          className="h-8 w-8 p-0"
+                          title={
+                            question.isActive
+                              ? "Deactivate question"
+                              : "Activate question"
+                          }
+                        >
+                          {question.isActive ? (
+                            <PowerOff className="h-4 w-4 text-amber-500" />
+                          ) : (
+                            <Power className="h-4 w-4 text-emerald-500" />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -546,18 +556,20 @@ export default function DashboardPage() {
                           }`}
                         />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteQuestion(question._id);
-                        }}
-                        className="h-8 w-8 p-0"
-                        title="Delete question"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {canDeleteQuestions && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteQuestion(question._id);
+                          }}
+                          className="h-8 w-8 p-0"
+                          title="Delete question"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </button>
