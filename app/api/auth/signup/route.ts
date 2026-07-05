@@ -4,10 +4,26 @@ import bcrypt from "bcryptjs";
 import userModel from "@/models/user.model";
 import { sendEmail } from "@/lib/mailService";
 import { createPersonalOrganization } from "@/lib/orgContext";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/getClientIp";
 
 export async function POST(request: NextRequest) {
   await connectDB();
   try {
+    // Every successful signup emails an OTP to an arbitrary address —
+    // throttle like the other OTP-sending auth routes.
+    const ip = getClientIp(request);
+    const allowed = await checkRateLimit(`signup:${ip}`, 5, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error: "Too many signup attempts. Please try again in a few minutes.",
+          success: false,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { password, name } = body;
     // Stored lowercase (lowercase-unique), so normalize before the
@@ -44,7 +60,8 @@ export async function POST(request: NextRequest) {
       verifyCodeExpiry: verificationCodeExpiry,
       messages: [],
     });
-    console.log("New user created:", newUser);
+    // Don't log the created doc — it carries the password hash and OTP.
+    console.log("New user created:", newUser.username);
 
     // Give every new account a personal organization (OWNER) so the org-scoped
     // dashboard works immediately on first login.
@@ -61,7 +78,6 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("Verification email sent to:", email);
-    console.log("Email response:", emailResponse);
     return NextResponse.json({
       success: true,
       message:

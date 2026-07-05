@@ -66,7 +66,10 @@ export default function VerifyEmailPage() {
       }
     } catch (error: unknown) {
       console.error("Error verifying email:", error);
-      toast("Error verifying email: " + (error as Error).message);
+      const msg = axios.isAxiosError(error)
+        ? error.response?.data?.error
+        : null;
+      toast.error(msg || "Error verifying email, please try again.");
     } finally {
       setLoading(false);
     }

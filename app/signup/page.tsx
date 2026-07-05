@@ -128,7 +128,10 @@ const Page = () => {
       }
     } catch (error) {
       console.error("Error signing up:", error);
-      toast.error("Error signing up, please try again later.");
+      const msg = axios.isAxiosError(error)
+        ? error.response?.data?.error
+        : null;
+      toast.error(msg || "Error signing up, please try again later.");
     } finally {
       setLoading(false);
     }

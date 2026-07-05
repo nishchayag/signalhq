@@ -1,10 +1,31 @@
 import connectDB from "@/lib/connectDB";
 import { NextRequest, NextResponse } from "next/server";
 import userModel from "@/models/user.model";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/getClientIp";
 export async function POST(request: NextRequest) {
   await connectDB();
   try {
-    const { email, username, otpCode } = await request.json();
+    // Cap OTP guesses — a 6-digit code inside a 5-minute window is only safe
+    // if attempts are bounded.
+    const ip = getClientIp(request);
+    const allowed = await checkRateLimit(`verifyEmail:${ip}`, 10, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error: "Too many attempts. Please try again in a few minutes.",
+          success: false,
+        },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json();
+    const { otpCode } = body;
+    // Stored lowercase — normalize like login does, so a mixed-case email
+    // still matches.
+    const email = body.email?.toLowerCase();
+    const username = body.username?.toLowerCase();
     if ((!email && !username) || !otpCode) {
       return NextResponse.json({ error: "All fields are required" });
     }
