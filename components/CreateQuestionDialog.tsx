@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 import { IQuestion } from "@/models/question.model";
@@ -42,16 +42,45 @@ export default function CreateQuestionDialog({
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<CreateQuestionRequest>({
     resolver: zodResolver(createQuestionSchema),
     defaultValues: { visibility: "public" },
   });
+
+  const handleSuggest = async () => {
+    setSuggesting(true);
+    try {
+      const response = await axios.post("/api/suggestMessages");
+      const completion: string = response.data.completion;
+      setSuggestions(
+        completion
+          .split("||")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
+    } catch (error) {
+      const msg = axios.isAxiosError(error)
+        ? error.response?.data?.error
+        : null;
+      toast.error(msg || "Failed to generate suggestions");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const applySuggestion = (suggestion: string) => {
+    setValue("questionText", suggestion, { shouldValidate: true });
+    setSuggestions([]);
+  };
 
   // Load the active org's teams when the dialog opens so the question can be
   // scoped to one. Members only see teams they belong to (they can't create
@@ -96,6 +125,7 @@ export default function CreateQuestionDialog({
   const handleClose = () => {
     if (!loading) {
       reset();
+      setSuggestions([]);
       onOpenChange(false);
     }
   };
@@ -109,7 +139,23 @@ export default function CreateQuestionDialog({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="questionText">Question *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="questionText">Question *</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSuggest}
+                disabled={loading || suggesting}
+              >
+                {suggesting ? (
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-3 w-3" />
+                )}
+                Suggest
+              </Button>
+            </div>
             <Textarea
               id="questionText"
               {...register("questionText")}
@@ -121,6 +167,20 @@ export default function CreateQuestionDialog({
               <p className="text-sm text-destructive">
                 {errors.questionText.message}
               </p>
+            )}
+            {suggestions.length > 0 && (
+              <div className="space-y-1.5">
+                {suggestions.map((suggestion, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => applySuggestion(suggestion)}
+                    className="block w-full rounded-lg border-2 border-ink bg-brand-yellow/20 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-brand-yellow/40"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
