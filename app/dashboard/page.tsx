@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Settings,
   User,
-  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -25,8 +24,6 @@ import { IMessage } from "@/models/message.model";
 import MessageCard from "@/components/MessageCard";
 import CreateQuestionDialog from "@/components/CreateQuestionDialog";
 import OrgSwitcher from "@/components/OrgSwitcher";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { can } from "@/lib/permissions";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
@@ -64,46 +61,11 @@ export default function DashboardPage() {
   >(null);
   const [teams, setTeams] = useState<{ _id: string; name: string }[]>([]);
   const [teamFilter, setTeamFilter] = useState<string>("all");
-  const [isAcceptingMessages, setIsAcceptingMessages] = useState(true);
-  const [acceptToggleLoading, setAcceptToggleLoading] = useState(false);
   const [internalThreads, setInternalThreads] = useState<ThreadSummary[]>([]);
   const [myThread, setMyThread] = useState<ThreadSummary | null>(null);
   const [internalLoading, setInternalLoading] = useState(false);
   const [answerDraft, setAnswerDraft] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
-
-  const fetchAcceptingMessages = async () => {
-    try {
-      const response = await axios.get("/api/acceptMessages");
-      if (response.data.success) {
-        setIsAcceptingMessages(response.data.isAcceptingMessages);
-      }
-    } catch (error) {
-      console.error("Error fetching accept-messages status:", error);
-    }
-  };
-
-  const handleToggleAccepting = async (checked: boolean) => {
-    setAcceptToggleLoading(true);
-    try {
-      const response = await axios.post("/api/acceptMessages", {
-        isAcceptingMessages: checked,
-      });
-      if (response.data.success) {
-        setIsAcceptingMessages(checked);
-        toast.success(
-          checked ? "You're now accepting messages" : "Messages paused"
-        );
-      } else {
-        toast.error(response.data.error || "Failed to update setting");
-      }
-    } catch (error) {
-      console.error("Error updating accept-messages status:", error);
-      toast.error("Failed to update setting");
-    } finally {
-      setAcceptToggleLoading(false);
-    }
-  };
 
   const fetchTeams = async () => {
     const orgId = session?.user?.activeOrgId;
@@ -152,7 +114,6 @@ export default function DashboardPage() {
       fetchQuestions();
       fetchGeneralMessages();
       fetchTeams();
-      fetchAcceptingMessages();
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [session]);
@@ -419,20 +380,6 @@ export default function DashboardPage() {
             <p className="mt-0.5 text-sm text-muted-foreground">
               Manage your feedback
             </p>
-            <div className="mt-4 flex items-center gap-2">
-              <Switch
-                id="accept-messages"
-                checked={isAcceptingMessages}
-                disabled={acceptToggleLoading}
-                onCheckedChange={handleToggleAccepting}
-              />
-              <Label htmlFor="accept-messages" className="text-sm font-semibold">
-                Accepting messages
-              </Label>
-              {acceptToggleLoading && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              )}
-            </div>
           </div>
 
           {/* Organization switcher + management */}

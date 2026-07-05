@@ -147,21 +147,6 @@ export async function getMembership(
   return MembershipModel.findOne({ organizationId, userId });
 }
 
-/**
- * A user's personal organization (their oldest membership), independent of
- * any session/activeOrgId. For stamping organizationId on records created
- * outside a request session — e.g. a message submitted through the legacy
- * anonymous `/u/[username]` link, which only carries a recipient userId.
- */
-export async function getPersonalOrganizationId(
-  userId: string | mongoose.Types.ObjectId
-): Promise<string | null> {
-  const membership = await MembershipModel.findOne({ userId }).sort({
-    createdAt: 1,
-  });
-  return membership ? String(membership.organizationId) : null;
-}
-
 /** All organizations the user belongs to, with their role in each. */
 export async function listUserOrganizations(userId: string): Promise<
   {

@@ -215,9 +215,9 @@ const SECTIONS: {
           caption="Your organization link lives at the top of the dashboard — copy it or preview what visitors see."
         />
         <p>
-          Not ready for feedback? Flip the{" "}
-          <em>&ldquo;accepting messages&rdquo;</em> switch on your dashboard
-          and senders are politely turned away until you flip it back.
+          Not ready for feedback on a question? Deactivate it from the
+          dashboard and its link stops accepting new responses until you
+          switch it back on — nothing you&apos;ve already received is lost.
         </p>
       </>
     ),

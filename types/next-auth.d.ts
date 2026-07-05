@@ -9,14 +9,12 @@ declare module "next-auth" {
     email: string;
     username?: string;
     isVerified?: boolean;
-    isAcceptingMessages?: boolean;
   }
 
   interface Session {
     user: {
       _id?: string;
       isVerified?: boolean;
-      isAcceptingMessages?: boolean;
       username?: string;
       name?: string;
       // Active organization context (resolved server-side, switchable).
@@ -32,7 +30,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     _id?: string;
     isVerified?: boolean;
-    isAcceptingMessages?: boolean;
     username?: string;
     name?: string;
     activeOrgId?: string;

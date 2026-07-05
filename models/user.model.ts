@@ -37,11 +37,6 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  isAcceptingMessages: {
-    type: Boolean,
-    default: true,
-  },
-
   messages: [
     {
       type: mongoose.Schema.Types.ObjectId,
