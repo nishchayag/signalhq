@@ -4,6 +4,7 @@ import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { outranks } from "@/lib/permissions";
 import { updateMemberRoleSchema } from "@/schemas/memberSchema";
+import { logActivity } from "@/lib/auditLog";
 
 // PATCH /api/organizations/:orgId/members/:membershipId — change a role.
 export async function PATCH(
@@ -48,8 +49,20 @@ export async function PATCH(
     );
   }
 
+  const previousRole = target.role;
   target.role = result.data.role;
   await target.save();
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "member.role_changed",
+    metadata: {
+      targetUserId: String(target.userId),
+      from: previousRole,
+      to: target.role,
+    },
+  });
 
   return NextResponse.json(
     { success: true, message: "Role updated", role: target.role },
@@ -103,6 +116,13 @@ export async function DELETE(
     { organizationId: orgId },
     { $pull: { members: target.userId } }
   );
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: isSelf ? "member.left" : "member.removed",
+    metadata: { targetUserId: String(target.userId), role: target.role },
+  });
 
   return NextResponse.json(
     { success: true, message: isSelf ? "Left organization" : "Member removed" },

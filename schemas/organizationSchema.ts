@@ -20,6 +20,11 @@ export const updatePlanSchema = z.object({
   plan: z.enum(["FREE", "PRO", "ENTERPRISE"]),
 });
 
+export const transferOwnershipSchema = z.object({
+  membershipId: z.string().min(1, "membershipId is required"),
+});
+
 export type CreateOrganizationRequest = z.infer<typeof createOrganizationSchema>;
 export type RenameOrganizationRequest = z.infer<typeof renameOrganizationSchema>;
 export type UpdatePlanRequest = z.infer<typeof updatePlanSchema>;
+export type TransferOwnershipRequest = z.infer<typeof transferOwnershipSchema>;

@@ -29,11 +29,19 @@ import type { MembershipRole } from "@/models/membership.model";
  * `message:delete` (permanently removing received feedback) is OWNER/ADMIN
  * only, same framing as `message:reply` — destructive and administrative,
  * whereas MEMBER access to messages is read-only.
+ *
+ * `org:transferOwnership` (handing the OWNER role to another member) is
+ * OWNER only — the current owner is the only one who can give it up.
+ *
+ * `org:viewActivity` (the audit log of role changes, member removals, org
+ * renames/deletion, etc.) is OWNER/ADMIN only, same tier as member management.
  */
 export type Permission =
   | "org:rename"
   | "org:delete"
   | "org:billing"
+  | "org:transferOwnership"
+  | "org:viewActivity"
   | "member:invite"
   | "member:remove"
   | "member:role"
@@ -54,6 +62,8 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "org:rename",
     "org:delete",
     "org:billing",
+    "org:transferOwnership",
+    "org:viewActivity",
     "member:invite",
     "member:remove",
     "member:role",
@@ -70,6 +80,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "message:delete",
   ],
   ADMIN: [
+    "org:viewActivity",
     "member:invite",
     "member:remove",
     "member:role",

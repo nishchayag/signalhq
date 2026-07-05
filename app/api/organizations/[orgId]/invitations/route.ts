@@ -9,6 +9,7 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { createInvitationSchema } from "@/schemas/invitationSchema";
 import { sendInvitationEmail } from "@/lib/mailService";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { logActivity } from "@/lib/auditLog";
 
 const INVITE_TTL_DAYS = 7;
 
@@ -128,6 +129,13 @@ export async function POST(
     inviterName: auth.session.user.name,
     role,
     acceptUrl,
+  });
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "invitation.created",
+    metadata: { email, role, teamId },
   });
 
   return NextResponse.json(

@@ -4,6 +4,7 @@ import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { updatePlanSchema } from "@/schemas/organizationSchema";
 import { PLAN_LIMITS } from "@/lib/plans";
+import { logActivity } from "@/lib/auditLog";
 
 // PATCH /api/organizations/:orgId/plan — switch the org's billing tier.
 // No payment processing exists yet (every plan is free during early
@@ -43,11 +44,19 @@ export async function PATCH(
     }
   }
 
+  const previous = await OrganizationModel.findById(orgId).select("plan");
   const organization = await OrganizationModel.findByIdAndUpdate(
     orgId,
     { plan },
     { new: true }
   ).select("plan");
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "organization.plan_changed",
+    metadata: { from: previous?.plan, to: plan },
+  });
 
   return NextResponse.json(
     { success: true, message: "Plan updated", organization },

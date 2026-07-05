@@ -15,6 +15,7 @@ import {
   LogOut,
   CreditCard,
   Check,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
@@ -32,7 +33,52 @@ import { can } from "@/lib/permissions";
 import type { MembershipRole } from "@/models/membership.model";
 import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
 
-type Tab = "members" | "invitations" | "teams" | "settings" | "plan";
+type Tab = "members" | "invitations" | "teams" | "settings" | "plan" | "activity";
+
+interface ActivityEntry {
+  _id: string;
+  action: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  actor: { name: string; username: string } | null;
+}
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  "organization.renamed": "renamed the organization",
+  "organization.deleted": "deleted the organization",
+  "organization.plan_changed": "changed the plan",
+  "organization.ownership_transferred": "transferred ownership",
+  "member.role_changed": "changed a member's role",
+  "member.removed": "removed a member",
+  "member.left": "left the organization",
+  "team.created": "created a team",
+  "team.updated": "updated a team",
+  "team.deleted": "deleted a team",
+  "invitation.created": "invited a member",
+  "invitation.revoked": "revoked an invitation",
+};
+
+function describeActivity(entry: ActivityEntry): string {
+  const meta = entry.metadata || {};
+  switch (entry.action) {
+    case "organization.renamed":
+      return `Renamed the organization from "${meta.from}" to "${meta.to}"`;
+    case "organization.plan_changed":
+      return `Changed the plan from ${meta.from} to ${meta.to}`;
+    case "member.role_changed":
+      return `Changed a member's role from ${meta.from} to ${meta.to}`;
+    case "invitation.created":
+      return `Invited ${meta.email} as ${meta.role}`;
+    case "invitation.revoked":
+      return `Revoked the invitation for ${meta.email}`;
+    case "team.created":
+    case "team.updated":
+    case "team.deleted":
+      return `${ACTIVITY_LABELS[entry.action]}: "${meta.name}"`;
+    default:
+      return ACTIVITY_LABELS[entry.action] || entry.action;
+  }
+}
 
 interface Member {
   membershipId: string;
@@ -67,6 +113,7 @@ export default function OrganizationPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [plan, setPlan] = useState<Plan>("FREE");
   const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +132,8 @@ export default function OrganizationPage() {
   // Settings
   const [renameValue, setRenameValue] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [transferTarget, setTransferTarget] = useState("");
+  const [transferring, setTransferring] = useState(false);
 
   const load = useCallback(async () => {
     if (!orgId) return;
@@ -101,6 +150,10 @@ export default function OrganizationPage() {
       if (can(role, "member:invite")) {
         const inv = await axios.get(`/api/organizations/${orgId}/invitations`);
         if (inv.data.success) setInvites(inv.data.invitations);
+      }
+      if (can(role, "org:viewActivity")) {
+        const act = await axios.get(`/api/organizations/${orgId}/activity`);
+        if (act.data.success) setActivity(act.data.activity);
       }
     } catch (error) {
       console.error("Error loading organization:", error);
@@ -256,6 +309,34 @@ export default function OrganizationPage() {
     }
   };
 
+  const transferOwnership = async () => {
+    if (!transferTarget) return toast.error("Choose a member first");
+    const target = members.find((m) => m.membershipId === transferTarget);
+    if (
+      !confirm(
+        `Make ${target?.name ?? "this member"} the owner of this organization? You'll become an admin.`
+      )
+    )
+      return;
+    setTransferring(true);
+    try {
+      const res = await axios.patch(
+        `/api/organizations/${orgId}/transfer-ownership`,
+        { membershipId: transferTarget }
+      );
+      if (res.data.success) {
+        toast.success("Ownership transferred. Reloading…");
+        await update();
+        window.location.reload();
+      } else toast.error(res.data.message);
+    } catch (e) {
+      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
+      toast.error(msg || "Failed to transfer ownership");
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   const deleteOrg = async () => {
     if (
       !confirm(
@@ -321,6 +402,9 @@ export default function OrganizationPage() {
     { key: "invitations", label: "Invitations", icon: <Mail className="h-4 w-4" /> },
     { key: "teams", label: "Teams", icon: <FolderKanban className="h-4 w-4" /> },
     { key: "plan", label: "Plan", icon: <CreditCard className="h-4 w-4" /> },
+    ...(can(role, "org:viewActivity")
+      ? [{ key: "activity" as Tab, label: "Activity", icon: <History className="h-4 w-4" /> }]
+      : []),
     { key: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> },
   ];
 
@@ -640,6 +724,31 @@ export default function OrganizationPage() {
               </div>
             )}
 
+            {tab === "activity" && (
+              <div className="space-y-2">
+                {activity.length === 0 && (
+                  <p className="text-sm text-muted-foreground/70">
+                    No activity recorded yet.
+                  </p>
+                )}
+                {activity.map((entry) => (
+                  <Card key={entry._id}>
+                    <CardContent className="p-3">
+                      <p className="text-sm">
+                        <span className="font-medium">
+                          {entry.actor?.name || "Someone"}
+                        </span>{" "}
+                        {describeActivity(entry)}
+                      </p>
+                      <p className="text-xs text-muted-foreground/70">
+                        {new Date(entry.createdAt).toLocaleString()}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
             {tab === "settings" && (
               <div className="space-y-6">
                 <Card>
@@ -678,6 +787,46 @@ export default function OrganizationPage() {
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             "Save"
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {can(role, "org:transferOwnership") && (
+                  <Card>
+                    <CardContent className="p-4 space-y-2">
+                      <Label htmlFor="transfer">Transfer ownership</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Hand off the OWNER role to another member. You&apos;ll
+                        become an admin.
+                      </p>
+                      <div className="flex gap-2">
+                        <select
+                          id="transfer"
+                          value={transferTarget}
+                          onChange={(e) => setTransferTarget(e.target.value)}
+                          className="flex h-10 flex-1 rounded-lg border-2 border-ink bg-card px-3 text-sm font-medium"
+                        >
+                          <option value="">Choose a member…</option>
+                          {members
+                            .filter((m) => !m.isSelf && m.role !== "OWNER")
+                            .map((m) => (
+                              <option key={m.membershipId} value={m.membershipId}>
+                                {m.name} (@{m.username})
+                              </option>
+                            ))}
+                        </select>
+                        <Button
+                          variant="outline"
+                          onClick={transferOwnership}
+                          disabled={transferring || !transferTarget}
+                        >
+                          {transferring ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            "Transfer"
                           )}
                         </Button>
                       </div>

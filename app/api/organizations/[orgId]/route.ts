@@ -8,6 +8,7 @@ import TeamModel from "@/models/team.model";
 import InvitationModel from "@/models/invitation.model";
 import { renameOrganizationSchema } from "@/schemas/organizationSchema";
 import { requireOrgAccess } from "@/lib/apiAuth";
+import { logActivity } from "@/lib/auditLog";
 
 // GET /api/organizations/:orgId — details for a member.
 export async function GET(
@@ -61,11 +62,19 @@ export async function PATCH(
     );
   }
 
+  const previous = await OrganizationModel.findById(orgId).select("name");
   const organization = await OrganizationModel.findByIdAndUpdate(
     orgId,
     { name: result.data.name },
     { new: true }
   ).select("name slug");
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "organization.renamed",
+    metadata: { from: previous?.name, to: result.data.name },
+  });
 
   return NextResponse.json(
     { success: true, message: "Organization renamed", organization },
@@ -83,6 +92,8 @@ export async function DELETE(
   if (!auth.ok) return auth.response;
 
   await connectDB();
+  const organization = await OrganizationModel.findById(orgId).select("name slug");
+
   // Cascade: remove org-owned data. Messages/questions created before the
   // multi-tenant migration that still lack an org are left untouched.
   await Promise.all([
@@ -93,6 +104,17 @@ export async function DELETE(
     MembershipModel.deleteMany({ organizationId: orgId }),
   ]);
   await OrganizationModel.findByIdAndDelete(orgId);
+
+  // Logged after the cascade so the org itself is dangling by the time this
+  // entry exists — metadata carries the name/slug since they won't be
+  // joinable afterward. The entry is orphaned (no membership left to gate
+  // access to it), kept anyway as a durable record of the deletion.
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "organization.deleted",
+    metadata: { name: organization?.name, slug: organization?.slug },
+  });
 
   return NextResponse.json(
     { success: true, message: "Organization deleted" },

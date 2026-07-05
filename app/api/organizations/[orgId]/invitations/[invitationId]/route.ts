@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import InvitationModel from "@/models/invitation.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
+import { logActivity } from "@/lib/auditLog";
 
 // DELETE /api/organizations/:orgId/invitations/:invitationId — revoke a pending invite.
 export async function DELETE(
@@ -24,6 +25,13 @@ export async function DELETE(
 
   invitation.status = "REVOKED";
   await invitation.save();
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "invitation.revoked",
+    metadata: { email: invitation.email },
+  });
 
   return NextResponse.json(
     { success: true, message: "Invitation revoked" },

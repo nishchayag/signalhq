@@ -5,6 +5,7 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { createTeamSchema } from "@/schemas/teamSchema";
 import { uniqueSlug } from "@/lib/slug";
 import { teamLimitReached, PLAN_LIMITS } from "@/lib/plans";
+import { logActivity } from "@/lib/auditLog";
 
 // GET /api/organizations/:orgId/teams — list teams (any member).
 export async function GET(
@@ -79,6 +80,13 @@ export async function POST(
     slug,
     createdBy: auth.userId,
     members: [auth.userId],
+  });
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "team.created",
+    metadata: { teamId: String(team._id), name: team.name },
   });
 
   return NextResponse.json(

@@ -6,6 +6,7 @@ import MessageModel from "@/models/message.model";
 import "@/models/user.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { updateTeamSchema } from "@/schemas/teamSchema";
+import { logActivity } from "@/lib/auditLog";
 
 interface PopulatedUser {
   _id: string;
@@ -85,6 +86,13 @@ export async function PATCH(
 
   await team.save();
 
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "team.updated",
+    metadata: { teamId: String(team._id), name: team.name },
+  });
+
   return NextResponse.json(
     { success: true, message: "Team updated" },
     { status: 200 }
@@ -114,6 +122,13 @@ export async function DELETE(
     MessageModel.updateMany({ teamId }, { $unset: { teamId: "" } }),
   ]);
   await TeamModel.deleteOne({ _id: teamId });
+
+  await logActivity({
+    organizationId: orgId,
+    actorUserId: auth.userId,
+    action: "team.deleted",
+    metadata: { teamId, name: team.name },
+  });
 
   return NextResponse.json(
     { success: true, message: "Team deleted" },
