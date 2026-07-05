@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Settings,
   User,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ import MessageCard from "@/components/MessageCard";
 import CreateQuestionDialog from "@/components/CreateQuestionDialog";
 import OrgSwitcher from "@/components/OrgSwitcher";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { can } from "@/lib/permissions";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import { PageLoader } from "@/components/Loader";
@@ -55,6 +57,16 @@ export default function DashboardPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [generalMessages, setGeneralMessages] = useState<IMessage[]>([]);
+  const [generalHasMore, setGeneralHasMore] = useState(false);
+  const [generalCursor, setGeneralCursor] = useState<string | null>(null);
+  const [generalLoadingMore, setGeneralLoadingMore] = useState(false);
+  const [messagesHasMore, setMessagesHasMore] = useState(false);
+  const [messagesCursor, setMessagesCursor] = useState<string | null>(null);
+  const [messagesLoadingMore, setMessagesLoadingMore] = useState(false);
+  const [generalSearch, setGeneralSearch] = useState("");
+  const [messagesSearch, setMessagesSearch] = useState("");
+  const generalSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messagesSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [view, setView] = useState<"general" | "question">("general");
   const [refreshingQuestionId, setRefreshingQuestionId] = useState<
     string | null
@@ -92,18 +104,46 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchGeneralMessages = async () => {
+  const fetchGeneralMessages = async (search?: string) => {
     try {
-      const response = await axios.get("/api/getMessages");
+      const response = await axios.get("/api/getMessages", {
+        params: { q: search || undefined },
+      });
       if (response.data.success) {
-        // Filter general messages (without questionId)
-        const generalMsgs = response.data.messages.filter(
-          (msg: IMessage) => !msg.questionId
-        );
-        setGeneralMessages(generalMsgs);
+        setGeneralMessages(response.data.messages);
+        setGeneralHasMore(response.data.hasMore);
+        setGeneralCursor(response.data.nextCursor);
       }
     } catch (error) {
       console.error("Error fetching general messages:", error);
+    }
+  };
+
+  const handleGeneralSearchChange = (value: string) => {
+    setGeneralSearch(value);
+    if (generalSearchTimer.current) clearTimeout(generalSearchTimer.current);
+    generalSearchTimer.current = setTimeout(() => {
+      fetchGeneralMessages(value);
+    }, 300);
+  };
+
+  const loadMoreGeneralMessages = async () => {
+    if (!generalCursor) return;
+    setGeneralLoadingMore(true);
+    try {
+      const response = await axios.get("/api/getMessages", {
+        params: { before: generalCursor, q: generalSearch || undefined },
+      });
+      if (response.data.success) {
+        setGeneralMessages((prev) => [...prev, ...response.data.messages]);
+        setGeneralHasMore(response.data.hasMore);
+        setGeneralCursor(response.data.nextCursor);
+      }
+    } catch (error) {
+      console.error("Error loading more general messages:", error);
+      toast.error("Failed to load more messages");
+    } finally {
+      setGeneralLoadingMore(false);
     }
   };
 
@@ -118,19 +158,54 @@ export default function DashboardPage() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [session]);
 
-  const fetchQuestionMessages = async (questionId: string) => {
+  const fetchQuestionMessages = async (questionId: string, search?: string) => {
     setMessagesLoading(true);
     try {
-      const response = await axios.get(`/api/questions/${questionId}`);
+      const response = await axios.get(`/api/questions/${questionId}`, {
+        params: { q: search || undefined },
+      });
       if (response.data.success) {
         setMessages(response.data.messages);
         setSelectedQuestion(response.data.question);
+        setMessagesHasMore(response.data.hasMore);
+        setMessagesCursor(response.data.nextCursor);
       }
     } catch (error) {
       console.error("Error fetching question messages:", error);
       toast.error("Failed to load messages");
     } finally {
       setMessagesLoading(false);
+    }
+  };
+
+  const handleMessagesSearchChange = (value: string) => {
+    setMessagesSearch(value);
+    if (!selectedQuestion) return;
+    if (messagesSearchTimer.current) clearTimeout(messagesSearchTimer.current);
+    const questionId = selectedQuestion._id;
+    messagesSearchTimer.current = setTimeout(() => {
+      fetchQuestionMessages(questionId, value);
+    }, 300);
+  };
+
+  const loadMoreQuestionMessages = async () => {
+    if (!selectedQuestion || !messagesCursor) return;
+    setMessagesLoadingMore(true);
+    try {
+      const response = await axios.get(
+        `/api/questions/${selectedQuestion._id}`,
+        { params: { before: messagesCursor, q: messagesSearch || undefined } }
+      );
+      if (response.data.success) {
+        setMessages((prev) => [...prev, ...response.data.messages]);
+        setMessagesHasMore(response.data.hasMore);
+        setMessagesCursor(response.data.nextCursor);
+      }
+    } catch (error) {
+      console.error("Error loading more question messages:", error);
+      toast.error("Failed to load more messages");
+    } finally {
+      setMessagesLoadingMore(false);
     }
   };
 
@@ -167,6 +242,7 @@ export default function DashboardPage() {
     setInternalThreads([]);
     setMyThread(null);
     setAnswerDraft("");
+    setMessagesSearch("");
     if (question.visibility === "internal") {
       fetchInternalQuestionData(
         question._id,
@@ -207,6 +283,8 @@ export default function DashboardPage() {
     setView("general");
     setSelectedQuestion(null);
     setMessages([]);
+    setMessagesHasMore(false);
+    setMessagesCursor(null);
     setInternalThreads([]);
     setMyThread(null);
   };
@@ -349,6 +427,8 @@ export default function DashboardPage() {
         // If this question is currently selected, refresh its messages
         if (selectedQuestion?._id === questionId) {
           setMessages(response.data.messages);
+          setMessagesHasMore(response.data.hasMore);
+          setMessagesCursor(response.data.nextCursor);
         }
 
         toast.success("Question refreshed successfully");
@@ -641,6 +721,16 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
 
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={generalSearch}
+                    onChange={(e) => handleGeneralSearchChange(e.target.value)}
+                    placeholder="Search messages..."
+                    className="pl-9"
+                  />
+                </div>
+
                 <div className="space-y-4">
                   {generalMessages.map((message) => (
                     <MessageCard
@@ -662,6 +752,18 @@ export default function DashboardPage() {
                       <p className="text-muted-foreground">
                         Share your link to start receiving feedback
                       </p>
+                    </div>
+                  )}
+
+                  {generalHasMore && (
+                    <div className="flex justify-center pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={loadMoreGeneralMessages}
+                        disabled={generalLoadingMore}
+                      >
+                        {generalLoadingMore ? "Loading…" : "Load more"}
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -811,6 +913,16 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                 <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={messagesSearch}
+                      onChange={(e) => handleMessagesSearchChange(e.target.value)}
+                      placeholder="Search responses..."
+                      className="pl-9"
+                    />
+                  </div>
+
                   {messagesLoading ? (
                     <div className="py-10 text-center">
                       <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -838,6 +950,18 @@ export default function DashboardPage() {
                             Share your question link to start collecting
                             responses
                           </p>
+                        </div>
+                      )}
+
+                      {messagesHasMore && (
+                        <div className="flex justify-center pt-2">
+                          <Button
+                            variant="outline"
+                            onClick={loadMoreQuestionMessages}
+                            disabled={messagesLoadingMore}
+                          >
+                            {messagesLoadingMore ? "Loading…" : "Load more"}
+                          </Button>
                         </div>
                       )}
                     </>

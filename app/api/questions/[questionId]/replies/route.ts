@@ -4,11 +4,12 @@ import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
 import UserModel from "@/models/user.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
+import { parsePagination, paginate } from "@/lib/pagination";
 
 // GET /api/questions/:questionId/replies — OWNER/ADMIN oversight view:
 // every member's private thread on this question, one entry per member.
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
   await connectDB();
@@ -34,19 +35,27 @@ export async function GET(
     // populate gotcha note.
     void UserModel;
 
-    const threads = await MessageModel.find({
+    const { limit, before } = parsePagination(request);
+    const filter: Record<string, unknown> = {
       questionId,
       authorType: "member",
-    })
+    };
+    if (before) filter.createdAt = { $lt: before };
+
+    const fetched = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
+      .limit(limit + 1)
       .populate("authorUserId", "name username")
       .select("content createdAt replies authorUserId");
+    const { page, hasMore, nextCursor } = paginate(fetched, limit);
 
     return NextResponse.json(
       {
         success: true,
         question: { _id: question._id, questionText: question.questionText },
-        threads,
+        threads: page,
+        hasMore,
+        nextCursor,
       },
       { status: 200 }
     );

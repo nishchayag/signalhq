@@ -46,24 +46,19 @@ export default function VerifyEmailPage() {
         username,
         otpCode,
       });
-      if (response.data.error) {
-        toast.error(response.data.error);
-      }
-      if (response.data.message) {
-        toast.success(response.data.message);
+      toast.success(response.data.message);
 
-        // Preserve a relative callbackUrl so the post-login redirect can return
-        // the user to where they started (e.g. an invite link).
-        const safe =
-          callbackUrl &&
-          callbackUrl.startsWith("/") &&
-          !callbackUrl.startsWith("//");
-        router.push(
-          safe
-            ? `/login?callbackUrl=${encodeURIComponent(callbackUrl!)}`
-            : "/login"
-        );
-      }
+      // Preserve a relative callbackUrl so the post-login redirect can return
+      // the user to where they started (e.g. an invite link).
+      const safe =
+        callbackUrl &&
+        callbackUrl.startsWith("/") &&
+        !callbackUrl.startsWith("//");
+      router.push(
+        safe
+          ? `/login?callbackUrl=${encodeURIComponent(callbackUrl!)}`
+          : "/login"
+      );
     } catch (error: unknown) {
       console.error("Error verifying email:", error);
       const msg = axios.isAxiosError(error)

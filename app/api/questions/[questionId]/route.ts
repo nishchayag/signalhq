@@ -8,6 +8,7 @@ import MembershipModel from "@/models/membership.model";
 import { updateQuestionSchema } from "@/schemas/questionSchema";
 import { can, Permission } from "@/lib/permissions";
 import type { MembershipRole } from "@/models/membership.model";
+import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
 
 // `role` is null for legacy org-less questions (owner-only access, no org role).
 type AuthzOk = { ok: true; question: IQuestion; role: MembershipRole | null };
@@ -83,7 +84,7 @@ async function loadAndAuthorize(
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ questionId: string }> }
 ) {
   await connectDB();
@@ -92,17 +93,24 @@ export async function GET(
     const authz = await loadAndAuthorize(questionId);
     if (!authz.ok) return authz.response;
 
-    // Member-authored private threads (internal questions) are never
-    // returned here — this general endpoint is org-membership-gated only,
-    // not per-thread-owner-gated. They're only reachable through the
-    // dedicated question:answer / question:viewAllReplies routes, which
-    // enforce per-member thread privacy.
-    const messages = await MessageModel.find({
+    const { limit, before } = parsePagination(request);
+    const search = parseSearchQuery(request);
+    const filter: Record<string, unknown> = {
       questionId,
+      // Member-authored private threads (internal questions) are never
+      // returned here — this general endpoint is org-membership-gated only,
+      // not per-thread-owner-gated. They're only reachable through the
+      // dedicated question:answer / question:viewAllReplies routes, which
+      // enforce per-member thread privacy.
       authorType: { $ne: "member" },
-    }).sort({
-      createdAt: -1,
-    });
+    };
+    if (before) filter.createdAt = { $lt: before };
+    if (search) filter.content = { $regex: search, $options: "i" };
+
+    const fetched = await MessageModel.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1);
+    const { page, hasMore, nextCursor } = paginate(fetched, limit);
 
     // Same privacy rule as the list endpoint: a MEMBER must not learn how
     // many colleagues answered an internal question.
@@ -116,7 +124,7 @@ export async function GET(
     }
 
     return NextResponse.json(
-      { success: true, question, messages },
+      { success: true, question, messages: page, hasMore, nextCursor },
       { status: 200 }
     );
   } catch (error) {

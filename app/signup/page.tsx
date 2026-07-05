@@ -106,26 +106,20 @@ const Page = () => {
         return;
       }
 
-      const response = await axios.post("/api/auth/signup", data);
-      if (response.data.success) {
-        toast.success("Signup successful! Redirecting to Verify Email page...");
-        // Carry a relative ?callbackUrl through the verify → login chain so an
-        // invited new user lands back on the invite after verifying.
-        const cb = new URLSearchParams(window.location.search).get(
-          "callbackUrl"
-        );
-        const safe = cb && cb.startsWith("/") && !cb.startsWith("//");
-        const cbParam = safe
-          ? `&callbackUrl=${encodeURIComponent(cb!)}`
-          : "";
-        router.push(
-          `/verifyEmail?username=${data.username}&email=${data.email}${cbParam}`
-        );
-      } else {
-        toast.error(
-          response.data.error || "Incorrect credentials, please try again."
-        );
-      }
+      await axios.post("/api/auth/signup", data);
+      toast.success("Signup successful! Redirecting to Verify Email page...");
+      // Carry a relative ?callbackUrl through the verify → login chain so an
+      // invited new user lands back on the invite after verifying.
+      const cb = new URLSearchParams(window.location.search).get(
+        "callbackUrl"
+      );
+      const safe = cb && cb.startsWith("/") && !cb.startsWith("//");
+      const cbParam = safe
+        ? `&callbackUrl=${encodeURIComponent(cb!)}`
+        : "";
+      router.push(
+        `/verifyEmail?username=${data.username}&email=${data.email}${cbParam}`
+      );
     } catch (error) {
       console.error("Error signing up:", error);
       const msg = axios.isAxiosError(error)

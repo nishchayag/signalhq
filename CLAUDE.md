@@ -57,9 +57,9 @@ There is no test runner configured. `npm run lighthouse` and `npm run seo-check`
 - `getToken()` is called with an explicit `secureCookie` derived from the request's actual protocol, not left to next-auth's default heuristic (`NEXTAUTH_URL?.startsWith("https://") ?? !!process.env.VERCEL`) — a `NEXTAUTH_URL` set without a scheme (e.g. `signal.nishchayag.live` instead of `https://signal.nishchayag.live`) makes that heuristic resolve to `false` outright (the `??` never falls through, since `.startsWith()` returns a literal `false`, not `undefined`), so `getToken` looks for the wrong cookie name and silently treats every authenticated request as logged out — session data still looks fine client-side (`/api/auth/session` has its own correct cookie handling), but the proxy never sees it. `NEXTAUTH_URL` must always include the `https://` scheme in production regardless.
 
 ### API conventions (`app/api/`)
-- Route handlers return `NextResponse.json(...)`. Many existing handlers return `{ success, error/message }` with a **200 status even on logical failure** (e.g. `getMessages`, `verifyEmail`) — newer handlers (`questions/`, `organizations/`) use proper status codes (401/400/403/500). Prefer the status-code style for new code, but check what the calling client expects.
+- Route handlers return `NextResponse.json(...)` with proper status codes (401/400/403/409/429/500) — this is now consistent across the whole API surface, including the legacy handlers (`getMessages`, `verifyEmail`, `signup`) that used to return 200 even on logical failure.
 - Input validation uses Zod schemas from `schemas/` (`createQuestionSchema.safeParse(body)`, etc.).
-- `app/api/suggestMessages/route.ts` is currently **stubbed** — returns a hardcoded string; the real OpenAI/`ai`-SDK implementation is commented out.
+- `app/api/suggestMessages/route.ts` generates 3 AI feedback-question suggestions (OpenAI via the `ai` SDK, `gpt-4o-mini`), auth-gated and rate-limited per user (20/hour) since each call is billed. Returns 503 if `OPENAI_API_KEY` isn't set. Wired into `components/CreateQuestionDialog.tsx`'s "Suggest" button.
 
 ### Email (`lib/mailService.ts`, `emailTemplates/`)
 - `sendEmail({ email, mailType, otpCode })` uses Resend with React email templates (`emailTemplates/*.tsx`). `mailType` is `"VERIFY"` or reset-password. Sender address is `RESEND_FROM_EMAIL` (e.g. `SignalHQ <onboarding@resend.dev>` locally — Resend's shared sender needs no domain verification but only delivers to the email on your Resend account; switch to a verified domain address before deploying).
@@ -78,4 +78,4 @@ There is no test runner configured. `npm run lighthouse` and `npm run seo-check`
 
 ## Environment variables
 
-Required at runtime (no `.env.example` committed): `MONGODB_URI`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NEXT_PUBLIC_BASE_URL`, and optional analytics IDs `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_CLARITY_ID`. External image hosts must be whitelisted in `next.config.ts` `images.domains`.
+Required at runtime (no `.env.example` committed): `MONGODB_URI`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NEXT_PUBLIC_BASE_URL`, and optional analytics IDs `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_CLARITY_ID`. Optional `OPENAI_API_KEY` enables `/api/suggestMessages`; without it that route returns 503. External image hosts must be whitelisted in `next.config.ts` `images.domains`.

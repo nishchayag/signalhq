@@ -122,6 +122,11 @@ const messageSchema: Schema<IMessage> = new Schema({
   },
 });
 
+// Covers the two hot list queries (general messages: questionId == null;
+// per-question messages: questionId == <id>), both always scoped to and
+// sorted within one organization.
+messageSchema.index({ organizationId: 1, questionId: 1, createdAt: -1 });
+
 const Message =
   mongoose.models.Message || mongoose.model<IMessage>("Message", messageSchema);
 

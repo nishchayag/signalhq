@@ -8,6 +8,7 @@ import { createQuestionSchema } from "@/schemas/questionSchema";
 import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
 import { nanoid } from "nanoid";
+import { parsePagination, paginate } from "@/lib/pagination";
 
 // Team ids a member is allowed to see. OWNER/ADMIN see everything (returns null
 // meaning "no team restriction").
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   await connectDB();
   try {
     const session = await getServerSession(authOptions);
@@ -129,21 +130,25 @@ export async function GET() {
       String(session!.user._id),
       ctx.role
     );
+    const { limit, before } = parsePagination(request);
     const filter: Record<string, unknown> = {
       organizationId: ctx.organizationId,
       ...(scope || {}),
     };
+    if (before) filter.createdAt = { $lt: before };
 
-    const questions = await QuestionModel.find(filter)
+    const fetched = await QuestionModel.find(filter)
       .sort({ createdAt: -1 })
+      .limit(limit + 1)
       .select(
         "questionText description slug isActive teamId visibility responseCount createdAt"
       );
+    const { page, hasMore, nextCursor } = paginate(fetched, limit);
 
     // Members' answers to internal questions are private threads — exposing
     // responseCount would let a MEMBER infer how many colleagues answered.
     const canSeeAllReplies = can(ctx.role, "question:viewAllReplies");
-    const payload = questions.map((q) => {
+    const payload = page.map((q) => {
       const obj = q.toObject() as unknown as Record<string, unknown>;
       if (!canSeeAllReplies && q.visibility === "internal") {
         delete obj.responseCount;
@@ -152,7 +157,7 @@ export async function GET() {
     });
 
     return NextResponse.json(
-      { success: true, questions: payload },
+      { success: true, questions: payload, hasMore, nextCursor },
       { status: 200 }
     );
   } catch (error) {

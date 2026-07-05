@@ -27,27 +27,39 @@ export async function POST(request: NextRequest) {
     const email = body.email?.toLowerCase();
     const username = body.username?.toLowerCase();
     if ((!email && !username) || !otpCode) {
-      return NextResponse.json({ error: "All fields are required" });
+      return NextResponse.json(
+        { error: "All fields are required", success: false },
+        { status: 400 }
+      );
     }
     const existingUser = await userModel.findOne({
       $or: [{ email }, { username }],
     });
     if (!existingUser) {
-      return NextResponse.json({
-        error: "Invalid Email/Username or OTP",
-        success: false,
-      });
+      return NextResponse.json(
+        {
+          error: "Invalid Email/Username or OTP",
+          success: false,
+        },
+        { status: 400 }
+      );
     }
     if (existingUser.verifyCodeExpiry < new Date()) {
       await userModel.deleteOne({ $or: [{ email }, { username }] });
-      return NextResponse.json({
-        success: false,
-        error:
-          "OTP has expired, please signup again since you didn't verify your email in time, and the user credentials have been removed.",
-      });
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "OTP has expired, please signup again since you didn't verify your email in time, and the user credentials have been removed.",
+        },
+        { status: 400 }
+      );
     }
     if (existingUser.verifyCode !== otpCode) {
-      return NextResponse.json({ error: "Invalid OTP code", success: false });
+      return NextResponse.json(
+        { error: "Invalid OTP code", success: false },
+        { status: 400 }
+      );
     }
     existingUser.isVerified = true;
     existingUser.verifyCode = undefined;
@@ -64,6 +76,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error in email verification:", error);
-    return NextResponse.json({ error: "Error while verification: " + error });
+    return NextResponse.json(
+      { error: "Error while verification: " + (error as Error).message, success: false },
+      { status: 500 }
+    );
   }
 }

@@ -31,7 +31,10 @@ export async function POST(request: NextRequest) {
     const email = body.email?.toLowerCase();
     const username = body.username?.toLowerCase();
     if (!email || !password || !username || !name) {
-      return NextResponse.json({ error: "All fields are required" });
+      return NextResponse.json(
+        { error: "All fields are required", success: false },
+        { status: 400 }
+      );
     }
 
     const existingUserByEmail = await userModel.findOne({ email });
@@ -43,13 +46,20 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     if (existingUserByEmail) {
-      return NextResponse.json({ error: "Email already in use" });
+      return NextResponse.json(
+        { error: "Email already in use", success: false },
+        { status: 409 }
+      );
     }
 
     if (existingUserByUsername) {
-      return NextResponse.json({
-        error: "Username already taken, Please choose a different username",
-      });
+      return NextResponse.json(
+        {
+          error: "Username already taken, Please choose a different username",
+          success: false,
+        },
+        { status: 409 }
+      );
     }
     const newUser = await userModel.create({
       email,
@@ -85,6 +95,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error in signup route:", error);
-    return NextResponse.json({ error: "Error signing up: " + error });
+    return NextResponse.json(
+      { error: "Error signing up: " + (error as Error).message, success: false },
+      { status: 500 }
+    );
   }
 }
