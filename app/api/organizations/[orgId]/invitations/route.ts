@@ -8,6 +8,7 @@ import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { createInvitationSchema } from "@/schemas/invitationSchema";
 import { sendInvitationEmail } from "@/lib/mailService";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const INVITE_TTL_DAYS = 7;
 
@@ -38,6 +39,23 @@ export async function POST(
   const { orgId } = await params;
   const auth = await requireOrgAccess(orgId, "member:invite");
   if (!auth.ok) return auth.response;
+
+  // Each invite emails an arbitrary third-party address — keyed per inviter
+  // (not IP) so one compromised account can't spam from rotating IPs.
+  const allowed = await checkRateLimit(
+    `createInvitation:${auth.userId}`,
+    10,
+    60 * 60 * 1000
+  );
+  if (!allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Too many invitations sent. Please try again in an hour.",
+      },
+      { status: 429 }
+    );
+  }
 
   const body = await request.json();
   const result = createInvitationSchema.safeParse(body);
