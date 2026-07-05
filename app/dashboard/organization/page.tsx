@@ -114,6 +114,9 @@ export default function OrganizationPage() {
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [activityHasMore, setActivityHasMore] = useState(false);
+  const [activityCursor, setActivityCursor] = useState<string | null>(null);
+  const [activityLoadingMore, setActivityLoadingMore] = useState(false);
   const [plan, setPlan] = useState<Plan>("FREE");
   const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,7 +156,11 @@ export default function OrganizationPage() {
       }
       if (can(role, "org:viewActivity")) {
         const act = await axios.get(`/api/organizations/${orgId}/activity`);
-        if (act.data.success) setActivity(act.data.activity);
+        if (act.data.success) {
+          setActivity(act.data.activity);
+          setActivityHasMore(act.data.hasMore);
+          setActivityCursor(act.data.nextCursor);
+        }
       }
     } catch (error) {
       console.error("Error loading organization:", error);
@@ -162,6 +169,25 @@ export default function OrganizationPage() {
       setLoading(false);
     }
   }, [orgId, role]);
+
+  const loadMoreActivity = async () => {
+    if (!orgId || !activityCursor) return;
+    setActivityLoadingMore(true);
+    try {
+      const res = await axios.get(`/api/organizations/${orgId}/activity`, {
+        params: { before: activityCursor },
+      });
+      if (res.data.success) {
+        setActivity((prev) => [...prev, ...res.data.activity]);
+        setActivityHasMore(res.data.hasMore);
+        setActivityCursor(res.data.nextCursor);
+      }
+    } catch {
+      toast.error("Failed to load more activity");
+    } finally {
+      setActivityLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     // Standard fetch-on-mount/session-change; `load` is a stable useCallback.
@@ -746,6 +772,22 @@ export default function OrganizationPage() {
                     </CardContent>
                   </Card>
                 ))}
+
+                {activityHasMore && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreActivity}
+                      disabled={activityLoadingMore}
+                    >
+                      {activityLoadingMore ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Load more"
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
