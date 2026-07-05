@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import connectDB from "@/lib/connectDB";
 import bcrypt from "bcryptjs";
 import { getActiveOrgForToken } from "@/lib/orgContext";
+import { checkRateLimit } from "@/lib/rateLimit";
 const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -20,7 +21,7 @@ const authOptions: AuthOptions = {
           placeholder: "your-password",
         },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         const { identifier, password } = credentials as {
           identifier: string;
           password: string;
@@ -33,6 +34,29 @@ const authOptions: AuthOptions = {
           // Usernames/emails are stored lowercase; normalize so "Abc"
           // logs in as "abc".
           const normalized = identifier.trim().toLowerCase();
+
+          // Throttle credential stuffing. Keyed per IP + target account so
+          // an attacker can't brute-force one account, while other people's
+          // logins from other networks are unaffected. (authorize gets a
+          // plain header record, not a NextRequest, hence no getClientIp.)
+          const forwarded = req?.headers?.["x-forwarded-for"] as
+            | string
+            | undefined;
+          const ip =
+            forwarded?.split(",")[0].trim() ||
+            (req?.headers?.["x-real-ip"] as string | undefined) ||
+            "unknown";
+          const allowed = await checkRateLimit(
+            `login:${ip}:${normalized}`,
+            10,
+            10 * 60 * 1000
+          );
+          if (!allowed) {
+            throw new Error(
+              "Too many login attempts. Please try again in a few minutes."
+            );
+          }
+
           const userInDB = await userModel.findOne({
             $or: [{ email: normalized }, { username: normalized }],
           });
