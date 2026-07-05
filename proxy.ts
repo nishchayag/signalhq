@@ -30,7 +30,58 @@ const isPublicPage = (path: string) => {
   return authPages.includes(path) || isPublicFeedback;
 };
 
+// Per-request nonce + strict CSP, following Next.js's documented nonce
+// recipe: the nonce is forwarded to Server Components via the `x-nonce`
+// request header (read with `headers()` in app/layout.tsx and passed to the
+// GA/Clarity/next-themes scripts we author), and Next automatically applies
+// it to the script tags it renders for its own bundling/hydration. Combined
+// with 'strict-dynamic', any script a nonce'd script loads (e.g. Clarity's
+// snippet inserting its own tag/analytics beacon) is trusted transitively —
+// no origin allowlist needed for those. `https:` and 'unsafe-inline' are
+// inert fallbacks for browsers that don't understand nonce/strict-dynamic;
+// browsers that do ignore them.
+function buildCsp(nonce: string): string {
+  const connectSrc = ["'self'"];
+  if (process.env.NEXT_PUBLIC_GA_ID) {
+    connectSrc.push(
+      "https://www.google-analytics.com",
+      "https://analytics.google.com",
+      "https://*.google-analytics.com"
+    );
+  }
+  if (process.env.NEXT_PUBLIC_CLARITY_ID) {
+    connectSrc.push("https://www.clarity.ms", "https://*.clarity.ms");
+  }
+
+  // React dev mode uses eval() for its debugging features (never in
+  // production builds, per React's own warning) — allow it only outside prod
+  // so local dev consoles stay clean without loosening the deployed policy.
+  const scriptSrc = [`'nonce-${nonce}'`, `'strict-dynamic'`, `https:`, `'unsafe-inline'`];
+  if (process.env.NODE_ENV !== "production") scriptSrc.push(`'unsafe-eval'`);
+
+  return [
+    `default-src 'self'`,
+    `script-src ${scriptSrc.join(" ")}`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' blob: data:`,
+    `font-src 'self'`,
+    `connect-src ${connectSrc.join(" ")}`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+    `frame-ancestors 'none'`,
+    `upgrade-insecure-requests`,
+  ].join("; ");
+}
+
 export async function proxy(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = buildCsp(nonce);
+
+  // Forwarded downstream so Server Components can read it via headers().
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+
   // Explicit, not inferred: getToken()'s default heuristic derives this from
   // NEXTAUTH_URL starting with "https://" (falling back to `!!process.env
   // .VERCEL` only when NEXTAUTH_URL is entirely unset) — a bare-domain
@@ -56,7 +107,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
 }
 
 export const config = {

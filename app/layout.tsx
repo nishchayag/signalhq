@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import SessionWrapper from "@/components/SessionWrapper";
 import ThemeProvider from "@/components/ThemeProvider";
@@ -36,7 +37,7 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -44,6 +45,9 @@ export default function RootLayout({
   const websiteJsonLd = generateJsonLd({ type: "WebSite" });
   const organizationJsonLd = generateJsonLd({ type: "Organization" });
   const softwareAppJsonLd = generateJsonLd({ type: "SoftwareApplication" });
+  // Set by proxy.ts per request — required by the strict-dynamic CSP so
+  // these hand-authored inline/external scripts are allowed to execute.
+  const nonce = (await headers()).get("x-nonce") || undefined;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -51,11 +55,13 @@ export default function RootLayout({
         <Script
           id="json-ld-website"
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
         <Script
           id="json-ld-organization"
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(organizationJsonLd),
           }}
@@ -63,6 +69,7 @@ export default function RootLayout({
         <Script
           id="json-ld-software-app"
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(softwareAppJsonLd),
           }}
@@ -73,8 +80,9 @@ export default function RootLayout({
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
               strategy="afterInteractive"
+              nonce={nonce}
             />
-            <Script id="google-analytics" strategy="afterInteractive">
+            <Script id="google-analytics" strategy="afterInteractive" nonce={nonce}>
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
@@ -86,7 +94,7 @@ export default function RootLayout({
         )}
         {/* Microsoft Clarity */}
         {process.env.NEXT_PUBLIC_CLARITY_ID && (
-          <Script id="microsoft-clarity" strategy="afterInteractive">
+          <Script id="microsoft-clarity" strategy="afterInteractive" nonce={nonce}>
             {`
               (function(c,l,a,r,i,t,y){
                 c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
@@ -106,6 +114,7 @@ export default function RootLayout({
             defaultTheme="system"
             enableSystem
             disableTransitionOnChange
+            nonce={nonce}
           >
             <Navbar />
             {children}

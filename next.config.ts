@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
-// Baseline security headers. A real Content-Security-Policy is deliberately
-// not set yet — it needs a proper audit of the GA/Clarity script origins first.
+// Baseline security headers. Content-Security-Policy is set separately in
+// proxy.ts, not here — it needs a fresh nonce per request (for the GA/
+// Clarity/next-themes inline scripts), which only the proxy can generate.
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Nothing in the app is meant to be iframed (feedback pages are shared as
