@@ -59,7 +59,7 @@ function buildCsp(nonce: string): string {
   const scriptSrc = [`'nonce-${nonce}'`, `'strict-dynamic'`, `https:`, `'unsafe-inline'`];
   if (process.env.NODE_ENV !== "production") scriptSrc.push(`'unsafe-eval'`);
 
-  return [
+  const directives = [
     `default-src 'self'`,
     `script-src ${scriptSrc.join(" ")}`,
     `style-src 'self' 'unsafe-inline'`,
@@ -70,8 +70,15 @@ function buildCsp(nonce: string): string {
     `base-uri 'self'`,
     `form-action 'self'`,
     `frame-ancestors 'none'`,
-    `upgrade-insecure-requests`,
-  ].join("; ");
+  ];
+  // Safari enforces this literally even for localhost, rewriting http:// asset
+  // requests to https:// and failing them since dev has no TLS listener —
+  // breaking CSS/JS with no console error on Safari specifically (Chrome/
+  // Firefox treat localhost as already-trustworthy and skip the upgrade).
+  if (process.env.NODE_ENV === "production") {
+    directives.push(`upgrade-insecure-requests`);
+  }
+  return directives.join("; ");
 }
 
 export async function proxy(request: NextRequest) {

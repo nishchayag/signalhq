@@ -9,13 +9,21 @@ const securityHeaders = [
   // plain links) — revisit if embeddable widgets ever become a feature.
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // 2 years; ignored by browsers over plain HTTP, so safe for local dev.
-  {
-    key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains",
-  },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
+
+// 2 years; production-only. Safari (unlike Chrome/Firefox) doesn't reliably
+// treat plain-HTTP delivery as a no-op — it can still pin the policy for the
+// host, after which it silently rewrites *every* subsequent request
+// (including CSS/JS subresources) from http:// to https://, which then fail
+// outright against a dev server with no TLS listener. Sending it only in
+// production avoids ever pinning it against localhost.
+if (process.env.NODE_ENV === "production") {
+  securityHeaders.push({
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains",
+  });
+}
 
 const nextConfig: NextConfig = {
   images: {
