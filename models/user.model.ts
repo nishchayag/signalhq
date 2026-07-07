@@ -37,6 +37,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  notificationPreference: {
+    type: String,
+    enum: ["immediate", "daily", "off"],
+    default: "daily",
+  },
+  // Count of new messages received since the last daily digest was sent.
+  // Only incremented (and read) when notificationPreference === "daily";
+  // reset to 0 once the digest email goes out.
+  pendingNotificationCount: {
+    type: Number,
+    default: 0,
+  },
   messages: [
     {
       type: mongoose.Schema.Types.ObjectId,

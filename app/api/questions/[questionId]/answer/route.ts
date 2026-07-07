@@ -5,6 +5,7 @@ import MessageModel from "@/models/message.model";
 import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { questionResponseSchema } from "@/schemas/questionSchema";
+import { notifyNewMessage } from "@/lib/notifications";
 
 // GET /api/questions/:questionId/answer — resolve the caller's own private
 // thread for this question, if they've answered it yet. Lets the dashboard
@@ -141,6 +142,7 @@ export async function POST(
       await QuestionModel.findByIdAndUpdate(question._id, {
         $inc: { responseCount: 1 },
       });
+      await notifyNewMessage(question.userId);
     }
 
     return NextResponse.json(

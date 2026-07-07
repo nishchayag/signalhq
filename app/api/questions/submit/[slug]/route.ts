@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
+import { notifyNewMessage } from "@/lib/notifications";
 
 export async function GET(
   request: NextRequest,
@@ -139,6 +140,8 @@ export async function POST(
     await QuestionModel.findByIdAndUpdate(question._id, {
       $inc: { responseCount: 1 },
     });
+
+    await notifyNewMessage(question.userId);
 
     return NextResponse.json(
       {

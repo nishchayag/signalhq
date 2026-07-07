@@ -1,11 +1,11 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { toast } from "sonner";
 import Link from "next/link";
-import { CreditCard, Loader2, Trash2, User } from "lucide-react";
+import { Bell, CreditCard, Loader2, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import PlanBadge from "@/components/PlanBadge";
@@ -24,6 +24,30 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
+type NotificationPreference = "immediate" | "daily" | "off";
+
+const NOTIFICATION_OPTIONS: {
+  value: NotificationPreference;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "immediate",
+    label: "Immediately",
+    description: "Email me as soon as I get a message",
+  },
+  {
+    value: "daily",
+    label: "Daily digest",
+    description: "One email a day summarizing new messages",
+  },
+  {
+    value: "off",
+    label: "Off",
+    description: "Don't email me about new messages",
+  },
+];
+
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
   const activePlan = session?.user?.activeOrgPlan;
@@ -33,6 +57,45 @@ export default function AccountSettingsPage() {
   const [blockingOrgs, setBlockingOrgs] = useState<
     { _id: string; name: string }[]
   >([]);
+  const [notificationPreference, setNotificationPreference] =
+    useState<NotificationPreference | null>(null);
+  const [savingPreference, setSavingPreference] = useState(false);
+
+  useEffect(() => {
+    axios
+      .get("/api/account/notifications")
+      .then((res) => {
+        if (res.data.success) {
+          setNotificationPreference(res.data.notificationPreference);
+        }
+      })
+      .catch(() => {
+        // Silently fall back to no selection shown; the user can still
+        // pick a preference and it'll save normally.
+      });
+  }, []);
+
+  const handleNotificationChange = async (value: NotificationPreference) => {
+    const previous = notificationPreference;
+    setNotificationPreference(value);
+    setSavingPreference(true);
+    try {
+      const res = await axios.patch("/api/account/notifications", {
+        notificationPreference: value,
+      });
+      if (res.data.success) {
+        toast.success("Notification preference updated");
+      } else {
+        setNotificationPreference(previous);
+        toast.error(res.data.message || "Failed to update preference");
+      }
+    } catch {
+      setNotificationPreference(previous);
+      toast.error("Failed to update preference");
+    } finally {
+      setSavingPreference(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!password) {
@@ -114,6 +177,40 @@ export default function AccountSettingsPage() {
               <Button asChild variant="outline">
                 <Link href="/pricing">View plans</Link>
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Bell className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-bold text-foreground">Notifications</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Choose how you want to hear about new messages.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {NOTIFICATION_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={savingPreference || notificationPreference === null}
+                  onClick={() => handleNotificationChange(option.value)}
+                  className={`flex-1 rounded-lg border-2 border-ink p-3 text-left transition-colors disabled:opacity-60 ${
+                    notificationPreference === option.value
+                      ? "bg-brand-yellow"
+                      : "bg-background hover:bg-muted"
+                  }`}
+                >
+                  <p className="text-sm font-bold text-foreground">
+                    {option.label}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {option.description}
+                  </p>
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>

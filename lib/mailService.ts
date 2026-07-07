@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import VerificationEmail from "@/emailTemplates/verifyEmailTemplate";
 import ResetPasswordOtpEmail from "@/emailTemplates/resetPasswordTemplate";
 import InvitationEmail from "@/emailTemplates/invitationTemplate";
+import NewMessageEmail from "@/emailTemplates/newMessageEmail";
 import { NextResponse } from "next/server";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -88,6 +89,45 @@ export const sendInvitationEmail = async ({
     return true;
   } catch (error) {
     console.error("Error sending invitation email:", error);
+    return false;
+  }
+};
+
+/**
+ * Notify a user of new message activity — used both for the "immediate"
+ * notification preference (count is always 1) and the daily digest cron
+ * (count is however many messages piled up). No user lookup here, unlike
+ * `sendEmail`; callers already have the recipient's email/name in hand.
+ */
+export const sendNotificationEmail = async ({
+  email,
+  name,
+  count,
+  dashboardUrl,
+}: {
+  email: string;
+  name: string;
+  count: number;
+  dashboardUrl: string;
+}): Promise<boolean> => {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM,
+      to: email,
+      subject:
+        count === 1
+          ? "You have a new message on SignalHQ"
+          : `You have ${count} new messages on SignalHQ`,
+      react: NewMessageEmail({ name, count, dashboardUrl }),
+    });
+    if (error) {
+      console.error("Error sending notification email:", error);
+      return false;
+    }
+    console.log("Notification email sent:", data);
+    return true;
+  } catch (error) {
+    console.error("Error sending notification email:", error);
     return false;
   }
 };

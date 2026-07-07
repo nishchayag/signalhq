@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
+import { notifyNewMessage } from "@/lib/notifications";
 
 // POST /api/o/:orgSlug/sendMessage — anonymous general feedback to an org.
 export async function POST(
@@ -64,6 +65,8 @@ export async function POST(
       organizationId: organization._id,
       replyToken,
     });
+
+    await notifyNewMessage(organization.createdBy);
 
     return NextResponse.json(
       { success: true, message: "Message sent successfully", replyToken },

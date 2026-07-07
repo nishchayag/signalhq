@@ -78,4 +78,4 @@ There is no test runner configured. `npm run lighthouse` and `npm run seo-check`
 
 ## Environment variables
 
-Required at runtime (no `.env.example` committed): `MONGODB_URI`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NEXT_PUBLIC_BASE_URL`, and optional analytics IDs `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_CLARITY_ID`. Optional `OPENAI_API_KEY` enables `/api/suggestMessages`; without it that route returns 503. External image hosts must be whitelisted in `next.config.ts` `images.domains`.
+Required at runtime (no `.env.example` committed): `MONGODB_URI`, `NEXTAUTH_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `NEXT_PUBLIC_BASE_URL`, and optional analytics IDs `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_CLARITY_ID`. Optional `OPENAI_API_KEY` enables `/api/suggestMessages`; without it that route returns 503. `CRON_SECRET` gates `app/api/cron/notifications` (the daily digest flush, scheduled once/day via `vercel.json` — the max frequency Vercel's Hobby-tier cron allows); without it set, the cron route 401s on every call. External image hosts must be whitelisted in `next.config.ts` `images.domains`.
