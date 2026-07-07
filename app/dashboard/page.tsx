@@ -9,6 +9,7 @@ import {
   HelpCircle,
   Copy,
   ExternalLink,
+  Download,
   Trash2,
   Power,
   PowerOff,
@@ -145,6 +146,19 @@ export default function DashboardPage() {
     } finally {
       setGeneralLoadingMore(false);
     }
+  };
+
+  const exportGeneralMessagesCsv = () => {
+    const params = new URLSearchParams();
+    if (generalSearch) params.set("q", generalSearch);
+    window.location.href = `/api/messages/export?${params.toString()}`;
+  };
+
+  const exportQuestionMessagesCsv = () => {
+    if (!selectedQuestion) return;
+    const params = new URLSearchParams({ questionId: selectedQuestion._id });
+    if (messagesSearch) params.set("q", messagesSearch);
+    window.location.href = `/api/messages/export?${params.toString()}`;
   };
 
   useEffect(() => {
@@ -716,6 +730,14 @@ export default function DashboardPage() {
                           <ExternalLink className="mr-2 h-4 w-4" />
                           Preview
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={exportGeneralMessagesCsv}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Export CSV
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -803,6 +825,14 @@ export default function DashboardPage() {
                       >
                         <ExternalLink className="mr-2 h-4 w-4" />
                         Preview
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={exportQuestionMessagesCsv}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Export CSV
                       </Button>
                     </div>
                   )}

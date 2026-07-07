@@ -11,15 +11,15 @@ import type { MembershipRole } from "@/models/membership.model";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
 
 // `role` is null for legacy org-less questions (owner-only access, no org role).
-type AuthzOk = { ok: true; question: IQuestion; role: MembershipRole | null };
-type AuthzFail = { ok: false; response: NextResponse };
+export type AuthzOk = { ok: true; question: IQuestion; role: MembershipRole | null };
+export type AuthzFail = { ok: false; response: NextResponse };
 
 /**
  * Load a question and authorize the caller against it. Org-owned questions are
  * gated by membership + role permission; legacy questions without an org fall
  * back to owner-only access.
  */
-async function loadAndAuthorize(
+export async function loadAndAuthorize(
   questionId: string,
   permission?: Permission
 ): Promise<AuthzOk | AuthzFail> {

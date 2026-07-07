@@ -1,0 +1,75 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import authOptions from "@/lib/nextAuthOptions";
+import connectDB from "@/lib/connectDB";
+import MessageModel from "@/models/message.model";
+import { resolveActiveContext } from "@/lib/orgContext";
+import { can } from "@/lib/permissions";
+import { parseSearchQuery } from "@/lib/pagination";
+import { messagesToCsv } from "@/lib/csv";
+import { loadAndAuthorize } from "@/app/api/questions/[questionId]/route";
+
+// Hard cap so a single export can't pull in an unbounded number of documents.
+const MAX_ROWS = 10_000;
+
+// GET /api/messages/export[?questionId=][&q=] — CSV download of either the
+// active org's general messages (questionId omitted, mirrors
+// app/api/getMessages/route.ts's filter) or one question's public responses
+// (questionId given, mirrors app/api/questions/[questionId]/route.ts's
+// filter and auth, reused directly rather than duplicated).
+export async function GET(request: NextRequest) {
+  await connectDB();
+  try {
+    const questionId = request.nextUrl.searchParams.get("questionId");
+    const search = parseSearchQuery(request);
+
+    let filter: Record<string, unknown>;
+    let filenameHint: string;
+
+    if (questionId) {
+      const authz = await loadAndAuthorize(questionId);
+      if (!authz.ok) return authz.response;
+      filter = { questionId, authorType: { $ne: "member" } };
+      filenameHint = authz.question.slug;
+    } else {
+      const session = await getServerSession(authOptions);
+      const ctx = await resolveActiveContext(session);
+      if (!ctx) {
+        return NextResponse.json(
+          { success: false, error: "No active organization" },
+          { status: 401 }
+        );
+      }
+      if (!can(ctx.role, "message:read")) {
+        return NextResponse.json(
+          { success: false, error: "Insufficient permissions" },
+          { status: 403 }
+        );
+      }
+      filter = { organizationId: ctx.organizationId, questionId: null };
+      filenameHint = ctx.organization.slug;
+    }
+    if (search) filter.content = { $regex: search, $options: "i" };
+
+    const messages = await MessageModel.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(MAX_ROWS);
+
+    const csv = messagesToCsv(messages);
+    const filename = `messages-${filenameHint}-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    return new NextResponse(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (error) {
+    console.error("Error exporting messages:", error);
+    return NextResponse.json(
+      { success: false, error: "Error exporting messages" },
+      { status: 500 }
+    );
+  }
+}
