@@ -21,11 +21,16 @@ import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 import { IQuestion } from "@/models/question.model";
+import { apiError } from "@/lib/apiError";
 
 interface CreateQuestionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onQuestionCreated: (question: IQuestion) => void;
+  onQuestionCreated?: (question: IQuestion) => void;
+  /** Edit mode: prefill from this question and PUT only text/description
+   *  (visibility and team are fixed once a question exists). */
+  question?: IQuestion | null;
+  onQuestionUpdated?: (question: IQuestion) => void;
 }
 
 interface Team {
@@ -38,7 +43,10 @@ export default function CreateQuestionDialog({
   open,
   onOpenChange,
   onQuestionCreated,
+  question,
+  onQuestionUpdated,
 }: CreateQuestionDialogProps) {
+  const isEdit = Boolean(question);
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -68,10 +76,7 @@ export default function CreateQuestionDialog({
           .filter(Boolean)
       );
     } catch (error) {
-      const msg = axios.isAxiosError(error)
-        ? error.response?.data?.error
-        : null;
-      toast.error(msg || "Failed to generate suggestions");
+      toast.error(apiError(error, "Failed to generate suggestions"));
     } finally {
       setSuggesting(false);
     }
@@ -82,11 +87,24 @@ export default function CreateQuestionDialog({
     setSuggestions([]);
   };
 
+  // Edit mode: load the question's current text into the form each time the
+  // dialog opens (the create schema's text/description rules are the same
+  // ones updateQuestionSchema enforces, so one resolver covers both).
+  useEffect(() => {
+    if (open && question) {
+      reset({
+        questionText: question.questionText,
+        description: question.description ?? "",
+        visibility: question.visibility,
+      });
+    }
+  }, [open, question, reset]);
+
   // Load the active org's teams when the dialog opens so the question can be
   // scoped to one. Members only see teams they belong to (they can't create
   // questions for teams they aren't part of, and wouldn't see them afterwards).
   useEffect(() => {
-    if (!open) return;
+    if (!open || isEdit) return; // team is fixed after creation
     const orgId = session?.user?.activeOrgId;
     if (!orgId) return;
     (async () => {
@@ -101,22 +119,32 @@ export default function CreateQuestionDialog({
         console.error("Error loading teams:", error);
       }
     })();
-  }, [open, session]);
+  }, [open, session, isEdit]);
 
   const onSubmit = async (data: CreateQuestionRequest) => {
     setLoading(true);
     try {
+      if (question) {
+        const response = await axios.put(`/api/questions/${question._id}`, {
+          questionText: data.questionText,
+          description: data.description ?? "",
+        });
+        onQuestionUpdated?.(response.data.question);
+        toast.success("Question updated");
+        onOpenChange(false);
+        return;
+      }
       const response = await axios.post("/api/questions", data);
       if (response.data.success) {
-        onQuestionCreated(response.data.question);
+        onQuestionCreated?.(response.data.question);
         reset();
         onOpenChange(false);
       } else {
         toast.error(response.data.message || "Failed to create question");
       }
     } catch (error) {
-      console.error("Error creating question:", error);
-      toast.error("Failed to create question");
+      console.error("Error saving question:", error);
+      toast.error(apiError(error, isEdit ? "Failed to update question" : "Failed to create question"));
     } finally {
       setLoading(false);
     }
@@ -134,8 +162,16 @@ export default function CreateQuestionDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Create New Question</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit question" : "Create New Question"}</DialogTitle>
         </DialogHeader>
+
+        {isEdit && (question?.responseCount ?? 0) > 0 && (
+          <p className="rounded-lg border-2 border-ink bg-brand-yellow/30 px-3 py-2 text-sm font-medium text-foreground">
+            This question already has {question!.responseCount} response
+            {question!.responseCount === 1 ? "" : "s"}. They were written to the original wording;
+            edits only change what new responders see.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
@@ -200,6 +236,11 @@ export default function CreateQuestionDialog({
             )}
           </div>
 
+          {isEdit ? (
+            <p className="text-xs text-muted-foreground">
+              Who can answer and the team can&apos;t be changed after a question is created.
+            </p>
+          ) : (
           <div className="space-y-2">
             <Label htmlFor="visibility">Who can answer</Label>
             <select
@@ -214,8 +255,9 @@ export default function CreateQuestionDialog({
               </option>
             </select>
           </div>
+          )}
 
-          {teams.length > 0 && (
+          {!isEdit && teams.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="teamId">Team (Optional)</Label>
               <select
@@ -247,8 +289,10 @@ export default function CreateQuestionDialog({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  {isEdit ? "Saving..." : "Creating..."}
                 </>
+              ) : isEdit ? (
+                "Save changes"
               ) : (
                 "Create Question"
               )}

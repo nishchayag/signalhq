@@ -40,6 +40,7 @@ export function useDashboardData() {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<IQuestion | null>(null);
   const [generalMessages, setGeneralMessages] = useState<IMessage[]>([]);
   const [generalHasMore, setGeneralHasMore] = useState(false);
   const [generalCursor, setGeneralCursor] = useState<string | null>(null);
@@ -349,6 +350,13 @@ export function useDashboardData() {
     toast.success("Question created successfully!");
   };
 
+  const handleQuestionUpdated = (updated: IQuestion) => {
+    const merge = (q: IQuestion) => ({ ...q, questionText: updated.questionText, description: updated.description }) as IQuestion;
+    setQuestions((prev) => prev.map((q) => (q._id === updated._id ? merge(q) : q)));
+    setSelectedQuestion((prev) => (prev && prev._id === updated._id ? merge(prev) : prev));
+    setEditingQuestion(null);
+  };
+
   const handleToggleActive = async (questionId: string, currentStatus: boolean) => {
     try {
       const response = await axios.patch(`/api/questions/${questionId}`, {
@@ -462,6 +470,9 @@ export function useDashboardData() {
     refreshingQuestionId,
     showCreateDialog,
     setShowCreateDialog,
+    editingQuestion,
+    setEditingQuestion,
+    handleQuestionUpdated,
     generalMessages,
     generalHasMore,
     generalLoadingMore,

@@ -94,6 +94,12 @@ export default function DashboardPage() {
         onOpenChange={d.setShowCreateDialog}
         onQuestionCreated={d.handleQuestionCreated}
       />
+      <CreateQuestionDialog
+        open={d.editingQuestion !== null}
+        onOpenChange={(open) => !open && d.setEditingQuestion(null)}
+        question={d.editingQuestion}
+        onQuestionUpdated={d.handleQuestionUpdated}
+      />
     </div>
   );
 }

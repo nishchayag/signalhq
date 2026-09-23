@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   Copy,
   Download,
+  Pencil,
   ExternalLink,
   HelpCircle,
   MessageSquare,
@@ -75,6 +76,12 @@ function QuestionActions({ d, question }: { d: DashboardData; question: IQuestio
       >
         {question.isActive ? "Accepting responses" : "Paused"}
       </span>
+      {d.canUpdateQuestions && (
+        <Button variant="ghost" size="sm" onClick={() => d.setEditingQuestion(question)}>
+          <Pencil className="mr-1.5 h-4 w-4" />
+          Edit
+        </Button>
+      )}
       {d.canUpdateQuestions && (
         <Button
           variant="ghost"
