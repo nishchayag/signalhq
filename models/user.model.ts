@@ -48,6 +48,13 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // Session revocation counter, stamped into the JWT at sign-in and checked
+  // on every session read. Bumping it (password change/reset) invalidates
+  // every outstanding session. Missing on older docs — treat as 0.
+  tokenVersion: {
+    type: Number,
+    default: 0,
+  },
 });
 
 const UserModel = mongoose.models.User || mongoose.model("User", userSchema);

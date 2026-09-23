@@ -89,6 +89,9 @@ export async function POST(request: NextRequest) {
     user.password = await bcrypt.hash(newPassword, 10);
     user.forgotPasswordCode = undefined;
     user.forgotPasswordCodeExpiry = undefined;
+    // Kill every existing session: whoever triggered the reset may be
+    // locking out someone who already has a session.
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
 
     return NextResponse.json(
