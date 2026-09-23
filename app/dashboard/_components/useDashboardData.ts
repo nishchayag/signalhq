@@ -8,6 +8,7 @@ import type { IMessage } from "@/models/message.model";
 import type { MembershipRole } from "@/models/membership.model";
 import { can } from "@/lib/permissions";
 import { apiError } from "@/lib/apiError";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 export interface ThreadEntry {
   authorRole: "member" | "org";
@@ -32,6 +33,7 @@ export type DashboardView = "general" | "question";
  */
 export function useDashboardData() {
   const { data: session } = useSession();
+  const confirm = useConfirm();
   const [questions, setQuestions] = useState<IQuestion[]>([]);
   const [selectedQuestion, setSelectedQuestion] = useState<IQuestion | null>(null);
   const [messages, setMessages] = useState<IMessage[]>([]);
@@ -367,23 +369,23 @@ export function useDashboardData() {
   };
 
   const handleDeleteQuestion = async (questionId: string) => {
-    if (!confirm("Are you sure you want to delete this question? This action cannot be undone.")) {
-      return;
-    }
-    try {
-      const response = await axios.delete(`/api/questions/${questionId}`);
-      if (response.data.success) {
-        setQuestions((prev) => prev.filter((q) => q._id !== questionId));
-        // Clears messages/cursor/threads too, not just the selection.
-        if (selectedQuestion?._id === questionId) handleGeneralView();
-        toast.success("Question deleted successfully");
-      } else {
-        toast.error("Failed to delete question");
-      }
-    } catch (error) {
-      console.error("Error deleting question:", error);
-      toast.error("Failed to delete question");
-    }
+    const question = questions.find((q) => q._id === questionId);
+    const responses = question?.responseCount ?? 0;
+    const ok = await confirm({
+      title: "Delete this question?",
+      description:
+        responses > 0
+          ? `Its ${responses} response${responses === 1 ? "" : "s"} will be permanently deleted too. This can't be undone.`
+          : "This can't be undone.",
+      confirmLabel: "Delete question",
+      destructive: true,
+      action: () => axios.delete(`/api/questions/${questionId}`),
+    });
+    if (!ok) return;
+    setQuestions((prev) => prev.filter((q) => q._id !== questionId));
+    // Clears messages/cursor/threads too, not just the selection.
+    if (selectedQuestion?._id === questionId) handleGeneralView();
+    toast.success("Question deleted");
   };
 
   const handleRefreshQuestion = async (questionId: string) => {

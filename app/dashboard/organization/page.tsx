@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { can } from "@/lib/permissions";
+import { useConfirm } from "@/components/ConfirmProvider";
 import type { MembershipRole } from "@/models/membership.model";
 import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
 
@@ -105,6 +106,7 @@ interface Team {
 export default function OrganizationPage() {
   const { data: session, update } = useSession();
   const router = useRouter();
+  const confirm = useConfirm();
   const orgId = session?.user?.activeOrgId;
   const role = session?.user?.activeOrgRole as MembershipRole | undefined;
   const orgSlug = session?.user?.activeOrgSlug;
@@ -118,6 +120,7 @@ export default function OrganizationPage() {
   const [activityCursor, setActivityCursor] = useState<string | null>(null);
   const [activityLoadingMore, setActivityLoadingMore] = useState(false);
   const [plan, setPlan] = useState<Plan>("FREE");
+  const [orgName, setOrgName] = useState("");
   const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -147,7 +150,10 @@ export default function OrganizationPage() {
         axios.get(`/api/organizations/${orgId}/members`),
         axios.get(`/api/organizations/${orgId}/teams`),
       ]);
-      if (org.data.success) setPlan(org.data.organization.plan);
+      if (org.data.success) {
+        setPlan(org.data.organization.plan);
+        setOrgName(org.data.organization.name);
+      }
       if (m.data.success) setMembers(m.data.members);
       if (t.data.success) setTeams(t.data.teams);
       if (can(role, "member:invite")) {
@@ -205,6 +211,15 @@ export default function OrganizationPage() {
 
   // ---- Member actions ----
   const changeRole = async (m: Member, newRole: "ADMIN" | "MEMBER") => {
+    // Promotions apply straight away; a demotion takes access away, so ask.
+    if (m.role === "ADMIN" && newRole === "MEMBER") {
+      const ok = await confirm({
+        title: `Make ${m.name} a member?`,
+        description: "They'll lose admin access: managing members, teams and questions, and replying to feedback.",
+        confirmLabel: "Change role",
+      });
+      if (!ok) return;
+    }
     try {
       const res = await axios.patch(
         `/api/organizations/${orgId}/members/${m.membershipId}`,
@@ -225,21 +240,16 @@ export default function OrganizationPage() {
   };
 
   const removeMember = async (m: Member) => {
-    if (!confirm(`Remove ${m.name} from the organization?`)) return;
-    try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/members/${m.membershipId}`
-      );
-      if (res.data.success) {
-        toast.success("Member removed");
-        setMembers((prev) =>
-          prev.filter((x) => x.membershipId !== m.membershipId)
-        );
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to remove member");
-    }
+    const ok = await confirm({
+      title: `Remove ${m.name}?`,
+      description: "They'll lose access to this organization and its teams immediately.",
+      confirmLabel: "Remove member",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/members/${m.membershipId}`),
+    });
+    if (!ok) return;
+    toast.success("Member removed");
+    setMembers((prev) => prev.filter((x) => x.membershipId !== m.membershipId));
   };
 
   // ---- Invitations ----
@@ -266,18 +276,17 @@ export default function OrganizationPage() {
     }
   };
 
-  const revokeInvite = async (id: string) => {
-    try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/invitations/${id}`
-      );
-      if (res.data.success) {
-        toast.success("Invitation revoked");
-        setInvites((prev) => prev.filter((i) => i._id !== id));
-      }
-    } catch {
-      toast.error("Failed to revoke");
-    }
+  const revokeInvite = async (invite: Invitation) => {
+    const ok = await confirm({
+      title: `Revoke the invitation to ${invite.email}?`,
+      description: "Their invite link will stop working. You can invite them again later.",
+      confirmLabel: "Revoke",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/invitations/${invite._id}`),
+    });
+    if (!ok) return;
+    toast.success("Invitation revoked");
+    setInvites((prev) => prev.filter((i) => i._id !== invite._id));
   };
 
   // ---- Teams ----
@@ -301,19 +310,16 @@ export default function OrganizationPage() {
   };
 
   const deleteTeam = async (t: Team) => {
-    if (!confirm(`Delete team "${t.name}"? Its questions become org-level.`))
-      return;
-    try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/teams/${t._id}`
-      );
-      if (res.data.success) {
-        toast.success("Team deleted");
-        setTeams((prev) => prev.filter((x) => x._id !== t._id));
-      }
-    } catch {
-      toast.error("Failed to delete team");
-    }
+    const ok = await confirm({
+      title: `Delete the "${t.name}" team?`,
+      description: "Its questions become organization-wide. Members stay in the organization.",
+      confirmLabel: "Delete team",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/teams/${t._id}`),
+    });
+    if (!ok) return;
+    toast.success("Team deleted");
+    setTeams((prev) => prev.filter((x) => x._id !== t._id));
   };
 
   // ---- Settings ----
@@ -338,53 +344,42 @@ export default function OrganizationPage() {
   const transferOwnership = async () => {
     if (!transferTarget) return toast.error("Choose a member first");
     const target = members.find((m) => m.membershipId === transferTarget);
-    if (
-      !confirm(
-        `Make ${target?.name ?? "this member"} the owner of this organization? You'll become an admin.`
-      )
-    )
-      return;
     setTransferring(true);
-    try {
-      const res = await axios.patch(
-        `/api/organizations/${orgId}/transfer-ownership`,
-        { membershipId: transferTarget }
-      );
-      if (res.data.success) {
-        toast.success("Ownership transferred. Reloading…");
-        await update();
-        window.location.reload();
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to transfer ownership");
-    } finally {
-      setTransferring(false);
-    }
+    const ok = await confirm({
+      title: `Make ${target?.name ?? "this member"} the owner?`,
+      description:
+        "They'll control billing, settings and deletion of this organization. You'll become an admin, and only the new owner can transfer it back.",
+      confirmLabel: "Transfer ownership",
+      destructive: true,
+      action: () =>
+        axios.patch(`/api/organizations/${orgId}/transfer-ownership`, { membershipId: transferTarget }),
+    });
+    setTransferring(false);
+    if (!ok) return;
+    toast.success("Ownership transferred. Reloading…");
+    await update();
+    window.location.reload();
   };
 
   const deleteOrg = async () => {
-    if (
-      !confirm(
-        "Delete this organization and ALL its data? This cannot be undone."
-      )
-    )
-      return;
-    try {
-      const res = await axios.delete(`/api/organizations/${orgId}`);
-      if (res.data.success) {
-        toast.success("Organization deleted");
-        // The JWT still carries this org as activeOrgId; a bare update()
-        // re-validates it in the jwt callback, which falls back to the
-        // user's oldest remaining membership. Without it, dashboard
-        // requests keep 403ing against the deleted org.
-        await update();
-        window.location.href = "/dashboard";
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to delete");
-    }
+    const ok = await confirm({
+      title: "Delete this organization?",
+      description:
+        "Every question, message, team and invitation in it is permanently deleted. Members lose access. This can't be undone.",
+      confirmLabel: "Delete organization",
+      destructive: true,
+      // Typed confirmation for the one truly irreversible, org-wide action.
+      requireText: orgName || orgSlug || undefined,
+      action: () => axios.delete(`/api/organizations/${orgId}`),
+    });
+    if (!ok) return;
+    toast.success("Organization deleted");
+    // The JWT still carries this org as activeOrgId; a bare update()
+    // re-validates it in the jwt callback, which falls back to the user's
+    // oldest remaining membership. Without it, dashboard requests keep
+    // 403ing against the deleted org.
+    await update();
+    window.location.href = "/dashboard";
   };
 
   // ---- Plan ----
@@ -413,20 +408,17 @@ export default function OrganizationPage() {
   const leaveOrg = async () => {
     const self = members.find((m) => m.isSelf);
     if (!self) return;
-    if (!confirm("Leave this organization?")) return;
-    try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/members/${self.membershipId}`
-      );
-      if (res.data.success) {
-        toast.success("You left the organization");
-        await update(); // drop the now-invalid activeOrgId (see deleteOrg)
-        window.location.href = "/dashboard";
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to leave");
-    }
+    const ok = await confirm({
+      title: "Leave this organization?",
+      description: "You'll lose access to its questions and feedback. An admin would have to invite you back.",
+      confirmLabel: "Leave",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/members/${self.membershipId}`),
+    });
+    if (!ok) return;
+    toast.success("You left the organization");
+    await update(); // drop the now-invalid activeOrgId (see deleteOrg)
+    window.location.href = "/dashboard";
   };
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -599,7 +591,7 @@ export default function OrganizationPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => revokeInvite(i._id)}
+                          onClick={() => revokeInvite(i)}
                         >
                           Revoke
                         </Button>
