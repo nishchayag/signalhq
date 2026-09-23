@@ -1,11 +1,11 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Bell, CreditCard, Loader2, Trash2, User } from "lucide-react";
+import { Bell, CreditCard, KeyRound, Loader2, Trash2, User } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { apiError } from "@/lib/apiError";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,6 +48,228 @@ const NOTIFICATION_OPTIONS: {
     description: "Don't email me about new messages",
   },
 ];
+
+function ProfileCard() {
+  const { data: session, update } = useSession();
+  const sessionName = session?.user?.name ?? "";
+  const [name, setName] = useState(sessionName);
+  const [saving, setSaving] = useState(false);
+
+  // The session loads after first render; re-seed the field whenever the
+  // session's name changes (first load, or the refresh after a save).
+  const [seededFrom, setSeededFrom] = useState(sessionName);
+  if (seededFrom !== sessionName) {
+    setSeededFrom(sessionName);
+    setName(sessionName);
+  }
+
+  const trimmed = name.trim();
+  const dirty = trimmed !== sessionName;
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trimmed) return;
+    setSaving(true);
+    try {
+      const res = await axios.patch("/api/account/profile", { name: trimmed });
+      // Bare update(): the jwt callback re-reads the name from the DB, so
+      // the navbar picks it up without a reload.
+      await update();
+      setName(res.data.name);
+      toast.success("Name updated");
+    } catch (error) {
+      toast.error(apiError(error, "Failed to update name"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="mb-6">
+      <CardContent className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <User className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-bold text-foreground">Profile</h2>
+        </div>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <Label htmlFor="profileName">Name</Label>
+            <div className="mt-1.5 flex gap-2">
+              <Input
+                id="profileName"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={50}
+                disabled={saving || !session}
+                autoComplete="name"
+              />
+              <Button type="submit" disabled={saving || !dirty || !trimmed}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              </Button>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="profileUsername">Username</Label>
+            <Input
+              id="profileUsername"
+              value={session?.user?.username ?? ""}
+              readOnly
+              disabled
+              className="mt-1.5"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Usernames can&apos;t be changed: yours is part of your share
+              links.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="profileEmail">Email</Label>
+            <Input
+              id="profileEmail"
+              value={session?.user?.email ?? ""}
+              readOnly
+              disabled
+              className="mt-1.5"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Changing your email isn&apos;t supported yet.
+            </p>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PasswordCard() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+  const canSubmit =
+    !!currentPassword && !!newPassword && newPassword === confirmPassword;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    const username = session?.user?.username;
+    setSaving(true);
+    try {
+      await axios.post("/api/account/password", { currentPassword, newPassword });
+    } catch (error) {
+      toast.error(apiError(error, "Failed to change password"));
+      setSaving(false);
+      return;
+    }
+
+    // The change bumped tokenVersion, which revokes this session too —
+    // quietly sign it back in with the new password.
+    const result = username
+      ? await signIn("credentials", {
+          identifier: username,
+          password: newPassword,
+          redirect: false,
+        })
+      : undefined;
+    setSaving(false);
+    if (!result?.ok || result.error) {
+      toast.success("Password changed. Please sign in again.");
+      router.push("/login");
+      return;
+    }
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    toast.success("Password changed");
+  };
+
+  return (
+    <Card className="mb-6">
+      <CardContent className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-bold text-foreground">Password</h2>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Lets password managers associate the new password with the account. */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value={session?.user?.username ?? ""}
+            readOnly
+            hidden
+          />
+          <div>
+            <Label htmlFor="currentPassword">Current password</Label>
+            <Input
+              id="currentPassword"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+              disabled={saving}
+              className="mt-1.5"
+            />
+          </div>
+          <div>
+            <Label htmlFor="newPassword">New password</Label>
+            <Input
+              id="newPassword"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+              disabled={saving}
+              className="mt-1.5"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              At least 8 characters, with an uppercase letter, a lowercase
+              letter, a number and a special character.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="confirmNewPassword">Confirm new password</Label>
+            <Input
+              id="confirmNewPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+              disabled={saving}
+              aria-invalid={mismatch}
+              className="mt-1.5"
+            />
+            {mismatch && (
+              <p role="alert" className="mt-1 text-xs font-medium text-destructive">
+                Passwords don&apos;t match.
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Other devices will be signed out.
+            </p>
+            <Button type="submit" disabled={saving || !canSubmit}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                "Change password"
+              )}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
@@ -145,28 +367,8 @@ export default function AccountSettingsPage() {
           </Button>
         </div>
 
-        <Card className="mb-6">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <h2 className="font-bold text-foreground">Your account</h2>
-            </div>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Name</dt>
-                <dd className="font-medium">{session?.user?.name}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Username</dt>
-                <dd className="font-medium">{session?.user?.username}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Email</dt>
-                <dd className="font-medium">{session?.user?.email}</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+        <ProfileCard />
+        <PasswordCard />
 
         <Card className="mb-6">
           <CardContent className="p-5">
