@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
-import QuestionModel from "@/models/question.model";
-import MessageModel from "@/models/message.model";
-import TeamModel from "@/models/team.model";
-import InvitationModel from "@/models/invitation.model";
 import { renameOrganizationSchema } from "@/schemas/organizationSchema";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
+import { deleteOrganizationsCascade } from "@/lib/orgCleanup";
 
 // GET /api/organizations/:orgId — details for a member.
 export async function GET(
@@ -96,14 +93,7 @@ export async function DELETE(
 
   // Cascade: remove org-owned data. Messages/questions created before the
   // multi-tenant migration that still lack an org are left untouched.
-  await Promise.all([
-    MessageModel.deleteMany({ organizationId: orgId }),
-    QuestionModel.deleteMany({ organizationId: orgId }),
-    TeamModel.deleteMany({ organizationId: orgId }),
-    InvitationModel.deleteMany({ organizationId: orgId }),
-    MembershipModel.deleteMany({ organizationId: orgId }),
-  ]);
-  await OrganizationModel.findByIdAndDelete(orgId);
+  await deleteOrganizationsCascade([orgId]);
 
   // Logged after the cascade so the org itself is dangling by the time this
   // entry exists — metadata carries the name/slug since they won't be

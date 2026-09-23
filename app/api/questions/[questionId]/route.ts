@@ -1,87 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import authOptions from "@/lib/nextAuthOptions";
 import connectDB from "@/lib/connectDB";
-import QuestionModel, { IQuestion } from "@/models/question.model";
+import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
-import MembershipModel from "@/models/membership.model";
 import { updateQuestionSchema } from "@/schemas/questionSchema";
-import { can, Permission } from "@/lib/permissions";
-import type { MembershipRole } from "@/models/membership.model";
+import { can } from "@/lib/permissions";
+import { loadAndAuthorize } from "@/lib/questionAccess";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
-
-// `role` is null for legacy org-less questions (owner-only access, no org role).
-export type AuthzOk = { ok: true; question: IQuestion; role: MembershipRole | null };
-export type AuthzFail = { ok: false; response: NextResponse };
-
-/**
- * Load a question and authorize the caller against it. Org-owned questions are
- * gated by membership + role permission; legacy questions without an org fall
- * back to owner-only access.
- */
-export async function loadAndAuthorize(
-  questionId: string,
-  permission?: Permission
-): Promise<AuthzOk | AuthzFail> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?._id) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { success: false, message: "Not authenticated" },
-        { status: 401 }
-      ),
-    };
-  }
-
-  const question = await QuestionModel.findById(questionId);
-  if (!question) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { success: false, message: "Question not found" },
-        { status: 404 }
-      ),
-    };
-  }
-
-  let role: MembershipRole | null = null;
-  if (question.organizationId) {
-    const membership = await MembershipModel.findOne({
-      organizationId: question.organizationId,
-      userId: session.user._id,
-    });
-    if (!membership) {
-      return {
-        ok: false,
-        response: NextResponse.json(
-          { success: false, message: "Question not found" },
-          { status: 404 }
-        ),
-      };
-    }
-    if (permission && !can(membership.role, permission)) {
-      return {
-        ok: false,
-        response: NextResponse.json(
-          { success: false, message: "Insufficient permissions" },
-          { status: 403 }
-        ),
-      };
-    }
-    role = membership.role;
-  } else if (String(question.userId) !== String(session.user._id)) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { success: false, message: "Question not found" },
-        { status: 404 }
-      ),
-    };
-  }
-
-  return { ok: true, question, role };
-}
 
 export async function GET(
   request: NextRequest,

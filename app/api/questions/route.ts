@@ -9,23 +9,7 @@ import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
 import { nanoid } from "nanoid";
 import { parsePagination, paginate } from "@/lib/pagination";
-
-// Team ids a member is allowed to see. OWNER/ADMIN see everything (returns null
-// meaning "no team restriction").
-async function teamScopeFilter(
-  orgId: string,
-  userId: string,
-  role: string
-): Promise<Record<string, unknown> | null> {
-  if (role === "OWNER" || role === "ADMIN") return null;
-  const teams = await TeamModel.find({
-    organizationId: orgId,
-    members: userId,
-  }).select("_id");
-  const teamIds = teams.map((t) => t._id);
-  // Members see org-level questions plus their own teams' questions.
-  return { $or: [{ teamId: null }, { teamId: { $in: teamIds } }] };
-}
+import { teamScopeFilter } from "@/lib/questionAccess";
 
 export async function POST(request: NextRequest) {
   await connectDB();

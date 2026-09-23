@@ -7,7 +7,7 @@ import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
 import { parseSearchQuery } from "@/lib/pagination";
 import { messagesToCsv } from "@/lib/csv";
-import { loadAndAuthorize } from "@/app/api/questions/[questionId]/route";
+import { loadAndAuthorize } from "@/lib/questionAccess";
 
 // Hard cap so a single export can't pull in an unbounded number of documents.
 const MAX_ROWS = 10_000;
