@@ -116,7 +116,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
             <div className="text-center">
               <div className="w-12 h-12 border-2 border-ink bg-brand-mint rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
-                  className="w-6 h-6 text-ink"
+                  className="w-6 h-6 text-on-brand"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

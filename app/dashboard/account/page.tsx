@@ -208,7 +208,7 @@ export default function AccountSettingsPage() {
                   onClick={() => handleNotificationChange(option.value)}
                   className={`flex-1 rounded-lg border-2 border-ink p-3 text-left transition-colors disabled:opacity-60 ${
                     notificationPreference === option.value
-                      ? "bg-brand-yellow"
+                      ? "bg-brand-yellow on-brand-fill"
                       : "bg-background hover:bg-muted"
                   }`}
                 >

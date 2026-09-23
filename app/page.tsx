@@ -64,7 +64,7 @@ function ProductPreview() {
           <div className="hidden border-r-2 border-ink p-4 sm:block">
             <div className="flex items-center gap-2 rounded-lg border-2 border-ink bg-brand-blue px-3 py-2">
               <span className="h-5 w-5 rounded-md border-2 border-ink bg-card" />
-              <span className="text-sm font-bold text-ink">Acme Inc.</span>
+              <span className="text-sm font-bold text-on-brand">Acme Inc.</span>
             </div>
             <div className="mt-4 space-y-1.5">
               <div className="rounded-lg border-2 border-ink bg-accent px-3 py-2 text-xs font-bold text-accent-foreground">
@@ -161,10 +161,10 @@ export default function Home() {
               key={big}
               className={`rounded-2xl border-2 border-ink px-8 py-10 text-center shadow-solid ${chip}`}
             >
-              <div className="text-3xl font-black tracking-tight text-ink sm:text-4xl">
+              <div className="text-3xl font-black tracking-tight text-on-brand sm:text-4xl">
                 {big}
               </div>
-              <p className="mt-2 text-sm font-semibold text-ink/80">{small}</p>
+              <p className="mt-2 text-sm font-semibold text-on-brand/80">{small}</p>
             </div>
           ))}
         </div>
@@ -186,7 +186,7 @@ export default function Home() {
           {/* Big anonymity card */}
           <div className="rounded-2xl border-2 border-ink bg-card p-8 shadow-solid md:col-span-2 md:row-span-2">
             <span
-              className={`inline-flex h-14 w-14 items-center justify-center rounded-xl border-2 border-ink ${features[0].chip} text-ink`}
+              className={`inline-flex h-14 w-14 items-center justify-center rounded-xl border-2 border-ink ${features[0].chip} text-on-brand`}
             >
               {features[0].icon}
             </span>
@@ -219,7 +219,7 @@ export default function Home() {
               className="rounded-2xl border-2 border-ink bg-card p-8 shadow-solid"
             >
               <span
-                className={`inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink ${f.chip} text-ink`}
+                className={`inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink ${f.chip} text-on-brand`}
               >
                 {f.icon}
               </span>
@@ -236,7 +236,7 @@ export default function Home() {
       <section className="border-y-2 border-ink bg-secondary">
         <div className="mx-auto grid max-w-6xl items-center gap-14 px-6 py-28 md:grid-cols-2">
           <div>
-            <p className="inline-flex rounded-full border-2 border-ink bg-brand-pink px-3 py-1 text-sm font-bold text-ink">
+            <p className="inline-flex rounded-full border-2 border-ink bg-brand-pink px-3 py-1 text-sm font-bold text-on-brand">
               One link, everywhere
             </p>
             <h2 className="mt-5 text-3xl font-black tracking-tight sm:text-4xl">
@@ -306,7 +306,7 @@ export default function Home() {
               className="rounded-2xl border-2 border-ink bg-card p-7 shadow-solid"
             >
               <div
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 border-ink ${chip} text-sm font-black text-ink`}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 border-ink ${chip} text-sm font-black text-on-brand`}
               >
                 {n}
               </div>
@@ -335,7 +335,7 @@ export default function Home() {
           </p>
           <Link
             href="/signup"
-            className="relative mt-9 inline-flex items-center gap-2 rounded-lg border-2 border-ink bg-brand-yellow px-8 py-4 text-base font-bold text-ink pop"
+            className="relative mt-9 inline-flex items-center gap-2 rounded-lg border-2 border-ink bg-brand-yellow px-8 py-4 text-base font-bold text-on-brand pop"
           >
             Start for free
             <ArrowRight className="h-4 w-4" />

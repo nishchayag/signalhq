@@ -47,7 +47,7 @@ export default async function OrgPublicPage({ params }: PageProps) {
     <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-dot-grid py-16 px-4">
       <div className="relative max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-ink text-xl font-black">
+          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-on-brand text-xl font-black">
             {organization.name.charAt(0).toUpperCase()}
           </span>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground mb-2">

@@ -33,7 +33,7 @@ export default async function ReplyReceiptPage({ params }: PageProps) {
     <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-dot-grid py-16 px-4">
       <div className="relative max-w-2xl mx-auto space-y-6">
         <div className="text-center mb-2">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-blue text-ink">
+          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-blue text-on-brand">
             <MessageSquare className="h-5 w-5" strokeWidth={2.5} />
           </span>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground mb-2">

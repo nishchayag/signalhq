@@ -42,6 +42,7 @@
   --color-brand-pink: var(--brand-pink);
   --color-brand-mint: var(--brand-mint);
   --color-brand-blue: var(--brand-blue);
+  --color-on-brand: var(--on-brand);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -77,6 +78,10 @@
   --brand-pink: oklch(0.75 0.19 15);
   --brand-mint: oklch(0.82 0.15 165);
   --brand-blue: oklch(0.72 0.13 235);
+  /* Text/icons on a SOLID brand fill. Separate from --ink because ink flips
+     to off-white in dark mode while the brand fills stay light — text-ink on
+     bg-brand-* went light-on-light. Borders/shadows keep using --ink. */
+  --on-brand: oklch(0.19 0.024 45);
   --chart-1: oklch(0.5 0.232 281);
   --chart-2: oklch(0.82 0.15 165);
   --chart-3: oklch(0.72 0.13 235);
@@ -118,6 +123,7 @@
   --brand-pink: oklch(0.7 0.18 15);
   --brand-mint: oklch(0.75 0.14 165);
   --brand-blue: oklch(0.68 0.12 235);
+  --on-brand: oklch(0.16 0.02 281);
   --chart-1: oklch(0.68 0.19 281);
   --chart-2: oklch(0.75 0.14 165);
   --chart-3: oklch(0.68 0.12 235);
@@ -216,4 +222,17 @@
       box-shadow: 4px 4px 0 0 var(--color-ink);
     }
   }
+}
+
+/* Selected states that switch a whole card to a SOLID brand fill (the
+   dashboard's selected question, the chosen notification option). Their
+   children use text-foreground / text-muted-foreground, which go off-white
+   in dark mode — light-on-light on the fill. Unlayered on purpose so it
+   beats the layered color utilities. */
+.on-brand-fill,
+.on-brand-fill .text-foreground {
+  color: var(--on-brand);
+}
+.on-brand-fill .text-muted-foreground {
+  color: color-mix(in oklab, var(--on-brand) 72%, transparent);
 }

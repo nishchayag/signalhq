@@ -41,7 +41,7 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
           onClick={d.handleGeneralView}
           className={`mb-6 w-full rounded-xl border-2 p-3 text-left transition-colors ${
             d.view === "general"
-              ? "border-ink bg-brand-yellow text-ink shadow-solid-sm"
+              ? "border-ink bg-brand-yellow text-on-brand shadow-solid-sm"
               : "border-transparent hover:bg-secondary"
           }`}
         >
@@ -92,7 +92,7 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
               onClick={() => d.handleQuestionSelect(question)}
               className={`w-full rounded-xl border-2 p-3 text-left transition-colors ${
                 d.selectedQuestion?._id === question._id
-                  ? "border-ink bg-brand-mint shadow-solid-sm"
+                  ? "border-ink bg-brand-mint shadow-solid-sm on-brand-fill"
                   : "border-transparent hover:bg-secondary"
               }`}
             >

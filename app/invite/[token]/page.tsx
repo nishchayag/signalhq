@@ -104,7 +104,7 @@ export default function AcceptInvitePage() {
   return wrap(
     <>
       <CardHeader>
-        <span className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-pink text-ink text-xl font-black">
+        <span className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-pink text-on-brand text-xl font-black">
           {info.organization.name.charAt(0).toUpperCase()}
         </span>
         <CardTitle className="text-center text-2xl font-black">

@@ -55,7 +55,7 @@ export default function OnboardingChecklist({
           <li key={step.label} className="flex items-center gap-3">
             <span
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ink text-xs font-black ${
-                step.done ? "bg-brand-mint text-ink" : "bg-card text-foreground"
+                step.done ? "bg-brand-mint text-on-brand" : "bg-card text-foreground"
               }`}
             >
               {step.done ? <Check className="h-3.5 w-3.5" /> : i + 1}

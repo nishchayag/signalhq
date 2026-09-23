@@ -75,7 +75,7 @@ const Page = () => {
     <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-dot-grid px-4 py-16">
       <div className="relative w-full max-w-md rounded-2xl border-2 border-ink bg-card p-8 shadow-solid-lg">
         <div className="mb-7 text-center">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-ink">
+          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-on-brand">
             <LogIn className="h-5 w-5" strokeWidth={2.5} />
           </span>
           <h1 className="text-2xl font-black tracking-tight text-foreground">

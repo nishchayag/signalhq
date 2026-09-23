@@ -71,7 +71,7 @@ function QuestionActions({ d, question }: { d: DashboardData; question: IQuestio
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <span
         className={`inline-flex items-center gap-1.5 rounded-full border-2 border-ink px-2.5 py-0.5 text-xs font-bold ${
-          question.isActive ? "bg-brand-mint text-ink" : "bg-muted text-muted-foreground"
+          question.isActive ? "bg-brand-mint text-on-brand" : "bg-muted text-muted-foreground"
         }`}
       >
         {question.isActive ? "Accepting responses" : "Paused"}
