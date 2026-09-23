@@ -111,6 +111,21 @@ async function handleDELETE(
     );
   }
 
+  // Leaving your last org strands you the same way deleting it would (e.g.
+  // after transferring away your personal org and becoming ADMIN).
+  if (isSelf) {
+    const remaining = await MembershipModel.countDocuments({ userId: auth.userId });
+    if (remaining <= 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You can't leave your only organization. Create or join another one first.",
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   await MembershipModel.deleteOne({ _id: target._id });
   // Drop them from any teams in this org.
   await TeamModel.updateMany(

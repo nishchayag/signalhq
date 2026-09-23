@@ -24,6 +24,15 @@ async function handleDELETE(
     );
   }
 
+  // Only a live invite can be revoked — flipping an ACCEPTED one to REVOKED
+  // would rewrite history (the member is already in).
+  if (invitation.status !== "PENDING") {
+    return NextResponse.json(
+      { success: false, message: `This invitation is already ${invitation.status.toLowerCase()}` },
+      { status: 409 }
+    );
+  }
+
   invitation.status = "REVOKED";
   await invitation.save();
 

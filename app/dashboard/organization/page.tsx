@@ -374,6 +374,11 @@ export default function OrganizationPage() {
       const res = await axios.delete(`/api/organizations/${orgId}`);
       if (res.data.success) {
         toast.success("Organization deleted");
+        // The JWT still carries this org as activeOrgId; a bare update()
+        // re-validates it in the jwt callback, which falls back to the
+        // user's oldest remaining membership. Without it, dashboard
+        // requests keep 403ing against the deleted org.
+        await update();
         window.location.href = "/dashboard";
       } else toast.error(res.data.message);
     } catch (e) {
@@ -415,6 +420,7 @@ export default function OrganizationPage() {
       );
       if (res.data.success) {
         toast.success("You left the organization");
+        await update(); // drop the now-invalid activeOrgId (see deleteOrg)
         window.location.href = "/dashboard";
       } else toast.error(res.data.message);
     } catch (e) {

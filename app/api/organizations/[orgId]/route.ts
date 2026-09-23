@@ -5,7 +5,7 @@ import MembershipModel from "@/models/membership.model";
 import { renameOrganizationSchema } from "@/schemas/organizationSchema";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
-import { deleteOrganizationsCascade } from "@/lib/orgCleanup";
+import { deleteOrganizationsCascade, rehomeStrandedUsers } from "@/lib/orgCleanup";
 import { withErrorHandling } from "@/lib/apiHandler";
 
 // GET /api/organizations/:orgId — details for a member.
@@ -90,11 +90,34 @@ async function handleDELETE(
   if (!auth.ok) return auth.response;
 
   await connectDB();
+
+  // Deleting your only org would leave you with no membership at all —
+  // resolveActiveContext returns null and the whole dashboard 401s.
+  const callerMemberships = await MembershipModel.countDocuments({ userId: auth.userId });
+  if (callerMemberships <= 1) {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          "You can't delete your only organization. Create or join another one first, or delete your account instead.",
+      },
+      { status: 409 }
+    );
+  }
+
   const organization = await OrganizationModel.findById(orgId).select("name slug");
+  const otherMemberIds = (
+    await MembershipModel.find({ organizationId: orgId, userId: { $ne: auth.userId } }).select("userId")
+  ).map((m) => m.userId);
 
   // Cascade: remove org-owned data. Messages/questions created before the
   // multi-tenant migration that still lack an org are left untouched.
   await deleteOrganizationsCascade([orgId]);
+
+  // Other members may have had this as their only org (e.g. they
+  // transferred away their own). Don't strand them — give them a fresh
+  // personal org rather than blocking the owner's delete.
+  await rehomeStrandedUsers(otherMemberIds);
 
   // Logged after the cascade so the org itself is dangling by the time this
   // entry exists — metadata carries the name/slug since they won't be

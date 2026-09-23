@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import MembershipModel from "@/models/membership.model";
+import OrganizationModel from "@/models/organization.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { transferOwnershipSchema } from "@/schemas/organizationSchema";
 import { logActivity } from "@/lib/auditLog";
@@ -51,6 +52,12 @@ async function handlePATCH(
 
   auth.membership.role = "ADMIN";
   await auth.membership.save();
+
+  // createdBy is what general org feedback is addressed to
+  // (sendMessage stamps createdFor: organization.createdBy and notifies
+  // them), so it must follow ownership — otherwise the old owner keeps
+  // getting it, and it silently stops if they later delete their account.
+  await OrganizationModel.updateOne({ _id: orgId }, { createdBy: target.userId });
 
   await logActivity({
     organizationId: orgId,
