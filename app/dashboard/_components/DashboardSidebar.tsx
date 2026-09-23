@@ -4,6 +4,7 @@ import { HelpCircle, MessageSquare, Plus, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrgSwitcher from "@/components/OrgSwitcher";
 import EmptyState from "./EmptyState";
+import ErrorState from "./ErrorState";
 import type { DashboardData } from "./useDashboardData";
 
 /** Org switcher, settings links, general-messages entry and question list. */
@@ -58,6 +59,15 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
             New
           </Button>
         </div>
+
+        {d.teamsError && (
+          <p className="mb-3 text-xs font-medium text-destructive">
+            {d.teamsError}.{" "}
+            <button onClick={d.retryTeams} className="font-bold underline">
+              Retry
+            </button>
+          </p>
+        )}
 
         {d.teams.length > 0 && (
           <select
@@ -127,7 +137,9 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
             </button>
           ))}
 
-          {d.filteredQuestions.length === 0 && (
+          {d.questionsError ? (
+            <ErrorState compact message={d.questionsError} onRetry={d.retryQuestions} />
+          ) : d.filteredQuestions.length === 0 && (
             <EmptyState
               compact
               icon={HelpCircle}

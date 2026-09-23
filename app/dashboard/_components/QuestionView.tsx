@@ -21,6 +21,7 @@ import Loader from "@/components/Loader";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import type { IQuestion } from "@/models/question.model";
 import EmptyState from "./EmptyState";
+import ErrorState from "./ErrorState";
 import LoadMoreButton from "./LoadMoreButton";
 import type { DashboardData, ThreadSummary } from "./useDashboardData";
 
@@ -148,6 +149,10 @@ function InternalQuestionView({ d, question }: { d: DashboardData; question: IQu
     );
   }
 
+  if (d.questionError) {
+    return <ErrorState message={d.questionError} onRetry={d.retryQuestion} />;
+  }
+
   if (d.canViewAllReplies) {
     return (
       <div className="space-y-4">
@@ -220,6 +225,8 @@ function PublicQuestionView({ d }: { d: DashboardData }) {
         <div className="flex justify-center py-10">
           <Loader size="sm" label="Loading responses…" />
         </div>
+      ) : d.questionError ? (
+        <ErrorState message={d.questionError} onRetry={d.retryQuestion} />
       ) : (
         <>
           {d.messages.map((message) => (

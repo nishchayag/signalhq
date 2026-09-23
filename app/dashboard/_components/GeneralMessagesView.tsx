@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import MessageCard from "@/components/MessageCard";
 import EmptyState from "./EmptyState";
+import ErrorState from "./ErrorState";
 import LoadMoreButton from "./LoadMoreButton";
 import type { DashboardData } from "./useDashboardData";
 
@@ -72,7 +73,9 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
           />
         ))}
 
-        {d.generalMessages.length === 0 && (
+        {d.generalError ? (
+          <ErrorState message={d.generalError} onRetry={d.retryGeneral} />
+        ) : d.generalMessages.length === 0 && (
           <EmptyState
             icon={MessageSquare}
             title="No messages yet"

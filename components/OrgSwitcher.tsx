@@ -30,15 +30,18 @@ export default function OrgSwitcher() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const activeOrgId = session?.user?.activeOrgId;
 
   const fetchOrgs = async () => {
+    setLoadError(false);
     try {
       const res = await axios.get("/api/organizations");
       if (res.data.success) setOrgs(res.data.organizations);
     } catch (error) {
       console.error("Error loading organizations:", error);
+      setLoadError(true);
     }
   };
 
@@ -96,14 +99,17 @@ export default function OrgSwitcher() {
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        // A failed load retries on click rather than opening an empty list.
+        onClick={() => (loadError && orgs.length === 0 ? fetchOrgs() : setOpen((v) => !v))}
         disabled={switching}
         className="w-full flex items-center justify-between gap-2 p-3 rounded-lg border-2 border-ink bg-card pop"
       >
         <span className="flex items-center gap-2 min-w-0">
           <Building2 className="h-4 w-4 flex-shrink-0 text-primary" />
           <span className="truncate text-sm font-bold">
-            {switching ? "Switching..." : active?.name || "No organization"}
+            {switching
+              ? "Switching..."
+              : active?.name || (loadError ? "Couldn't load — tap to retry" : "No organization")}
           </span>
         </span>
         {switching ? (

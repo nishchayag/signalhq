@@ -7,6 +7,7 @@ import type { IQuestion } from "@/models/question.model";
 import type { IMessage } from "@/models/message.model";
 import type { MembershipRole } from "@/models/membership.model";
 import { can } from "@/lib/permissions";
+import { apiError } from "@/lib/apiError";
 
 export interface ThreadEntry {
   authorRole: "member" | "org";
@@ -57,6 +58,12 @@ export function useDashboardData() {
   const [internalLoading, setInternalLoading] = useState(false);
   const [answerDraft, setAnswerDraft] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  // Per-fetch errors, so a failed load renders ErrorState + Retry instead of
+  // the "No … yet" empty state it used to fall through to.
+  const [questionsError, setQuestionsError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
+  const [questionError, setQuestionError] = useState<string | null>(null);
 
   // Monotonic request ids: a response is applied only if no newer request of
   // the same kind (or a view switch) happened meanwhile. Without this, a slow
@@ -71,15 +78,18 @@ export function useDashboardData() {
   const fetchTeams = async () => {
     const orgId = session?.user?.activeOrgId;
     if (!orgId) return;
+    setTeamsError(null);
     try {
       const res = await axios.get(`/api/organizations/${orgId}/teams`);
       if (res.data.success) setTeams(res.data.teams);
     } catch (error) {
       console.error("Error fetching teams:", error);
+      setTeamsError(apiError(error, "Couldn't load teams"));
     }
   };
 
   const fetchQuestions = async () => {
+    setQuestionsError(null);
     try {
       const response = await axios.get("/api/questions");
       if (response.data.success) {
@@ -87,7 +97,7 @@ export function useDashboardData() {
       }
     } catch (error) {
       console.error("Error fetching questions:", error);
-      toast.error("Failed to load questions");
+      setQuestionsError(apiError(error, "Couldn't load your questions"));
     } finally {
       setLoading(false);
     }
@@ -95,6 +105,7 @@ export function useDashboardData() {
 
   const fetchGeneralMessages = async (search?: string) => {
     const req = ++generalReq.current;
+    setGeneralError(null);
     try {
       const response = await axios.get("/api/getMessages", {
         params: { q: search || undefined },
@@ -106,7 +117,9 @@ export function useDashboardData() {
         setGeneralCursor(response.data.nextCursor);
       }
     } catch (error) {
+      if (req !== generalReq.current) return;
       console.error("Error fetching general messages:", error);
+      setGeneralError(apiError(error, "Couldn't load messages"));
     }
   };
 
@@ -169,6 +182,7 @@ export function useDashboardData() {
   const fetchQuestionMessages = async (questionId: string, search?: string) => {
     const req = ++questionReq.current;
     setMessagesLoading(true);
+    setQuestionError(null);
     try {
       const response = await axios.get(`/api/questions/${questionId}`, {
         params: { q: search || undefined },
@@ -183,7 +197,7 @@ export function useDashboardData() {
     } catch (error) {
       if (req !== questionReq.current) return;
       console.error("Error fetching question messages:", error);
-      toast.error("Failed to load messages");
+      setQuestionError(apiError(error, "Couldn't load responses"));
     } finally {
       if (req === questionReq.current) setMessagesLoading(false);
     }
@@ -222,6 +236,7 @@ export function useDashboardData() {
   const fetchInternalQuestionData = async (questionId: string, viewAllReplies: boolean) => {
     const req = ++questionReq.current;
     setInternalLoading(true);
+    setQuestionError(null);
     try {
       if (viewAllReplies) {
         const res = await axios.get(`/api/questions/${questionId}/replies`);
@@ -233,7 +248,7 @@ export function useDashboardData() {
     } catch (error) {
       if (req !== questionReq.current) return;
       console.error("Error fetching internal question replies:", error);
-      toast.error("Failed to load replies");
+      setQuestionError(apiError(error, "Couldn't load answers"));
     } finally {
       if (req === questionReq.current) setInternalLoading(false);
     }
@@ -250,6 +265,7 @@ export function useDashboardData() {
     cancelPendingQuestionWork();
     setMessagesLoading(false);
     setInternalLoading(false);
+    setQuestionError(null);
     setView("general");
     setSelectedQuestion(null);
     setMessages([]);
@@ -401,6 +417,15 @@ export function useDashboardData() {
     }
   };
 
+  const retryQuestion = () => {
+    if (!selectedQuestion) return;
+    if (selectedQuestion.visibility === "internal") {
+      fetchInternalQuestionData(selectedQuestion._id, can(role, "question:viewAllReplies"));
+    } else {
+      fetchQuestionMessages(selectedQuestion._id, messagesSearch);
+    }
+  };
+
   const teamNameById: Record<string, string> = Object.fromEntries(teams.map((t) => [t._id, t.name]));
   const filteredQuestions = questions.filter((q) => {
     if (teamFilter === "all") return true;
@@ -444,7 +469,15 @@ export function useDashboardData() {
     answerDraft,
     setAnswerDraft,
     submittingAnswer,
+    questionsError,
+    generalError,
+    teamsError,
+    questionError,
     // actions
+    retryQuestions: fetchQuestions,
+    retryGeneral: () => fetchGeneralMessages(generalSearch),
+    retryTeams: fetchTeams,
+    retryQuestion,
     handleGeneralView,
     handleQuestionSelect,
     handleGeneralSearchChange,
