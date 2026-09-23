@@ -5,17 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSend } from "@/lib/enterToSend";
 import { X, Reply as ReplyIcon, Loader2 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+import { useConfirm } from "@/components/ConfirmProvider";
 import {
   Dialog,
   DialogContent,
@@ -52,7 +42,7 @@ const MessageCard = ({
   canDelete,
   onReplySaved,
 }: MessageCardProps) => {
-  const [loading, setLoading] = React.useState(false);
+  const confirm = useConfirm();
   const [replyOpen, setReplyOpen] = React.useState(false);
   const [replying, setReplying] = React.useState(false);
 
@@ -66,20 +56,19 @@ const MessageCard = ({
     defaultValues: { content: message.reply?.content ?? "" },
   });
 
-  const handleDeleteConfirm = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.post(`/api/deleteMessage`, {
-        messageId: message._id,
-      });
-      toast.success(response.data.message || "Message deleted");
-      onMessageDelete(message._id as string);
-    } catch (error: unknown) {
-      console.log("Error deleting message:", error);
-      toast.error("Failed to delete message:");
-    } finally {
-      setLoading(false);
-    }
+  // Runs inside the shared confirm dialog, which stays open with a spinner
+  // until the delete settles and shows the server's reason if it fails.
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: "Delete this message?",
+      description: "It's permanently removed, along with any reply. This can't be undone.",
+      confirmLabel: "Delete message",
+      destructive: true,
+      action: () => axios.post(`/api/deleteMessage`, { messageId: message._id }),
+    });
+    if (!ok) return;
+    toast.success("Message deleted");
+    onMessageDelete(message._id as string);
   };
 
   const openReplyDialog = () => {
@@ -141,34 +130,15 @@ const MessageCard = ({
           </CardTitle>
         </div>
         {canDelete && (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:bg-destructive/10 "
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the message.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteConfirm}
-                disabled={loading}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Delete message"
+            className="text-destructive hover:bg-destructive/10"
+            onClick={handleDelete}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         )}
       </CardHeader>
 

@@ -6,7 +6,8 @@ import axios from "axios";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Bell, CreditCard, Loader2, Trash2, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { apiError } from "@/lib/apiError";
 import { Card, CardContent } from "@/components/ui/card";
 import PlanBadge from "@/components/PlanBadge";
 import { PLAN_DISPLAY } from "@/lib/plans";
@@ -97,12 +98,20 @@ export default function AccountSettingsPage() {
     }
   };
 
-  const handleDelete = async () => {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    // AlertDialogAction closes on click unless default-prevented; keep the
+    // dialog open so the spinner, a missing password, or the server's reason
+    // (e.g. orgs blocking deletion) stay visible in it.
+    e.preventDefault();
     if (!password) {
-      toast.error("Enter your password to confirm");
+      setDeleteError("Enter your password to confirm.");
       return;
     }
     setDeleting(true);
+    setDeleteError(null);
     setBlockingOrgs([]);
     try {
       const res = await axios.delete("/api/account/delete", {
@@ -112,13 +121,13 @@ export default function AccountSettingsPage() {
         toast.success("Your account has been deleted");
         await signOut({ redirect: false });
         router.push("/");
-      } else {
-        toast.error(res.data.message);
+        return;
       }
+      setDeleteError(res.data.message || "Failed to delete account");
     } catch (error) {
       const data = axios.isAxiosError(error) ? error.response?.data : null;
       if (data?.blockingOrgs) setBlockingOrgs(data.blockingOrgs);
-      toast.error(data?.message || "Failed to delete account");
+      setDeleteError(apiError(error, "Failed to delete account"));
     } finally {
       setDeleting(false);
     }
@@ -247,7 +256,17 @@ export default function AccountSettingsPage() {
               </div>
             )}
 
-            <AlertDialog>
+            <AlertDialog
+              open={deleteOpen}
+              onOpenChange={(open) => {
+                if (deleting) return; // don't abandon an in-flight delete
+                setDeleteOpen(open);
+                if (!open) {
+                  setPassword("");
+                  setDeleteError(null);
+                }
+              }}
+            >
               <AlertDialogTrigger asChild>
                 <Button variant="destructive">
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -271,16 +290,32 @@ export default function AccountSettingsPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     className="mt-1.5"
+                    disabled={deleting}
+                    autoFocus
                   />
                 </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel
-                    disabled={deleting}
-                    onClick={() => setPassword("")}
+                {deleteError && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border-2 border-destructive bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive"
                   >
-                    Cancel
-                  </AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} disabled={deleting}>
+                    {deleteError}
+                    {blockingOrgs.length > 0 && (
+                      <ul className="mt-1 list-disc pl-5">
+                        {blockingOrgs.map((o) => (
+                          <li key={o._id}>{o.name}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className={buttonVariants({ variant: "destructive" })}
+                  >
                     {deleting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
