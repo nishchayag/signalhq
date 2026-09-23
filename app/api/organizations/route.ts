@@ -7,6 +7,7 @@ import MembershipModel from "@/models/membership.model";
 import { createOrganizationSchema } from "@/schemas/organizationSchema";
 import { listUserOrganizations } from "@/lib/orgContext";
 import { uniqueSlug } from "@/lib/slug";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // GET /api/organizations — organizations the current user belongs to.
 export async function GET() {
@@ -43,6 +44,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, message: "Not authenticated" },
         { status: 401 }
+      );
+    }
+
+    // Each org claims a globally-unique slug; cap creation so one account
+    // can't squat slugs in bulk.
+    const allowed = await checkRateLimit(`createOrg:${session.user._id}`, 10, 60 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: "Too many organizations created. Please try again later." },
+        { status: 429 }
       );
     }
 

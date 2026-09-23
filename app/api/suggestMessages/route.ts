@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import authOptions from "@/lib/nextAuthOptions";
 import { checkRateLimit } from "@/lib/rateLimit";
+import connectDB from "@/lib/connectDB";
 
 export const maxDuration = 30;
 
@@ -35,19 +36,23 @@ export async function POST() {
     );
   }
 
-  const allowed = await checkRateLimit(
-    `suggestMessages:${session.user._id}`,
-    20,
-    60 * 60 * 1000
-  );
-  if (!allowed) {
-    return NextResponse.json(
-      { error: "Too many suggestion requests. Please try again later." },
-      { status: 429 }
-    );
-  }
-
   try {
+    // checkRateLimit is a Mongo query: connect first (a cold serverless
+    // instance has no connection yet, so the query would buffer and time out
+    // outside any try/catch).
+    await connectDB();
+    const allowed = await checkRateLimit(
+      `suggestMessages:${session.user._id}`,
+      20,
+      60 * 60 * 1000
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many suggestion requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const result = await generateText({
       model: openai("gpt-4o-mini"),
       prompt: PROMPT,

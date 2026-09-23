@@ -8,6 +8,7 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { can } from "@/lib/permissions";
 import { questionResponseSchema } from "@/schemas/questionSchema";
 import { isValidObjectId } from "@/lib/objectId";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // GET /api/messages/:messageId/reply — fetch one message + its thread.
 // Only two parties may view it: the member who owns a private
@@ -114,6 +115,14 @@ export async function POST(
       "message:reply"
     );
     if (!access.ok) return access.response;
+
+    const allowed = await checkRateLimit(`reply:${access.userId}`, 60, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: "Too many replies. Please try again later." },
+        { status: 429 }
+      );
+    }
 
     const body = await request.json();
     const result = questionResponseSchema.safeParse(body);

@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { questionResponseSchema } from "@/schemas/questionSchema";
 import { notifyNewMessage } from "@/lib/notifications";
 import { canAccessQuestion } from "@/lib/questionAccess";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // GET /api/questions/:questionId/answer — resolve the caller's own private
 // thread for this question, if they've answered it yet. Lets the dashboard
@@ -112,6 +113,16 @@ export async function POST(
           { status: 404 }
         );
       }
+    }
+
+    // A new thread fires notifyNewMessage (possibly an immediate email), so
+    // an unbounded loop here was an email cannon.
+    const allowed = await checkRateLimit(`answer:${auth.userId}`, 30, 10 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: "Too many answers. Please try again later." },
+        { status: 429 }
+      );
     }
 
     const body = await request.json();

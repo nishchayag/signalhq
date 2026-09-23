@@ -11,6 +11,7 @@ import { nanoid } from "nanoid";
 import { parsePagination, paginate } from "@/lib/pagination";
 import { teamScopeFilter } from "@/lib/questionAccess";
 import { isValidObjectId } from "@/lib/objectId";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export async function POST(request: NextRequest) {
   await connectDB();
@@ -27,6 +28,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, message: "Insufficient permissions" },
         { status: 403 }
+      );
+    }
+
+    const allowed = await checkRateLimit(`createQuestion:${session!.user._id}`, 30, 60 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: "Too many questions created. Please try again later." },
+        { status: 429 }
       );
     }
 

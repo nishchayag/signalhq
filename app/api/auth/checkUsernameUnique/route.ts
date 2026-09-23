@@ -2,13 +2,25 @@ import connectDB from "@/lib/connectDB";
 import { NextRequest, NextResponse } from "next/server";
 import { usernameValidation } from "@/schemas/signUpSchema";
 import UserModel from "@/models/user.model";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { getClientIp } from "@/lib/getClientIp";
 
 export async function GET(request: NextRequest) {
   await connectDB();
   try {
+    // Public and unauthenticated — without a cap it's a free username
+    // enumeration oracle. Generous enough for live as-you-type checks.
+    const allowed = await checkRateLimit(`checkUsername:${getClientIp(request)}`, 30, 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please slow down." },
+        { status: 429 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
 
-    const usernameParam = searchParams.get("username");
+    const usernameParam = searchParams.get("username")?.trim().toLowerCase();
     // Check if username parameter exists
     if (!usernameParam) {
       return NextResponse.json(
