@@ -118,7 +118,7 @@ const Page = () => {
         ? `&callbackUrl=${encodeURIComponent(cb!)}`
         : "";
       router.push(
-        `/verifyEmail?username=${data.username}&email=${data.email}${cbParam}`
+        `/verifyEmail?username=${encodeURIComponent(data.username)}&email=${encodeURIComponent(data.email)}${cbParam}`
       );
     } catch (error) {
       console.error("Error signing up:", error);
