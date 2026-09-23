@@ -24,19 +24,22 @@ export const passwordValidation = z
       "Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character",
   });
 
+// Letters in any script plus spaces, apostrophes, periods and hyphens —
+// "José", "O'Brien", "Anne-Marie" are all real names. This is the only
+// name rule (the model's old ASCII-only regex was dropped), shared by signup
+// and the account name change; at signup the name also becomes the personal
+// org's display name, so it stays permissive.
+export const nameValidation = z
+  .string()
+  .trim()
+  .min(1, "Name is required")
+  .max(50, "Name is too long")
+  .regex(/^[\p{L}\p{M}\s'.-]+$/u, "Name can only contain letters, spaces, apostrophes, periods and hyphens");
+
 export const signupSchema = z.object({
   username: usernameValidation,
   email: z.string().email({ message: "Invalid email address" }),
-  // Letters in any script plus spaces, apostrophes, periods and hyphens —
-  // "José", "O'Brien", "Anne-Marie" are all real names. This is the only
-  // name rule (the model's old ASCII-only regex was dropped); the name also
-  // becomes the personal org's display name, so it stays permissive.
-  name: z
-    .string()
-    .trim()
-    .min(1, "Name is required")
-    .max(50, "Name is too long")
-    .regex(/^[\p{L}\p{M}\s'.-]+$/u, "Name can only contain letters, spaces, apostrophes, periods and hyphens"),
+  name: nameValidation,
   password: passwordValidation,
   confirmPassword: z.string(),
 });
