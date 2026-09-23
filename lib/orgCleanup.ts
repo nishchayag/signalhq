@@ -76,3 +76,72 @@ export async function rehomeStrandedUsers(userIds: Id[]): Promise<string[]> {
   }
   return rehomed;
 }
+
+// ---- Daily cron sweeps (idempotent; safe to run more than once) ----
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Delete never-verified signups whose code expired over a day ago, with
+ * their personal orgs. verifyEmail only cleaned these up if someone happened
+ * to call it after expiry, so they otherwise held their email/username
+ * forever. Filters on isVerified: false explicitly — verified users have
+ * verifyCodeExpiry unset, but never rely on that alone.
+ */
+export async function sweepExpiredUnverifiedUsers(limit = 200): Promise<number> {
+  const stale = await UserModel.find({
+    isVerified: false,
+    verifyCodeExpiry: { $lt: new Date(Date.now() - DAY_MS) },
+  })
+    .select("_id")
+    .limit(limit);
+  for (const user of stale) await deleteUnverifiedUser(user._id);
+  return stale.length;
+}
+
+/**
+ * Remove memberships pointing at a user or org that no longer exists, then
+ * orgs left with no members at all. Orgs younger than an hour are skipped so
+ * a signup/org-create that's mid-way (org written, membership not yet) is
+ * never swept out from under it.
+ */
+export async function sweepOrphans(limit = 200): Promise<{ memberships: number; organizations: number }> {
+  const users = UserModel.collection.collectionName;
+  const orgs = OrganizationModel.collection.collectionName;
+  const memberships = MembershipModel.collection.collectionName;
+
+  const orphanMemberships = await MembershipModel.aggregate<{ _id: mongoose.Types.ObjectId }>([
+    { $lookup: { from: users, localField: "userId", foreignField: "_id", as: "u" } },
+    { $lookup: { from: orgs, localField: "organizationId", foreignField: "_id", as: "o" } },
+    { $match: { $or: [{ u: { $size: 0 } }, { o: { $size: 0 } }] } },
+    { $project: { _id: 1 } },
+    { $limit: limit },
+  ]);
+  if (orphanMemberships.length) {
+    await MembershipModel.deleteMany({ _id: { $in: orphanMemberships.map((m) => m._id) } });
+  }
+
+  const emptyOrgs = await OrganizationModel.aggregate<{ _id: mongoose.Types.ObjectId }>([
+    { $match: { createdAt: { $lt: new Date(Date.now() - 60 * 60 * 1000) } } },
+    { $lookup: { from: memberships, localField: "_id", foreignField: "organizationId", as: "m" } },
+    { $match: { m: { $size: 0 } } },
+    { $project: { _id: 1 } },
+    { $limit: limit },
+  ]);
+  await deleteOrganizationsCascade(emptyOrgs.map((o) => o._id));
+
+  return { memberships: orphanMemberships.length, organizations: emptyOrgs.length };
+}
+
+/**
+ * Flip PENDING invitations past their expiry to EXPIRED. Previously that
+ * only happened when someone tried to accept one, so the org's pending list
+ * kept showing dead invites.
+ */
+export async function expireStaleInvitations(): Promise<number> {
+  const result = await InvitationModel.updateMany(
+    { status: "PENDING", expiresAt: { $lt: new Date() } },
+    { status: "EXPIRED" }
+  );
+  return result.modifiedCount;
+}
