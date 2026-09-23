@@ -1,6 +1,17 @@
 "use client";
 import Link from "next/link";
-import { Copy, Download, ExternalLink, HelpCircle, MessageSquare, Search } from "lucide-react";
+import {
+  Copy,
+  Download,
+  ExternalLink,
+  HelpCircle,
+  MessageSquare,
+  Power,
+  PowerOff,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +32,7 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
       <div className="mb-6">
         <h2 className="text-2xl font-black tracking-tight text-foreground">{question.questionText}</h2>
         {question.description && <p className="mt-1 text-muted-foreground">{question.description}</p>}
+        <QuestionActions d={d} question={question} />
         {question.visibility !== "internal" && (
           <div className="mt-4 flex flex-wrap gap-3">
             <Button variant="outline" size="sm" onClick={() => d.copyQuestionLink(question.slug)}>
@@ -43,6 +55,49 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
         <InternalQuestionView d={d} question={question} />
       ) : (
         <PublicQuestionView d={d} />
+      )}
+    </div>
+  );
+}
+
+/** Manage actions for the selected question. These used to be icon buttons
+ *  nested inside each sidebar row (invalid button-in-button, and cramped on
+ *  mobile); here they're labelled and live with the thing they act on. */
+function QuestionActions({ d, question }: { d: DashboardData; question: IQuestion }) {
+  const refreshing = d.refreshingQuestionId === question._id;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full border-2 border-ink px-2.5 py-0.5 text-xs font-bold ${
+          question.isActive ? "bg-brand-mint text-ink" : "bg-muted text-muted-foreground"
+        }`}
+      >
+        {question.isActive ? "Accepting responses" : "Paused"}
+      </span>
+      {d.canUpdateQuestions && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => d.handleToggleActive(question._id, question.isActive)}
+        >
+          {question.isActive ? <PowerOff className="mr-1.5 h-4 w-4" /> : <Power className="mr-1.5 h-4 w-4" />}
+          {question.isActive ? "Pause" : "Resume"}
+        </Button>
+      )}
+      <Button variant="ghost" size="sm" onClick={() => d.handleRefreshQuestion(question._id)} disabled={refreshing}>
+        <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+        Refresh
+      </Button>
+      {d.canDeleteQuestions && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:bg-destructive/10"
+          onClick={() => d.handleDeleteQuestion(question._id)}
+        >
+          <Trash2 className="mr-1.5 h-4 w-4" />
+          Delete
+        </Button>
       )}
     </div>
   );

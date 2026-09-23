@@ -58,6 +58,13 @@ export function useDashboardData() {
   const [answerDraft, setAnswerDraft] = useState("");
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
+  // Monotonic request ids: a response is applied only if no newer request of
+  // the same kind (or a view switch) happened meanwhile. Without this, a slow
+  // reply for question A arriving after you clicked B called
+  // setSelectedQuestion(A) and yanked the view back.
+  const questionReq = useRef(0);
+  const generalReq = useRef(0);
+
   const role = session?.user?.activeOrgRole as MembershipRole | undefined;
   const orgSlug = session?.user?.activeOrgSlug;
 
@@ -87,10 +94,12 @@ export function useDashboardData() {
   };
 
   const fetchGeneralMessages = async (search?: string) => {
+    const req = ++generalReq.current;
     try {
       const response = await axios.get("/api/getMessages", {
         params: { q: search || undefined },
       });
+      if (req !== generalReq.current) return;
       if (response.data.success) {
         setGeneralMessages(response.data.messages);
         setGeneralHasMore(response.data.hasMore);
@@ -142,24 +151,29 @@ export function useDashboardData() {
     window.location.href = `/api/messages/export?${params.toString()}`;
   };
 
+  // Keyed on the active org, not the session object: useSession hands back a
+  // new object on every refetch (window focus etc.), which used to refetch
+  // everything and throw away loaded "Load more" pages and the search.
+  const orgKey = session ? session.user?.activeOrgId ?? "none" : null;
   useEffect(() => {
-    // Standard fetch-on-mount/session-change.
     /* eslint-disable react-hooks/set-state-in-effect */
-    if (session) {
+    if (orgKey) {
       fetchQuestions();
       fetchGeneralMessages();
       fetchTeams();
     }
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [orgKey]);
 
   const fetchQuestionMessages = async (questionId: string, search?: string) => {
+    const req = ++questionReq.current;
     setMessagesLoading(true);
     try {
       const response = await axios.get(`/api/questions/${questionId}`, {
         params: { q: search || undefined },
       });
+      if (req !== questionReq.current) return; // superseded — don't touch the view
       if (response.data.success) {
         setMessages(response.data.messages);
         setSelectedQuestion(response.data.question);
@@ -167,10 +181,11 @@ export function useDashboardData() {
         setMessagesCursor(response.data.nextCursor);
       }
     } catch (error) {
+      if (req !== questionReq.current) return;
       console.error("Error fetching question messages:", error);
       toast.error("Failed to load messages");
     } finally {
-      setMessagesLoading(false);
+      if (req === questionReq.current) setMessagesLoading(false);
     }
   };
 
@@ -205,24 +220,36 @@ export function useDashboardData() {
   };
 
   const fetchInternalQuestionData = async (questionId: string, viewAllReplies: boolean) => {
+    const req = ++questionReq.current;
     setInternalLoading(true);
     try {
       if (viewAllReplies) {
         const res = await axios.get(`/api/questions/${questionId}/replies`);
-        if (res.data.success) setInternalThreads(res.data.threads);
+        if (req === questionReq.current && res.data.success) setInternalThreads(res.data.threads);
       } else {
         const res = await axios.get(`/api/questions/${questionId}/answer`);
-        if (res.data.success) setMyThread(res.data.thread);
+        if (req === questionReq.current && res.data.success) setMyThread(res.data.thread);
       }
     } catch (error) {
+      if (req !== questionReq.current) return;
       console.error("Error fetching internal question replies:", error);
       toast.error("Failed to load replies");
     } finally {
-      setInternalLoading(false);
+      if (req === questionReq.current) setInternalLoading(false);
     }
   };
 
+  /** Invalidate in-flight question requests and pending search debounces. */
+  const cancelPendingQuestionWork = () => {
+    questionReq.current++;
+    if (messagesSearchTimer.current) clearTimeout(messagesSearchTimer.current);
+    messagesSearchTimer.current = null;
+  };
+
   const handleGeneralView = () => {
+    cancelPendingQuestionWork();
+    setMessagesLoading(false);
+    setInternalLoading(false);
     setView("general");
     setSelectedQuestion(null);
     setMessages([]);
@@ -239,6 +266,7 @@ export function useDashboardData() {
       handleGeneralView();
       return;
     }
+    cancelPendingQuestionWork();
     setSelectedQuestion(question);
     setView("question");
     setInternalThreads([]);
@@ -326,10 +354,8 @@ export function useDashboardData() {
       const response = await axios.delete(`/api/questions/${questionId}`);
       if (response.data.success) {
         setQuestions((prev) => prev.filter((q) => q._id !== questionId));
-        if (selectedQuestion?._id === questionId) {
-          setSelectedQuestion(null);
-          setView("general");
-        }
+        // Clears messages/cursor/threads too, not just the selection.
+        if (selectedQuestion?._id === questionId) handleGeneralView();
         toast.success("Question deleted successfully");
       } else {
         toast.error("Failed to delete question");
@@ -341,9 +367,17 @@ export function useDashboardData() {
   };
 
   const handleRefreshQuestion = async (questionId: string) => {
+    const isSelected = selectedQuestion?._id === questionId;
     setRefreshingQuestionId(questionId);
     try {
-      const response = await axios.get(`/api/questions/${questionId}`);
+      if (isSelected && selectedQuestion?.visibility === "internal") {
+        await fetchInternalQuestionData(questionId, can(role, "question:viewAllReplies"));
+        toast.success("Question refreshed");
+        return;
+      }
+      const response = await axios.get(`/api/questions/${questionId}`, {
+        params: { q: (isSelected && messagesSearch) || undefined },
+      });
       if (response.data.success) {
         setQuestions((prev) =>
           prev.map((q) =>
@@ -352,7 +386,7 @@ export function useDashboardData() {
               : q
           )
         );
-        if (selectedQuestion?._id === questionId) {
+        if (isSelected) {
           setMessages(response.data.messages);
           setMessagesHasMore(response.data.hasMore);
           setMessagesCursor(response.data.nextCursor);

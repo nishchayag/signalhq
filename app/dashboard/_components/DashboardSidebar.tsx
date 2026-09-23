@@ -1,16 +1,6 @@
 "use client";
 import Link from "next/link";
-import {
-  HelpCircle,
-  MessageSquare,
-  Plus,
-  Power,
-  PowerOff,
-  RefreshCw,
-  Settings,
-  Trash2,
-  User,
-} from "lucide-react";
+import { HelpCircle, MessageSquare, Plus, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrgSwitcher from "@/components/OrgSwitcher";
 import EmptyState from "./EmptyState";
@@ -56,10 +46,7 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
         >
           <div className="flex items-center">
             <MessageSquare className="mr-3 h-5 w-5" />
-            <div>
-              <div className="font-bold">General messages</div>
-              <div className="text-xs font-medium opacity-80">{d.generalMessages.length} messages</div>
-            </div>
+            <div className="font-bold">General messages</div>
           </div>
         </button>
 
@@ -136,57 +123,6 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
                   </div>
                 </div>
 
-                <div className="ml-2 flex items-center space-x-1">
-                  {d.canUpdateQuestions && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        d.handleToggleActive(question._id, question.isActive);
-                      }}
-                      className="h-8 w-8 p-0"
-                      title={question.isActive ? "Deactivate question" : "Activate question"}
-                    >
-                      {question.isActive ? (
-                        <PowerOff className="h-4 w-4 text-amber-500" />
-                      ) : (
-                        <Power className="h-4 w-4 text-emerald-500" />
-                      )}
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      d.handleRefreshQuestion(question._id);
-                    }}
-                    className="h-8 w-8 p-0"
-                    title="Refresh question messages"
-                    disabled={d.refreshingQuestionId === question._id}
-                  >
-                    <RefreshCw
-                      className={`h-4 w-4 text-primary ${
-                        d.refreshingQuestionId === question._id ? "animate-spin" : ""
-                      }`}
-                    />
-                  </Button>
-                  {d.canDeleteQuestions && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        d.handleDeleteQuestion(question._id);
-                      }}
-                      className="h-8 w-8 p-0"
-                      title="Delete question"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
-                </div>
               </div>
             </button>
           ))}
