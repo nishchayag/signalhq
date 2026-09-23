@@ -45,3 +45,6 @@ brag-output/
 
 # graphify knowledge graph (local, regenerable via `graphify update .`)
 graphify-out/
+
+# Personal Claude Code context files: kept local, never committed
+CLAUDE.md
