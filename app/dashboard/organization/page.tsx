@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { can } from "@/lib/permissions";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { apiError } from "@/lib/apiError";
 import type { MembershipRole } from "@/models/membership.model";
 import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
 
@@ -302,8 +303,13 @@ export default function OrganizationPage() {
         setTeamName("");
         load();
       } else toast.error(res.data.message);
-    } catch {
-      toast.error("Failed to create team");
+    } catch (e) {
+      // A 403 here is the plan's team limit — show the server's explanation
+      // and a way forward instead of a generic "Failed".
+      const atLimit = axios.isAxiosError(e) && e.response?.status === 403;
+      toast.error(apiError(e, "Failed to create team"), {
+        action: atLimit ? { label: "View plans", onClick: () => setTab("plan") } : undefined,
+      });
     } finally {
       setCreatingTeam(false);
     }
@@ -334,8 +340,8 @@ export default function OrganizationPage() {
         toast.success("Organization renamed. Reloading…");
         window.location.reload();
       } else toast.error(res.data.message);
-    } catch {
-      toast.error("Failed to rename");
+    } catch (e) {
+      toast.error(apiError(e, "Failed to rename"));
     } finally {
       setRenaming(false);
     }
