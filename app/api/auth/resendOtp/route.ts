@@ -4,6 +4,14 @@ import userModel from "@/models/user.model";
 import { sendEmail } from "@/lib/mailService";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
+import { identifierQuery } from "@/lib/authIdentifiers";
+import { generateOtp, otpExpiry } from "@/lib/otp";
+
+// Same response whether or not a pending signup exists — this endpoint used
+// to answer 404 "no pending signup" vs 400 "already verified", which told a
+// caller exactly which emails/usernames have accounts.
+const GENERIC_MESSAGE =
+  "If there's a pending signup for that account, a new verification code has been sent.";
 
 // Resends a fresh verification code (new 5-minute window) for an unverified
 // signup that hasn't expired-and-been-deleted yet. Deliberately does NOT
@@ -26,59 +34,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, username } = await request.json();
-    if (!email && !username) {
+    const query = identifierQuery(await request.json());
+    if (!query) {
       return NextResponse.json(
         { error: "Email or username is required", success: false },
         { status: 400 }
       );
     }
 
-    const user = await userModel.findOne({
-      $or: [{ email }, { username }],
-    });
-    if (!user) {
-      return NextResponse.json(
-        {
-          error:
-            "No pending signup found for that account. Please sign up again.",
-          success: false,
-        },
-        { status: 404 }
-      );
+    const user = await userModel.findOne(query.filter);
+    if (user && !user.isVerified) {
+      const verificationCode = generateOtp();
+      user.verifyCode = verificationCode;
+      user.verifyCodeExpiry = otpExpiry();
+      await user.save();
+
+      await sendEmail({
+        email: user.email,
+        mailType: "VERIFY",
+        otpCode: verificationCode,
+      });
     }
 
-    if (user.isVerified) {
-      return NextResponse.json(
-        {
-          error: "This account is already verified. Please log in.",
-          success: false,
-        },
-        { status: 400 }
-      );
-    }
-
-    const verificationCode = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString();
-    user.verifyCode = verificationCode;
-    user.verifyCodeExpiry = new Date(Date.now() + 5 * 60 * 1000);
-    await user.save();
-
-    await sendEmail({
-      email: user.email,
-      mailType: "VERIFY",
-      otpCode: verificationCode,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: "A new verification code has been sent to your email.",
-    });
+    return NextResponse.json({ success: true, message: GENERIC_MESSAGE });
   } catch (error) {
     console.error("Error in resendOtp route:", error);
     return NextResponse.json(
-      { error: "Error resending code: " + (error as Error).message, success: false },
+      { error: "Something went wrong while resending the code. Please try again.", success: false },
       { status: 500 }
     );
   }

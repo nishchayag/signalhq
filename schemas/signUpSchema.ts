@@ -27,7 +27,16 @@ export const passwordValidation = z
 export const signupSchema = z.object({
   username: usernameValidation,
   email: z.string().email({ message: "Invalid email address" }),
-  name: z.string().min(1, "Name is required").max(50, "Name is too long"),
+  // Letters in any script plus spaces, apostrophes, periods and hyphens —
+  // "José", "O'Brien", "Anne-Marie" are all real names. This is the only
+  // name rule (the model's old ASCII-only regex was dropped); the name also
+  // becomes the personal org's display name, so it stays permissive.
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .max(50, "Name is too long")
+    .regex(/^[\p{L}\p{M}\s'.-]+$/u, "Name can only contain letters, spaces, apostrophes, periods and hyphens"),
   password: passwordValidation,
   confirmPassword: z.string(),
 });
