@@ -10,11 +10,12 @@ import { createInvitationSchema } from "@/schemas/invitationSchema";
 import { sendInvitationEmail } from "@/lib/mailService";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 const INVITE_TTL_DAYS = 7;
 
 // GET /api/organizations/:orgId/invitations — pending invites.
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -33,7 +34,7 @@ export async function GET(
 }
 
 // POST /api/organizations/:orgId/invitations — create + email an invite.
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -155,3 +156,6 @@ export async function POST(
     { status: 201 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
+export const POST = withErrorHandling(handlePOST);

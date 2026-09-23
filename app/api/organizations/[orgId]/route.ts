@@ -6,9 +6,10 @@ import { renameOrganizationSchema } from "@/schemas/organizationSchema";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
 import { deleteOrganizationsCascade } from "@/lib/orgCleanup";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // GET /api/organizations/:orgId — details for a member.
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -42,7 +43,7 @@ export async function GET(
 }
 
 // PATCH /api/organizations/:orgId — rename (OWNER only; slug is immutable).
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -80,7 +81,7 @@ export async function PATCH(
 }
 
 // DELETE /api/organizations/:orgId — delete org and all its data (OWNER only).
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -111,3 +112,7 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
+export const PATCH = withErrorHandling(handlePATCH);
+export const DELETE = withErrorHandling(handleDELETE);

@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import InvitationModel from "@/models/invitation.model";
 import OrganizationModel from "@/models/organization.model";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // GET /api/invitations/:token — public lookup so the accept page can show the
 // org name. The token itself is the secret; no membership required.
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
@@ -43,3 +44,5 @@ export async function GET(
     { status: 200 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);

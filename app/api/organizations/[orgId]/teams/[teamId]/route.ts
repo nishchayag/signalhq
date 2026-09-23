@@ -7,6 +7,7 @@ import "@/models/user.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { updateTeamSchema } from "@/schemas/teamSchema";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 interface PopulatedUser {
   _id: string;
@@ -15,7 +16,7 @@ interface PopulatedUser {
 }
 
 // GET /api/organizations/:orgId/teams/:teamId — team details + members.
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; teamId: string }> }
 ) {
@@ -48,7 +49,7 @@ export async function GET(
 }
 
 // PATCH /api/organizations/:orgId/teams/:teamId — rename and/or set members.
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string; teamId: string }> }
 ) {
@@ -101,7 +102,7 @@ export async function PATCH(
 
 // DELETE /api/organizations/:orgId/teams/:teamId — delete team; its questions
 // and messages fall back to org-level (teamId cleared), not deleted.
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; teamId: string }> }
 ) {
@@ -135,3 +136,7 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
+export const PATCH = withErrorHandling(handlePATCH);
+export const DELETE = withErrorHandling(handleDELETE);

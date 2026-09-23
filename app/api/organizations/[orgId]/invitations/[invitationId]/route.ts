@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import InvitationModel from "@/models/invitation.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // DELETE /api/organizations/:orgId/invitations/:invitationId — revoke a pending invite.
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; invitationId: string }> }
 ) {
@@ -38,3 +39,5 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const DELETE = withErrorHandling(handleDELETE);

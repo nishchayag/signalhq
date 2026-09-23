@@ -5,12 +5,13 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { updatePlanSchema } from "@/schemas/organizationSchema";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // PATCH /api/organizations/:orgId/plan — switch the org's billing tier.
 // No payment processing exists yet (every plan is free during early
 // access) — this is instant self-service, OWNER only. A downgrade is
 // blocked if the org's current team count would exceed the new plan's limit.
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -63,3 +64,5 @@ export async function PATCH(
     { status: 200 }
   );
 }
+
+export const PATCH = withErrorHandling(handlePATCH);

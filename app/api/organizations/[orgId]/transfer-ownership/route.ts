@@ -3,11 +3,12 @@ import MembershipModel from "@/models/membership.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { transferOwnershipSchema } from "@/schemas/organizationSchema";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // PATCH /api/organizations/:orgId/transfer-ownership — hand the OWNER role to
 // another member of the org. The current owner is demoted to ADMIN in the
 // same request so the org always has exactly one owner.
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -63,3 +64,5 @@ export async function PATCH(
     { status: 200 }
   );
 }
+
+export const PATCH = withErrorHandling(handlePATCH);

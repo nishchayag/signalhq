@@ -6,9 +6,10 @@ import { createTeamSchema } from "@/schemas/teamSchema";
 import { uniqueSlug } from "@/lib/slug";
 import { teamLimitReached, PLAN_LIMITS } from "@/lib/plans";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // GET /api/organizations/:orgId/teams — list teams (any member).
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -33,7 +34,7 @@ export async function GET(
 }
 
 // POST /api/organizations/:orgId/teams — create a team.
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -98,3 +99,6 @@ export async function POST(
     { status: 201 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
+export const POST = withErrorHandling(handlePOST);

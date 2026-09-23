@@ -5,9 +5,10 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { outranks } from "@/lib/permissions";
 import { updateMemberRoleSchema } from "@/schemas/memberSchema";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // PATCH /api/organizations/:orgId/members/:membershipId — change a role.
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string; membershipId: string }> }
 ) {
@@ -72,7 +73,7 @@ export async function PATCH(
 
 // DELETE /api/organizations/:orgId/members/:membershipId — remove a member.
 // A non-owner member may also remove *themselves* (leave the org).
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; membershipId: string }> }
 ) {
@@ -129,3 +130,6 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const PATCH = withErrorHandling(handlePATCH);
+export const DELETE = withErrorHandling(handleDELETE);

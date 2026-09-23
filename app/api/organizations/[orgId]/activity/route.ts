@@ -3,6 +3,7 @@ import AuditLogModel from "@/models/auditLog.model";
 import "@/models/user.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { parsePagination, paginate } from "@/lib/pagination";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 interface PopulatedActor {
   _id: string;
@@ -14,7 +15,7 @@ interface PopulatedActor {
 // changes, member removals, org renames/deletion, ownership transfers, team
 // and invitation changes. Most recent first, cursor-paginated via
 // ?limit=&before= (see lib/pagination.ts).
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -48,3 +49,5 @@ export async function GET(
     { status: 200 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
