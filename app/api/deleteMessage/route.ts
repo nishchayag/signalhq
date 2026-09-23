@@ -6,12 +6,22 @@ import messageModel from "@/models/message.model";
 import QuestionModel from "@/models/question.model";
 import { getServerSession } from "next-auth";
 import { requireOrgAccess } from "@/lib/apiAuth";
+import { isValidObjectId } from "@/lib/objectId";
 
 export async function POST(request: NextRequest) {
   await connectDB();
 
   try {
     const { messageId } = await request.json();
+
+    // Must be a real id string — an object here ({"$ne": null}) would be
+    // passed straight into findById, and junk would CastError → 500.
+    if (!isValidObjectId(messageId)) {
+      return NextResponse.json(
+        { message: "Message not found", success: false },
+        { status: 404 }
+      );
+    }
 
     const message = await messageModel.findById(messageId);
     if (!message) {

@@ -7,6 +7,7 @@ import MembershipModel from "@/models/membership.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { can } from "@/lib/permissions";
 import { questionResponseSchema } from "@/schemas/questionSchema";
+import { isValidObjectId } from "@/lib/objectId";
 
 // GET /api/messages/:messageId/reply — fetch one message + its thread.
 // Only two parties may view it: the member who owns a private
@@ -19,6 +20,12 @@ export async function GET(
   await connectDB();
   try {
     const { messageId } = await params;
+    if (!isValidObjectId(messageId)) {
+      return NextResponse.json(
+        { success: false, message: "Message not found" },
+        { status: 404 }
+      );
+    }
     const message = await MessageModel.findById(messageId);
     if (!message || !message.organizationId) {
       return NextResponse.json(
@@ -80,6 +87,12 @@ export async function POST(
   await connectDB();
   try {
     const { messageId } = await params;
+    if (!isValidObjectId(messageId)) {
+      return NextResponse.json(
+        { success: false, message: "Message not found" },
+        { status: 404 }
+      );
+    }
 
     const message = await MessageModel.findById(messageId);
     if (!message) {

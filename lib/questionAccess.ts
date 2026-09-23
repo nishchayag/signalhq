@@ -5,6 +5,7 @@ import QuestionModel, { IQuestion } from "@/models/question.model";
 import MembershipModel from "@/models/membership.model";
 import TeamModel from "@/models/team.model";
 import { can, Permission } from "@/lib/permissions";
+import { isValidObjectId } from "@/lib/objectId";
 import type { MembershipRole } from "@/models/membership.model";
 
 // `role` is null for legacy org-less questions (owner-only access, no org role).
@@ -73,6 +74,7 @@ export async function loadAndAuthorize(
     };
   }
 
+  if (!isValidObjectId(questionId)) return notFound();
   const question = await QuestionModel.findById(questionId);
   if (!question) return notFound();
 
