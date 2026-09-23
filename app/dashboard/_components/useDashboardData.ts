@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
 import type { IQuestion } from "@/models/question.model";
 import type { IMessage } from "@/models/message.model";
@@ -329,6 +330,7 @@ export function useDashboardData() {
     const path = orgSlug ? `/o/${orgSlug}/q/${slug}` : `/q/${slug}`;
     navigator.clipboard.writeText(`${window.location.origin}${path}`);
     toast.success("Question link copied to clipboard!");
+    trackEvent("link_copied", "question");
   };
 
   const handleDeleteMessage = (messageId: string) => {
@@ -348,6 +350,7 @@ export function useDashboardData() {
     setQuestions((prev) => [newQuestion, ...prev]);
     setShowCreateDialog(false);
     toast.success("Question created successfully!");
+    trackEvent("question_created");
   };
 
   const handleQuestionUpdated = (updated: IQuestion) => {

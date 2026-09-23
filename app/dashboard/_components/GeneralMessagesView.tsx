@@ -2,6 +2,7 @@
 import { Copy, Download, ExternalLink, MessageSquare, Search } from "lucide-react";
 import OnboardingChecklist, { useOnboardingFlags } from "./OnboardingChecklist";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
     navigator.clipboard.writeText(`${window.location.origin}/o/${d.orgSlug}`);
     markCopied();
     toast.success("Link copied to clipboard!");
+    trackEvent("link_copied", "org");
   };
   return (
     <div>

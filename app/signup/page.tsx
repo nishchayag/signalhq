@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
 import { signupSchema } from "@/schemas/signUpSchema";
 import Link from "next/link";
@@ -108,6 +109,7 @@ const Page = () => {
 
       await axios.post("/api/auth/signup", data);
       toast.success("Signup successful! Redirecting to Verify Email page...");
+      trackEvent("signup_completed");
       // Carry a relative ?callbackUrl through the verify → login chain so an
       // invited new user lands back on the invite after verifying.
       const cb = new URLSearchParams(window.location.search).get(

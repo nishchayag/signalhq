@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
 import { Loader2, Send } from "lucide-react";
 import ReplyReceiptCard from "@/components/ReplyReceiptCard";
@@ -67,6 +68,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
       const response = await axios.post(`/api/questions/submit/${slug}`, data);
       if (response.data.success) {
         toast.success("Response submitted successfully!");
+        trackEvent("feedback_sent", "question");
         reset();
         setReplyToken(response.data.replyToken);
       } else {

@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +32,7 @@ export default function OrgFeedbackForm({ orgSlug }: { orgSlug: string }) {
       });
       if (res.data.success) {
         toast.success("Message sent successfully");
+        trackEvent("feedback_sent", "org");
         reset();
         setReplyToken(res.data.replyToken);
       } else {
