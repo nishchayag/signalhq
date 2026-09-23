@@ -55,7 +55,7 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
       {question.visibility === "internal" ? (
         <InternalQuestionView d={d} question={question} />
       ) : (
-        <PublicQuestionView d={d} />
+        <PublicQuestionView d={d} question={question} />
       )}
     </div>
   );
@@ -208,7 +208,7 @@ function InternalQuestionView({ d, question }: { d: DashboardData; question: IQu
 }
 
 /** Public question: searchable, paginated anonymous responses. */
-function PublicQuestionView({ d }: { d: DashboardData }) {
+function PublicQuestionView({ d, question }: { d: DashboardData; question: IQuestion }) {
   return (
     <div className="space-y-4">
       <div className="relative">
@@ -243,8 +243,16 @@ function PublicQuestionView({ d }: { d: DashboardData }) {
           {d.messages.length === 0 && (
             <EmptyState
               icon={HelpCircle}
-              title="No responses yet"
-              description="Share your question link to start collecting responses"
+              title={d.messagesSearch ? "No responses match your search" : "No responses yet"}
+              description={d.messagesSearch ? undefined : "Share your question link to start collecting responses"}
+              action={
+                d.messagesSearch ? undefined : (
+                  <Button variant="outline" size="sm" onClick={() => d.copyQuestionLink(question.slug)}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy question link
+                  </Button>
+                )
+              }
             />
           )}
 

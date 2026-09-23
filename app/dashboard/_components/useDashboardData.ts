@@ -64,6 +64,9 @@ export function useDashboardData() {
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [teamsError, setTeamsError] = useState<string | null>(null);
   const [questionError, setQuestionError] = useState<string | null>(null);
+  // Sticky "this org has received general feedback" — set from unsearched
+  // loads only, so typing a search that matches nothing can't flip it back.
+  const [hadGeneralMessages, setHadGeneralMessages] = useState(false);
 
   // Monotonic request ids: a response is applied only if no newer request of
   // the same kind (or a view switch) happened meanwhile. Without this, a slow
@@ -112,6 +115,7 @@ export function useDashboardData() {
       });
       if (req !== generalReq.current) return;
       if (response.data.success) {
+        if (!search && response.data.messages.length > 0) setHadGeneralMessages(true);
         setGeneralMessages(response.data.messages);
         setGeneralHasMore(response.data.hasMore);
         setGeneralCursor(response.data.nextCursor);
@@ -435,7 +439,9 @@ export function useDashboardData() {
 
   return {
     // session-derived
+    orgId: session?.user?.activeOrgId,
     orgSlug,
+    hasAnyResponse: hadGeneralMessages || questions.some((q) => (q.responseCount ?? 0) > 0),
     canReply: can(role, "message:reply"),
     canViewAllReplies: can(role, "question:viewAllReplies"),
     canDelete: can(role, "message:delete"),

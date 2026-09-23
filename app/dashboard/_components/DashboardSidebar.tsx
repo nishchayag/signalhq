@@ -144,7 +144,13 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
               compact
               icon={HelpCircle}
               title="No questions yet"
-              description="Create your first question to get started"
+              description="Ask something specific to get focused answers"
+              action={
+                <Button size="sm" onClick={() => d.setShowCreateDialog(true)}>
+                  <Plus className="mr-1 h-4 w-4" />
+                  Create question
+                </Button>
+              }
             />
           )}
         </div>

@@ -1,5 +1,6 @@
 "use client";
 import { Copy, Download, ExternalLink, MessageSquare, Search } from "lucide-react";
+import OnboardingChecklist, { useOnboardingFlags } from "./OnboardingChecklist";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,8 +13,16 @@ import type { DashboardData } from "./useDashboardData";
 
 /** Org feedback link card + the org's general (non-question) messages. */
 export default function GeneralMessagesView({ d }: { d: DashboardData }) {
+  const { markCopied } = useOnboardingFlags(d.orgId);
+  const copyOrgLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/o/${d.orgSlug}`);
+    markCopied();
+    toast.success("Link copied to clipboard!");
+  };
   return (
     <div>
+      <OnboardingChecklist d={d} onCopyLink={copyOrgLink} />
+
       <div className="mb-6">
         <h2 className="text-2xl font-black tracking-tight text-foreground">General messages</h2>
         <p className="mt-1 text-muted-foreground">Messages sent to your organization&apos;s feedback link</p>
@@ -30,10 +39,7 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/o/${d.orgSlug}`);
-                  toast.success("Link copied to clipboard!");
-                }}
+                onClick={copyOrgLink}
               >
                 <Copy className="mr-2 h-4 w-4" />
                 Copy link
@@ -80,6 +86,12 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
             icon={MessageSquare}
             title="No messages yet"
             description="Share your link to start receiving feedback"
+            action={
+              <Button variant="outline" size="sm" onClick={copyOrgLink}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy your feedback link
+              </Button>
+            }
           />
         )}
 
