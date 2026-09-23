@@ -1,5 +1,6 @@
 import { generateMetadata as createMetadata } from "@/lib/metadata";
 import { Metadata } from "next";
+import ConfirmProvider from "@/components/ConfirmProvider";
 
 export const metadata: Metadata = createMetadata({
   title: "Dashboard",
@@ -14,5 +15,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  // One app-wide confirm dialog for every dashboard page (useConfirm), rendered
+  // at layout level so it never lives inside the mobile sidebar Sheet.
+  return <ConfirmProvider>{children}</ConfirmProvider>;
 }
