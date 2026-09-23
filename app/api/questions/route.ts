@@ -10,6 +10,7 @@ import { can } from "@/lib/permissions";
 import { nanoid } from "nanoid";
 import { parsePagination, paginate } from "@/lib/pagination";
 import { teamScopeFilter } from "@/lib/questionAccess";
+import { isValidObjectId } from "@/lib/objectId";
 
 export async function POST(request: NextRequest) {
   await connectDB();
@@ -40,11 +41,20 @@ export async function POST(request: NextRequest) {
 
     const { questionText, description, teamId, visibility } = result.data;
 
-    // Validate the team (if any) belongs to this org.
+    // Validate the team (if any) belongs to this org — and, for a MEMBER,
+    // that they're actually on it (they can't see other teams' questions,
+    // so they mustn't be able to create questions inside those teams).
     if (teamId) {
+      if (!isValidObjectId(teamId)) {
+        return NextResponse.json(
+          { success: false, message: "Team not found in this organization" },
+          { status: 400 }
+        );
+      }
       const team = await TeamModel.findOne({
         _id: teamId,
         organizationId: ctx.organizationId,
+        ...(ctx.role === "MEMBER" ? { members: session!.user._id } : {}),
       });
       if (!team) {
         return NextResponse.json(

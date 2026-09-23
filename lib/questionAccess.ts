@@ -93,6 +93,13 @@ export async function loadAndAuthorize(
       };
     }
     role = membership.role;
+    // Membership alone isn't enough: a MEMBER must not read (or export)
+    // a question scoped to a team they're not in. 404, not 403, so the
+    // question's existence isn't leaked — same as the list endpoint, which
+    // never returns it to them at all.
+    if (!(await canAccessQuestion(question, String(session.user._id), role))) {
+      return notFound();
+    }
   } else if (String(question.userId) !== String(session.user._id)) {
     return notFound();
   }

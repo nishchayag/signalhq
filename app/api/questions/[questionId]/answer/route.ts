@@ -6,6 +6,7 @@ import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { questionResponseSchema } from "@/schemas/questionSchema";
 import { notifyNewMessage } from "@/lib/notifications";
+import { canAccessQuestion } from "@/lib/questionAccess";
 
 // GET /api/questions/:questionId/answer — resolve the caller's own private
 // thread for this question, if they've answered it yet. Lets the dashboard
@@ -18,9 +19,9 @@ export async function GET(
   try {
     const { questionId } = await params;
     const question = await QuestionModel.findById(questionId).select(
-      "organizationId visibility questionText"
+      "organizationId teamId visibility questionText"
     );
-    if (!question) {
+    if (!question || question.visibility !== "internal") {
       return NextResponse.json(
         { success: false, message: "Question not found" },
         { status: 404 }
@@ -32,6 +33,15 @@ export async function GET(
       "question:answer"
     );
     if (!auth.ok) return auth.response;
+
+    // Same team-scope rule as POST below and the question list: a MEMBER
+    // can't even resolve the text of another team's internal question.
+    if (!(await canAccessQuestion(question, auth.userId, auth.membership.role))) {
+      return NextResponse.json(
+        { success: false, message: "Question not found" },
+        { status: 404 }
+      );
+    }
 
     const thread = await MessageModel.findOne({
       questionId: question._id,
