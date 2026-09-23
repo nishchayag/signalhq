@@ -71,6 +71,7 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
 
         {d.teams.length > 0 && (
           <select
+            aria-label="Filter questions by team"
             value={d.teamFilter}
             onChange={(e) => d.setTeamFilter(e.target.value)}
             className="mb-3 w-full rounded-lg border-2 border-ink bg-card px-2 py-1.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"

@@ -514,6 +514,8 @@ export default function OrganizationPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0"
+                              aria-label={`Remove ${m.name}`}
+                              title={`Remove ${m.name}`}
                               onClick={() => removeMember(m)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -657,6 +659,8 @@ export default function OrganizationPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0"
+                              aria-label={`Delete team ${t.name}`}
+                              title={`Delete team ${t.name}`}
                               onClick={() => deleteTeam(t)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -804,6 +808,8 @@ export default function OrganizationPage() {
                       <Input readOnly value={`/o/${orgSlug}`} />
                       <Button
                         variant="outline"
+                        aria-label="Copy feedback link"
+                        title="Copy feedback link"
                         onClick={() => {
                           navigator.clipboard.writeText(
                             `${window.location.origin}/o/${orgSlug}`
