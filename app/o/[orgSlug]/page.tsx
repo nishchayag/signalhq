@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import connectDB from "@/lib/connectDB";
-import OrganizationModel from "@/models/organization.model";
+import type { Metadata } from "next";
 import QuestionModel from "@/models/question.model";
+import { generateMetadata as createMetadata } from "@/lib/metadata";
+import { getPublicOrg } from "@/lib/publicLookups";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import OrgFeedbackForm from "@/components/OrgFeedbackForm";
 
@@ -10,14 +11,24 @@ interface PageProps {
   params: Promise<{ orgSlug: string }>;
 }
 
+// Shared links unfurl with the org's name instead of the generic site title.
+// noindex: these are user-generated pages, not marketing content.
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { orgSlug } = await params;
+  const organization = await getPublicOrg(orgSlug);
+  if (!organization) return createMetadata({ title: "Organization not found", noindex: true });
+  return createMetadata({
+    title: `Send anonymous feedback to ${organization.name}`,
+    description: `Share honest, anonymous feedback with ${organization.name}. No account needed, and nothing ties the message back to you.`,
+    url: `/o/${organization.slug}`,
+    noindex: true,
+  });
+}
+
 // Public org feedback landing page — general feedback + active questions.
 export default async function OrgPublicPage({ params }: PageProps) {
   const { orgSlug } = await params;
-  await connectDB();
-
-  const organization = await OrganizationModel.findOne({ slug: orgSlug }).select(
-    "name slug"
-  );
+  const organization = await getPublicOrg(orgSlug);
   if (!organization) notFound();
 
   const questions = await QuestionModel.find({

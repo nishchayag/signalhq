@@ -4,6 +4,15 @@ import MessageModel from "@/models/message.model";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { MessageSquare, Reply } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import type { Metadata } from "next";
+import { generateMetadata as createMetadata } from "@/lib/metadata";
+
+// The token in this URL is the sender's only credential: never index it, and
+// never leak it to other sites through the Referer header.
+export const metadata: Metadata = {
+  ...createMetadata({ title: "Your feedback receipt", noindex: true, nofollow: true }),
+  referrer: "no-referrer",
+};
 
 interface PageProps {
   params: Promise<{ replyToken: string }>;
