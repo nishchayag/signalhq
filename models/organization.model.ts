@@ -49,6 +49,9 @@ const OrganizationSchema: Schema<IOrganization> = new Schema(
   }
 );
 
+// Lookups by creator/current owner (deleteUnverifiedUser, sweeps).
+OrganizationSchema.index({ createdBy: 1 });
+
 const OrganizationModel =
   (mongoose.models.Organization as mongoose.Model<IOrganization>) ||
   mongoose.model<IOrganization>("Organization", OrganizationSchema);

@@ -39,6 +39,11 @@ const MembershipSchema: Schema<IMembership> = new Schema(
 
 // A user can have at most one membership per organization.
 MembershipSchema.index({ organizationId: 1, userId: 1 }, { unique: true });
+// "All of this user's memberships, oldest first" runs on every session
+// resolution (resolveActiveContext / getActiveOrgForToken fallback, org
+// switcher, /u redirect); the compound above leads with organizationId and
+// can't serve it.
+MembershipSchema.index({ userId: 1, createdAt: 1 });
 
 const MembershipModel =
   (mongoose.models.Membership as mongoose.Model<IMembership>) ||

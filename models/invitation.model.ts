@@ -48,8 +48,7 @@ const InvitationSchema: Schema<IInvitation> = new Schema(
     token: {
       type: String,
       required: true,
-      unique: true,
-      index: true,
+      unique: true, // unique already creates the index
     },
     status: {
       type: String,

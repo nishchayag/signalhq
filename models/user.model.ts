@@ -48,12 +48,6 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  messages: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Message",
-    },
-  ],
 });
 
 const UserModel = mongoose.models.User || mongoose.model("User", userSchema);

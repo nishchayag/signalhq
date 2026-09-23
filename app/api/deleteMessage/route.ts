@@ -1,7 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import connectDB from "@/lib/connectDB";
 import authOptions from "@/lib/nextAuthOptions";
-import UserModel from "@/models/user.model";
 import messageModel from "@/models/message.model";
 import QuestionModel from "@/models/question.model";
 import { getServerSession } from "next-auth";
@@ -65,13 +64,6 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-
-    // Keep the recipient's denormalized messages array consistent regardless
-    // of who performed the delete.
-    await UserModel.updateOne(
-      { _id: message.createdFor },
-      { $pull: { messages: message._id } }
-    );
 
     await messageModel.findByIdAndDelete(messageId);
 

@@ -126,6 +126,12 @@ const messageSchema: Schema<IMessage> = new Schema({
 // per-question messages: questionId == <id>), both always scoped to and
 // sorted within one organization.
 messageSchema.index({ organizationId: 1, questionId: 1, createdAt: -1 });
+// Per-question reads (question GET, export, replies, answer, and the delete
+// cascade) filter on questionId WITHOUT organizationId, so the compound
+// index above can't serve them — they were collection scans.
+messageSchema.index({ questionId: 1, createdAt: -1 });
+// Legacy-message cleanup on account delete filters by recipient.
+messageSchema.index({ createdFor: 1 });
 
 const Message =
   mongoose.models.Message || mongoose.model<IMessage>("Message", messageSchema);

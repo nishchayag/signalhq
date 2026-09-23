@@ -149,27 +149,8 @@ export async function DELETE(
     const authz = await loadAndAuthorize(questionId, "question:delete");
     if (!authz.ok) return authz.response;
 
-    const messagesToDelete = await MessageModel.find({ questionId }).select(
-      "_id createdFor"
-    );
-    const messageIds = messagesToDelete.map((m) => m._id);
-
     const deletedMessages = await MessageModel.deleteMany({ questionId });
     await QuestionModel.findByIdAndDelete(questionId);
-
-    // Keep denormalized User.messages arrays consistent — pull from every
-    // recipient the messages actually point at (createdFor), not just the
-    // question creator's, in case those ever diverge.
-    if (messageIds.length > 0) {
-      const recipientIds = [
-        ...new Set(messagesToDelete.map((m) => String(m.createdFor))),
-      ];
-      const { default: UserModel } = await import("@/models/user.model");
-      await UserModel.updateMany(
-        { _id: { $in: recipientIds } },
-        { $pull: { messages: { $in: messageIds } } }
-      );
-    }
 
     return NextResponse.json(
       {
