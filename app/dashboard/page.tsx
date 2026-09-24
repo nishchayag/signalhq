@@ -93,12 +93,16 @@ export default function DashboardPage() {
         open={d.showCreateDialog}
         onOpenChange={d.setShowCreateDialog}
         onQuestionCreated={d.handleQuestionCreated}
+        ai={d.ai}
+        refreshAi={d.refreshAi}
       />
       <CreateQuestionDialog
         open={d.editingQuestion !== null}
         onOpenChange={(open) => !open && d.setEditingQuestion(null)}
         question={d.editingQuestion}
         onQuestionUpdated={d.handleQuestionUpdated}
+        ai={d.ai}
+        refreshAi={d.refreshAi}
       />
     </div>
   );

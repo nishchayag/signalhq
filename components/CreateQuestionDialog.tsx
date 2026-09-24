@@ -22,6 +22,9 @@ import { toast } from "sonner";
 import axios from "axios";
 import { IQuestion } from "@/models/question.model";
 import { apiError } from "@/lib/apiError";
+import { useConfirm } from "@/components/ConfirmProvider";
+import AiQuotaNote, { quotaExhausted } from "@/components/AiQuotaNote";
+import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
 
 interface CreateQuestionDialogProps {
   open: boolean;
@@ -31,6 +34,11 @@ interface CreateQuestionDialogProps {
    *  (visibility and team are fixed once a question exists). */
   question?: IQuestion | null;
   onQuestionUpdated?: (question: IQuestion) => void;
+  /** AI status for the active org — null/undefined while loading, in which
+   *  case the AI block stays hidden rather than flashing in. */
+  ai?: AiStatus | null;
+  /** Re-fetch AI status (usage counters) after a suggest attempt. */
+  refreshAi?: () => void;
 }
 
 interface Team {
@@ -39,19 +47,28 @@ interface Team {
   isMember: boolean;
 }
 
+interface Suggestion {
+  questionText: string;
+  description: string;
+}
+
 export default function CreateQuestionDialog({
   open,
   onOpenChange,
   onQuestionCreated,
   question,
   onQuestionUpdated,
+  ai,
+  refreshAi,
 }: CreateQuestionDialogProps) {
   const isEdit = Boolean(question);
   const { data: session } = useSession();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
   const [suggesting, setSuggesting] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [hint, setHint] = useState("");
 
   const {
     register,
@@ -59,31 +76,54 @@ export default function CreateQuestionDialog({
     formState: { errors },
     reset,
     setValue,
+    getValues,
   } = useForm<CreateQuestionRequest>({
     resolver: zodResolver(createQuestionSchema),
     defaultValues: { visibility: "public" },
   });
 
+  // AI is available for this dialog only once the org has enabled it and
+  // this role is allowed to use question:create's AI counterpart.
+  const showAi = Boolean(ai?.enabled && ai?.can.suggest);
+  const suggestUsage = ai?.usage?.suggest;
+
   const handleSuggest = async () => {
     setSuggesting(true);
     try {
-      const response = await axios.post("/api/suggestMessages");
-      const completion: string = response.data.completion;
-      setSuggestions(
-        completion
-          .split("||")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      );
+      const teamId = isEdit
+        ? question?.teamId
+          ? String(question.teamId)
+          : undefined
+        : getValues("teamId");
+      const response = await axios.post("/api/suggestMessages", {
+        teamId: teamId || undefined,
+        hint: hint.trim() || undefined,
+      });
+      setSuggestions(response.data.suggestions);
     } catch (error) {
       toast.error(apiError(error, "Failed to generate suggestions"));
     } finally {
       setSuggesting(false);
+      refreshAi?.();
     }
   };
 
-  const applySuggestion = (suggestion: string) => {
-    setValue("questionText", suggestion, { shouldValidate: true });
+  const applySuggestion = async (suggestion: Suggestion) => {
+    const currentDescription = getValues("description");
+    if (currentDescription && currentDescription.trim()) {
+      const ok = await confirm({
+        title: "Replace your description?",
+        description: "The suggestion's description will overwrite what you've already written.",
+        confirmLabel: "Replace",
+      });
+      if (!ok) {
+        setValue("questionText", suggestion.questionText, { shouldValidate: true });
+        setSuggestions([]);
+        return;
+      }
+    }
+    setValue("questionText", suggestion.questionText, { shouldValidate: true });
+    setValue("description", suggestion.description, { shouldValidate: true });
     setSuggestions([]);
   };
 
@@ -154,6 +194,7 @@ export default function CreateQuestionDialog({
     if (!loading) {
       reset();
       setSuggestions([]);
+      setHint("");
       onOpenChange(false);
     }
   };
@@ -175,22 +216,36 @@ export default function CreateQuestionDialog({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <Label htmlFor="questionText">Question *</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleSuggest}
-                disabled={loading || suggesting}
-              >
-                {suggesting ? (
-                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-3 w-3" />
-                )}
-                Suggest
-              </Button>
+              {showAi && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={hint}
+                    onChange={(e) => setHint(e.target.value)}
+                    placeholder="Focus (optional)"
+                    maxLength={200}
+                    disabled={loading || suggesting}
+                    aria-label="Suggestion focus hint"
+                    className="h-8 w-32 rounded-lg border-2 border-ink bg-card px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:w-40"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSuggest}
+                    disabled={loading || suggesting || quotaExhausted(suggestUsage)}
+                  >
+                    {suggesting ? (
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-3 w-3" />
+                    )}
+                    Suggest
+                  </Button>
+                </div>
+              )}
             </div>
             <Textarea
               id="questionText"
@@ -210,14 +265,17 @@ export default function CreateQuestionDialog({
                   <button
                     key={i}
                     type="button"
+                    data-testid="ai-suggestion-card"
                     onClick={() => applySuggestion(suggestion)}
-                    className="block w-full rounded-lg border-2 border-ink bg-brand-yellow/20 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-brand-yellow/40"
+                    className="pop block w-full rounded-lg border-2 border-ink bg-brand-yellow/20 px-3 py-2 text-left"
                   >
-                    {suggestion}
+                    <p className="text-sm font-bold text-foreground">{suggestion.questionText}</p>
+                    <p className="text-xs text-muted-foreground">{suggestion.description}</p>
                   </button>
                 ))}
               </div>
             )}
+            {showAi && <AiQuotaNote usage={suggestUsage} resetsAt={ai?.resetsAt} />}
           </div>
 
           <div className="space-y-2">
