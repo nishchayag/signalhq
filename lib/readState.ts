@@ -7,10 +7,12 @@ import mongoose from "mongoose";
 //
 // A message is READ for a viewer iff
 //   the viewer is in `readBy`
-//   OR its last activity (lastActivityAt, else createdAt) is before the
-//      viewer's readSince — the "before you joined counts as read" rule.
-// Activity rather than createdAt so a pre-join message that gets a new turn
-// after joining isn't silently hidden as read.
+//   OR its last inbound activity (lastInboundAt, else createdAt) is before
+//      the viewer's readSince — the "before you joined counts as read" rule.
+// Inbound activity rather than createdAt so a pre-join message that gets a
+// sender/member follow-up after joining isn't silently hidden as read; but
+// not lastActivityAt, so an org reply (outbound) doesn't resurface a
+// pre-join message as unread for a member who joined in between.
 
 export interface ReadViewer {
   userId: string;
@@ -28,7 +30,7 @@ export function effectiveReadSince(membership: {
 type ReadSource = {
   readBy?: unknown;
   createdAt?: Date | string | null;
-  lastActivityAt?: Date | string | null;
+  lastInboundAt?: Date | string | null;
 };
 
 /** Is `doc` read for `viewer`? `doc` must have been loaded with "+readBy". */
@@ -36,7 +38,7 @@ export function isReadFor(doc: ReadSource, viewer: ReadViewer): boolean {
   const readBy = Array.isArray(doc.readBy) ? doc.readBy : [];
   if (readBy.some((id) => String(id) === viewer.userId)) return true;
   if (!viewer.readSince) return false;
-  const activity = doc.lastActivityAt ?? doc.createdAt;
+  const activity = doc.lastInboundAt ?? doc.createdAt;
   if (!activity) return false;
   return new Date(activity).getTime() < viewer.readSince.getTime();
 }
@@ -48,10 +50,10 @@ export function unreadClause(viewer: ReadViewer): Record<string, unknown> {
     readBy: { $ne: new mongoose.Types.ObjectId(viewer.userId) },
   };
   if (viewer.readSince) {
-    // activity = lastActivityAt when set, else createdAt (as in isReadFor).
+    // activity = lastInboundAt when set, else createdAt (as in isReadFor).
     clause.$or = [
-      { lastActivityAt: { $gte: viewer.readSince } },
-      { lastActivityAt: null, createdAt: { $gte: viewer.readSince } },
+      { lastInboundAt: { $gte: viewer.readSince } },
+      { lastInboundAt: null, createdAt: { $gte: viewer.readSince } },
     ];
   }
   return clause;

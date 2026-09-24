@@ -8,6 +8,7 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { updateTeamSchema } from "@/schemas/teamSchema";
 import { logActivity } from "@/lib/auditLog";
 import { withErrorHandling } from "@/lib/apiHandler";
+import { unassignUser } from "@/lib/orgCleanup";
 
 interface PopulatedUser {
   _id: string;
@@ -76,16 +77,32 @@ async function handlePATCH(
 
   if (result.data.name !== undefined) team.name = result.data.name;
 
+  let removed: string[] = [];
   if (result.data.memberIds !== undefined) {
     // Only users who are actually org members may be on a team.
     const valid = await MembershipModel.find({
       organizationId: orgId,
       userId: { $in: result.data.memberIds },
     }).select("userId");
+    const next = new Set(valid.map((m) => String(m.userId)));
+    removed = team.members.map(String).filter((id) => !next.has(id));
     team.members = valid.map((m) => m.userId);
   }
 
   await team.save();
+
+  // A MEMBER taken off the team loses access to its messages, so unassign
+  // them there (OWNER/ADMIN see every team and stay assigned).
+  if (removed.length > 0) {
+    const members = await MembershipModel.find({
+      organizationId: orgId,
+      userId: { $in: removed },
+      role: "MEMBER",
+    }).select("userId");
+    for (const m of members) {
+      await unassignUser(m.userId, { organizationId: orgId, teamId: team._id });
+    }
+  }
 
   await logActivity({
     organizationId: orgId,

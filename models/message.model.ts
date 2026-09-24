@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { MESSAGE_MAX_LABELS } from "@/lib/triageConstants";
 
 export type MessageAuthorType = "anonymous" | "member";
 // "member": a member's own turns in their private thread; "org": OWNER/ADMIN
@@ -81,6 +82,12 @@ export interface IMessage extends Document {
   replies?: IThreadEntry[];
   // Last time a turn was added (absent ⇒ no turn since creation; use createdAt).
   lastActivityAt?: Date;
+  // Last INBOUND turn: creation, a sender follow-up, or a member's own
+  // follow-up in their private thread — never an org reply. Read state
+  // (lib/readState.ts) keys on this, so an org reply doesn't make a
+  // pre-join message unread for someone who joined in between. Absent ⇒
+  // createdAt (messages from before the field existed).
+  lastInboundAt?: Date;
   // An anonymous sender followed up and the org hasn't replied since.
   awaitingOrg?: boolean;
   // AI enrichment. `select: false` (default deny): only routes that ask for
@@ -110,7 +117,7 @@ export interface IMessage extends Document {
   assignedBy?: mongoose.Types.ObjectId;
 }
 
-export const MESSAGE_MAX_LABELS = 5;
+export { MESSAGE_MAX_LABELS };
 
 const messageSchema: Schema<IMessage> = new Schema({
   content: {
@@ -175,6 +182,7 @@ const messageSchema: Schema<IMessage> = new Schema({
     required: false,
   },
   lastActivityAt: { type: Date, required: false },
+  lastInboundAt: { type: Date, required: false },
   awaitingOrg: { type: Boolean, default: false },
   // Sub-schema (not a nested object) so `ai` stays undefined on messages
   // created with AI off, instead of defaulting to `{}`.

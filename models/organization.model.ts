@@ -1,13 +1,14 @@
 import mongoose, { Document, Schema } from "mongoose";
+import {
+  LABEL_COLORS,
+  LABEL_NAME_MAX,
+  ORG_MAX_LABELS,
+  type LabelColor,
+} from "@/lib/triageConstants";
+
+export { LABEL_COLORS, LABEL_NAME_MAX, ORG_MAX_LABELS, type LabelColor };
 
 export type OrganizationPlan = "FREE" | "PRO" | "ENTERPRISE";
-
-// Label colours are the design system's brand palette keys (app/globals.css
-// --brand-*, exposed as bg-brand-*), so a label renders with existing tokens.
-export const LABEL_COLORS = ["yellow", "pink", "mint", "blue"] as const;
-export type LabelColor = (typeof LABEL_COLORS)[number];
-export const ORG_MAX_LABELS = 30;
-export const LABEL_NAME_MAX = 24;
 
 export interface IOrgLabel {
   _id: mongoose.Types.ObjectId;

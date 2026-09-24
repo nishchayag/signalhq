@@ -58,6 +58,9 @@ const ACTIVITY_LABELS: Record<string, string> = {
   "team.deleted": "deleted a team",
   "invitation.created": "invited a member",
   "invitation.revoked": "revoked an invitation",
+  "label.created": "created a label",
+  "label.updated": "updated a label",
+  "label.deleted": "deleted a label",
 };
 
 function describeActivity(entry: ActivityEntry): string {
@@ -76,7 +79,13 @@ function describeActivity(entry: ActivityEntry): string {
     case "team.created":
     case "team.updated":
     case "team.deleted":
+    case "label.created":
+    case "label.deleted":
       return `${ACTIVITY_LABELS[entry.action]}: "${meta.name}"`;
+    case "label.updated":
+      return meta.from
+        ? `Renamed a label from "${meta.from}" to "${meta.name}"`
+        : `${ACTIVITY_LABELS[entry.action]}: "${meta.name}"`;
     default:
       return ACTIVITY_LABELS[entry.action] || entry.action;
   }

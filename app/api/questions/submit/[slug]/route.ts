@@ -140,8 +140,11 @@ export async function POST(
 
     const replyToken = nanoid(32);
     const aiOn = isAiEnabled();
+    const now = new Date();
     const message = new MessageModel({
       content,
+      createdAt: now,
+      lastInboundAt: now,
       createdFor: question.userId,
       questionId: question._id,
       // Mirror the question's org/team onto the response for scoped reads.

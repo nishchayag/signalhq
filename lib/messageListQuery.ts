@@ -1,5 +1,8 @@
+import mongoose from "mongoose";
 import type { MembershipRole } from "@/models/membership.model";
 import { parseBeforeCursor, parseEscapedSearch } from "@/lib/pagination";
+import { isValidObjectId } from "@/lib/objectId";
+import { unreadClause } from "@/lib/readState";
 
 // The one place a message-list Mongo filter is built from query params, used
 // by getMessages, questions/[id] GET, messages/export and semantic search,
@@ -22,6 +25,16 @@ export interface MessageListViewer {
   readSince?: Date | null;
 }
 
+export const MESSAGE_STATUSES = ["open", "archived", "all"] as const;
+export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
+
+// A clause no document satisfies — an unsatisfiable narrowing param (e.g. a
+// malformed label id) yields an empty list rather than a 400 or, worse, no
+// narrowing at all.
+const MATCH_NOTHING = { _id: { $in: [] } };
+
+const oid = (id: string) => new mongoose.Types.ObjectId(id);
+
 /**
  * - `page`: a dashboard list page — `q` regex search + `before` cursor.
  * - `export`: the CSV — `q` regex search, no cursor (it isn't paginated).
@@ -43,7 +56,6 @@ export function buildMessageListFilter({
   viewer,
   mode = "page",
 }: BuildMessageListFilterOpts): Record<string, unknown> {
-  void viewer; // consumed by the per-viewer filters (unread, assignee=me)
   const filter: Record<string, unknown> = { ...base };
   const and: Record<string, unknown>[] = [];
 
@@ -54,6 +66,36 @@ export function buildMessageListFilter({
   if (mode === "page") {
     const before = parseBeforeCursor(searchParams);
     if (before) filter.createdAt = { $lt: before };
+  }
+
+  // Triage params. All modes: they're plain narrowing predicates, and the
+  // semantic path re-applies the full filter when it hydrates results.
+  //
+  // status=open|archived|all — default (and any unknown value) is open.
+  const status = searchParams.get("status");
+  if (status === "archived") and.push({ archivedAt: { $ne: null } });
+  else if (status !== "all") and.push({ archivedAt: null });
+
+  // unread=1 — the viewer's own read state (lib/readState.ts).
+  const unread = searchParams.get("unread");
+  if (unread === "1" || unread === "true") {
+    and.push(unreadClause({ userId: viewer.userId, readSince: viewer.readSince }));
+  }
+
+  // label=<Organization.labels _id>
+  const label = searchParams.get("label");
+  if (label !== null) {
+    and.push(isValidObjectId(label) ? { labels: oid(label) } : MATCH_NOTHING);
+  }
+
+  // assignee=me|none|<userId>. `none` matches missing or null (unassign
+  // always $unsets — see the partial index in models/message.model.ts — but
+  // a stray null must still read as unassigned, as it does in the UI).
+  const assignee = searchParams.get("assignee");
+  if (assignee === "me") and.push({ assignedTo: oid(viewer.userId) });
+  else if (assignee === "none") and.push({ assignedTo: null });
+  else if (assignee !== null) {
+    and.push(isValidObjectId(assignee) ? { assignedTo: oid(assignee) } : MATCH_NOTHING);
   }
 
   if (and.length > 0) {

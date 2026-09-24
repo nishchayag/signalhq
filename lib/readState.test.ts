@@ -24,18 +24,22 @@ describe("effectiveReadSince", () => {
 });
 
 describe("isReadFor and unreadClause agree", () => {
-  it("across readBy × createdAt × lastActivityAt × readSince", async () => {
+  it("across readBy × createdAt × lastInboundAt × lastActivityAt × readSince", async () => {
     const cases: { name: string; doc: Record<string, unknown> }[] = [];
     let n = 0;
     for (const readBy of [undefined, [], [other], [other, viewerId]]) {
       for (const createdAt of [before, after]) {
-        for (const lastActivityAt of [undefined, null, before, after]) {
-          if (lastActivityAt && lastActivityAt < createdAt) continue;
-          const name = `m${n++}`;
-          const doc: Record<string, unknown> = { content: name, createdAt };
-          if (readBy !== undefined) doc.readBy = readBy;
-          if (lastActivityAt !== undefined) doc.lastActivityAt = lastActivityAt;
-          cases.push({ name, doc });
+        for (const lastInboundAt of [undefined, null, before, after]) {
+          if (lastInboundAt && lastInboundAt < createdAt) continue;
+          // lastActivityAt (org replies included) must never matter.
+          for (const lastActivityAt of [undefined, after]) {
+            const name = `m${n++}`;
+            const doc: Record<string, unknown> = { content: name, createdAt };
+            if (readBy !== undefined) doc.readBy = readBy;
+            if (lastInboundAt !== undefined) doc.lastInboundAt = lastInboundAt;
+            if (lastActivityAt !== undefined) doc.lastActivityAt = lastActivityAt;
+            cases.push({ name, doc });
+          }
         }
       }
     }
@@ -66,7 +70,9 @@ describe("isReadFor and unreadClause agree", () => {
     const v = { userId: String(viewerId), readSince: T };
     expect(isReadFor({ readBy: [viewerId], createdAt: after }, v)).toBe(true);
     expect(isReadFor({ createdAt: before }, v)).toBe(true);
-    expect(isReadFor({ createdAt: before, lastActivityAt: after }, v)).toBe(false);
+    expect(isReadFor({ createdAt: before, lastInboundAt: after }, v)).toBe(false);
+    // An org reply (lastActivityAt only) doesn't make a pre-join message unread.
+    expect(isReadFor({ createdAt: before, lastActivityAt: after } as never, v)).toBe(true);
     expect(isReadFor({ createdAt: after }, v)).toBe(false);
     expect(isReadFor({ createdAt: before }, { userId: String(viewerId) })).toBe(false);
   });

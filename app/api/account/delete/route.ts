@@ -7,7 +7,7 @@ import UserModel from "@/models/user.model";
 import MembershipModel from "@/models/membership.model";
 import OrganizationModel from "@/models/organization.model";
 import MessageModel from "@/models/message.model";
-import { deleteOrganizationsCascade } from "@/lib/orgCleanup";
+import { deleteOrganizationsCascade, unassignUser } from "@/lib/orgCleanup";
 
 /**
  * DELETE /api/account/delete — self-service account deletion, password
@@ -103,6 +103,8 @@ export async function DELETE(request: NextRequest) {
     // Orgs the user belongs to but doesn't own: just remove their
     // membership (leave the org) — the org's own data isn't touched.
     await MembershipModel.deleteMany({ userId, role: { $ne: "OWNER" } });
+    // …and stop being anyone's assignee there.
+    await unassignUser(userId);
 
     // Legacy pre-migration messages tied directly to this user (no org yet).
     await MessageModel.deleteMany({

@@ -99,7 +99,9 @@ export async function POST(
       },
       {
         $push: { replies: { authorRole: "sender", content, createdAt: now } },
-        $set: { awaitingOrg: true, lastActivityAt: now },
+        $set: { awaitingOrg: true, lastActivityAt: now, lastInboundAt: now },
+        // New inbound activity reopens the message for everyone.
+        $unset: { readBy: "", archivedAt: "", archivedBy: "" },
       },
       { new: true, projection: `${RECEIPT_FIELDS} createdFor` }
     ).lean<{ createdFor?: unknown } & Parameters<typeof threadOf>[0]>();

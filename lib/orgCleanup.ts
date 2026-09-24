@@ -17,6 +17,23 @@ import { createPersonalOrganization } from "@/lib/orgContext";
 type Id = string | mongoose.Types.ObjectId;
 
 /**
+ * Unassign `userId` from every message matching `where` (e.g. one org, or
+ * one org's team). Always `$unset` (never null) so the assignee partial
+ * index stays "assigned only". Stale `readBy` ids are left alone — they're
+ * never exposed and never match another viewer.
+ */
+export async function unassignUser(
+  userId: Id,
+  where: Record<string, unknown> = {}
+): Promise<number> {
+  const res = await MessageModel.updateMany(
+    { ...where, assignedTo: userId },
+    { $unset: { assignedTo: "", assignedAt: "", assignedBy: "" } }
+  );
+  return res.modifiedCount;
+}
+
+/**
  * Delete organizations and everything they own. Messages/questions created
  * before the multi-tenant migration that still lack an org are untouched.
  * Not transactional (tests run on a standalone Mongo), so children go first
@@ -56,6 +73,7 @@ export async function deleteUnverifiedUser(userId: Id): Promise<void> {
   }
   await deleteOrganizationsCascade(soleOrgIds);
   await MembershipModel.deleteMany({ userId });
+  await unassignUser(userId);
   await UserModel.deleteOne({ _id: userId });
 }
 
@@ -114,15 +132,22 @@ export async function sweepOrphans(limit = 200): Promise<{ memberships: number; 
   const orgs = OrganizationModel.collection.collectionName;
   const memberships = MembershipModel.collection.collectionName;
 
-  const orphanMemberships = await MembershipModel.aggregate<{ _id: mongoose.Types.ObjectId }>([
+  const orphanMemberships = await MembershipModel.aggregate<{
+    _id: mongoose.Types.ObjectId;
+    userId: mongoose.Types.ObjectId;
+    organizationId: mongoose.Types.ObjectId;
+  }>([
     { $lookup: { from: users, localField: "userId", foreignField: "_id", as: "u" } },
     { $lookup: { from: orgs, localField: "organizationId", foreignField: "_id", as: "o" } },
     { $match: { $or: [{ u: { $size: 0 } }, { o: { $size: 0 } }] } },
-    { $project: { _id: 1 } },
+    { $project: { _id: 1, userId: 1, organizationId: 1 } },
     { $limit: limit },
   ]);
   if (orphanMemberships.length) {
     await MembershipModel.deleteMany({ _id: { $in: orphanMemberships.map((m) => m._id) } });
+    for (const m of orphanMemberships) {
+      await unassignUser(m.userId, { organizationId: m.organizationId });
+    }
   }
 
   const emptyOrgs = await OrganizationModel.aggregate<{ _id: mongoose.Types.ObjectId }>([

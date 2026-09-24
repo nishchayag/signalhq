@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { getServerSession } from "next-auth";
 import authOptions from "@/lib/nextAuthOptions";
 import connectDB from "@/lib/connectDB";
@@ -16,7 +17,8 @@ import { threadOf } from "@/lib/thread";
 // (`message`, plus `turns`: lib/thread.ts#threadOf, first turn included).
 // Only two parties may view it: the member who owns a private
 // (authorType: "member") thread, or an OWNER/ADMIN of the org (oversight).
-// Returns 404 (not 403) on a mismatch so existence isn't leaked.
+// Returns 404 (not 403) on a mismatch so existence isn't leaked. Viewing
+// marks the message read for the viewer (`message.read` is always true).
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ messageId: string }> }
@@ -68,11 +70,20 @@ export async function GET(
       );
     }
 
+    // Opening the thread reads it (per person; see lib/readState.ts).
+    await MessageModel.updateOne(
+      { _id: message._id },
+      { $addToSet: { readBy: new mongoose.Types.ObjectId(String(session.user._id)) } }
+    );
+
     // The thread's own author never sees how their words were classified.
     return NextResponse.json(
       {
         success: true,
-        message: withAiViewOne(message, membership.role, { memberThread: isThreadOwner }),
+        message: {
+          ...withAiViewOne(message, membership.role, { memberThread: isThreadOwner }),
+          read: true,
+        },
         turns: threadOf(message),
       },
       { status: 200 }
@@ -150,6 +161,12 @@ export async function POST(
     message.lastActivityAt = now;
     if (message.authorType !== "member") message.awaitingOrg = false;
     await message.save();
+    // Replying implies having read it. Outbound, so lastInboundAt is left
+    // alone: nobody else's read state changes.
+    await MessageModel.updateOne(
+      { _id: message._id },
+      { $addToSet: { readBy: new mongoose.Types.ObjectId(access.userId) } }
+    );
 
     return NextResponse.json(
       {

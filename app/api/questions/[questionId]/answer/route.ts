@@ -151,19 +151,24 @@ export async function POST(
     });
 
     if (message) {
-      message.replies = message.replies || [];
+      // A follow-up is new inbound activity: it reopens the thread for
+      // everyone (clears readBy and any archive) — see lib/readState.ts.
       const now = new Date();
-      message.replies.push({
-        authorRole: "member",
-        content,
-        createdAt: now,
-      });
-      message.lastActivityAt = now;
-      await message.save();
+      await MessageModel.updateOne(
+        { _id: message._id },
+        {
+          $push: { replies: { authorRole: "member", content, createdAt: now } },
+          $set: { lastActivityAt: now, lastInboundAt: now },
+          $unset: { readBy: "", archivedAt: "", archivedBy: "" },
+        }
+      );
     } else {
       const aiOn = isAiEnabled();
+      const now = new Date();
       message = await MessageModel.create({
         content,
+        createdAt: now,
+        lastInboundAt: now,
         createdFor: question.userId,
         questionId: question._id,
         organizationId: question.organizationId,

@@ -58,7 +58,13 @@ async function seedMessages(questionId: Id | null) {
     replyToken: questionId ? undefined : TOKEN,
   });
   const fresh = await make("fresh", new Date(t0.getTime() + 2 * DAY));
+  // A sender follow-up after the member joined (inbound) …
   const oldActive = await make("oldActive", new Date(t0.getTime() - 2 * DAY), {
+    lastActivityAt: new Date(t0.getTime() + 3 * DAY),
+    lastInboundAt: new Date(t0.getTime() + 3 * DAY),
+  });
+  // … vs only an org reply after the join (outbound): stays read.
+  await make("oldReplied", new Date(t0.getTime() - 2 * DAY), {
     lastActivityAt: new Date(t0.getTime() + 3 * DAY),
   });
   // Written raw, the way triage will ($addToSet), so select:false is what
@@ -122,13 +128,14 @@ describe("per-viewer read state on list routes", () => {
     as(owner);
     const o = await (await getMessages(new NextRequest("http://localhost/api/getMessages"))).json();
     expectNoReadBy(o);
-    expect(readMap(o)).toEqual({ old: false, ownerRead: true, fresh: false, oldActive: false });
+    expect(readMap(o)).toEqual({ old: false, ownerRead: true, fresh: false, oldActive: false, oldReplied: false });
 
     as(member);
     const m = await (await getMessages(new NextRequest("http://localhost/api/getMessages"))).json();
     expectNoReadBy(m);
-    // "old" predates the member's join ⇒ read; "oldActive" had activity after.
-    expect(readMap(m)).toEqual({ old: true, ownerRead: false, fresh: false, oldActive: false });
+    // "old" predates the member's join ⇒ read; "oldActive" had a sender
+    // follow-up after; "oldReplied" only an org reply (outbound) ⇒ still read.
+    expect(readMap(m)).toEqual({ old: true, ownerRead: false, fresh: false, oldActive: false, oldReplied: true });
   });
 
   it("an explicit Membership.readSince overrides createdAt", async () => {
@@ -139,7 +146,7 @@ describe("per-viewer read state on list routes", () => {
     );
     as(member);
     const m = await (await getMessages(new NextRequest("http://localhost/api/getMessages"))).json();
-    expect(readMap(m)).toEqual({ old: true, ownerRead: true, fresh: true, oldActive: true });
+    expect(readMap(m)).toEqual({ old: true, ownerRead: true, fresh: true, oldActive: true, oldReplied: true });
   });
 
   it("questions/:id GET: same per-viewer read state", async () => {
@@ -147,11 +154,11 @@ describe("per-viewer read state on list routes", () => {
     as(owner);
     const o = await (await getQuestion(new NextRequest(`http://localhost/api/questions/${publicQ}`), qp(publicQ))).json();
     expectNoReadBy(o);
-    expect(readMap(o)).toEqual({ old: false, ownerRead: true, fresh: false, oldActive: false });
+    expect(readMap(o)).toEqual({ old: false, ownerRead: true, fresh: false, oldActive: false, oldReplied: false });
     as(member);
     const m = await (await getQuestion(new NextRequest(`http://localhost/api/questions/${publicQ}`), qp(publicQ))).json();
     expectNoReadBy(m);
-    expect(readMap(m)).toEqual({ old: true, ownerRead: false, fresh: false, oldActive: false });
+    expect(readMap(m)).toEqual({ old: true, ownerRead: false, fresh: false, oldActive: false, oldReplied: true });
   });
 
   it("list routes still return the triage fields themselves", async () => {

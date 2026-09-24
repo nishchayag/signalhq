@@ -9,11 +9,12 @@ import { buildMessageListFilter, type MessageListViewer } from "@/lib/messageLis
 import { messagesToCsv } from "@/lib/csv";
 import type { ThreadSource } from "@/lib/thread";
 import { loadAndAuthorize } from "@/lib/questionAccess";
+import { effectiveReadSince } from "@/lib/readState";
 
 // Hard cap so a single export can't pull in an unbounded number of documents.
 const MAX_ROWS = 10_000;
 
-// GET /api/messages/export[?questionId=][&q=] — CSV download of either the
+// GET /api/messages/export[?questionId=][&q=][&status=&unread=&label=&assignee=] — CSV download of either the
 // active org's general messages (questionId omitted, mirrors
 // app/api/getMessages/route.ts's filter) or one question's public responses
 // (questionId given, mirrors app/api/questions/[questionId]/route.ts's
@@ -31,7 +32,11 @@ export async function GET(request: NextRequest) {
       const authz = await loadAndAuthorize(questionId);
       if (!authz.ok) return authz.response;
       base = { questionId, authorType: { $ne: "member" } };
-      viewer = { userId: authz.userId, role: authz.role };
+      viewer = {
+        userId: authz.userId,
+        role: authz.role,
+        readSince: authz.membership ? effectiveReadSince(authz.membership) : null,
+      };
       filenameHint = authz.question.slug;
     } else {
       const session = await getServerSession(authOptions);
@@ -49,7 +54,11 @@ export async function GET(request: NextRequest) {
         );
       }
       base = { organizationId: ctx.organizationId, questionId: null };
-      viewer = { userId: String(ctx.membership.userId), role: ctx.role };
+      viewer = {
+        userId: String(ctx.membership.userId),
+        role: ctx.role,
+        readSince: effectiveReadSince(ctx.membership),
+      };
       filenameHint = ctx.organization.slug;
     }
     const filter = buildMessageListFilter({

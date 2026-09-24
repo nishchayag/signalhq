@@ -66,8 +66,11 @@ export async function POST(
     // the org (organizationId) and attributed to its creator for that field.
     const replyToken = nanoid(32);
     const aiOn = isAiEnabled();
+    const now = new Date();
     const message = await MessageModel.create({
       content: result.data.content,
+      createdAt: now,
+      lastInboundAt: now,
       createdFor: organization.createdBy,
       organizationId: organization._id,
       replyToken,

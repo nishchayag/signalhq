@@ -79,7 +79,7 @@ export function withAiView<T = MessageView>(
     const out: Plain = rest;
     if (viewerId) {
       out.read = isReadFor(
-        { readBy, createdAt: rest.createdAt as Date, lastActivityAt: rest.lastActivityAt as Date },
+        { readBy, createdAt: rest.createdAt as Date, lastInboundAt: rest.lastInboundAt as Date },
         { userId: viewerId, readSince }
       );
     }

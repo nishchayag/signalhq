@@ -6,6 +6,7 @@ import { outranks } from "@/lib/permissions";
 import { updateMemberRoleSchema } from "@/schemas/memberSchema";
 import { logActivity } from "@/lib/auditLog";
 import { withErrorHandling } from "@/lib/apiHandler";
+import { unassignUser } from "@/lib/orgCleanup";
 
 // PATCH /api/organizations/:orgId/members/:membershipId — change a role.
 async function handlePATCH(
@@ -53,6 +54,16 @@ async function handlePATCH(
   const previousRole = target.role;
   target.role = result.data.role;
   await target.save();
+
+  // Demoted to MEMBER: they lose sight of other teams' messages, so they
+  // can't stay assigned to them (assignees must pass canAccessQuestion).
+  if (target.role === "MEMBER" && previousRole !== "MEMBER") {
+    const teams = await TeamModel.find({ organizationId: orgId, members: target.userId }).select("_id");
+    await unassignUser(target.userId, {
+      organizationId: orgId,
+      teamId: { $exists: true, $nin: [null, ...teams.map((t) => t._id)] },
+    });
+  }
 
   await logActivity({
     organizationId: orgId,
@@ -127,11 +138,12 @@ async function handleDELETE(
   }
 
   await MembershipModel.deleteOne({ _id: target._id });
-  // Drop them from any teams in this org.
+  // Drop them from any teams in this org, and from any message assignments.
   await TeamModel.updateMany(
     { organizationId: orgId },
     { $pull: { members: target.userId } }
   );
+  await unassignUser(target.userId, { organizationId: orgId });
 
   await logActivity({
     organizationId: orgId,
