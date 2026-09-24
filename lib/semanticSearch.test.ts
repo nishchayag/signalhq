@@ -15,7 +15,7 @@ import { startTestDB, clearTestDB, stopTestDB } from "@/test-utils/db";
 import { aiMock } from "@/test-utils/aiMock";
 import { GET as getMessages } from "@/app/api/getMessages/route";
 import { GET as getQuestion } from "@/app/api/questions/[questionId]/route";
-import { chooseStrategy, cosine, semanticSearch } from "@/lib/semanticSearch";
+import { applyCutoff, chooseStrategy, cosine, semanticSearch } from "@/lib/semanticSearch";
 import { backfillEmbeddings } from "@/lib/aiEnrichment";
 import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
@@ -118,6 +118,18 @@ describe("cosine", () => {
   });
 });
 
+describe("applyCutoff", () => {
+  const s = (...xs: number[]) => xs.map((score) => ({ score }));
+  it("keeps hits above the floor and within the window of the best, best first", () => {
+    // Measured mistral-embed shape: one real hit a little above the pack.
+    expect(applyCutoff(s(0.57, 0.6247, 0.5637), { minScore: 0.6, window: 0.06, limit: 20 })).toEqual(s(0.6247));
+    expect(applyCutoff(s(0.6761, 0.7693, 0.6718), { minScore: 0.6, window: 0.06, limit: 20 })).toEqual(s(0.7693));
+    expect(applyCutoff(s(0.65, 0.63, 0.5), { minScore: 0.6, window: 0.06, limit: 20 })).toEqual(s(0.65, 0.63));
+    expect(applyCutoff(s(0.55, 0.5), { minScore: 0.6, window: 0.06, limit: 20 })).toEqual([]);
+    expect(applyCutoff(s(0.9, 0.89, 0.88), { minScore: 0.6, window: 0.06, limit: 2 })).toEqual(s(0.9, 0.89));
+  });
+});
+
 describe("semantic search on getMessages", () => {
   it("never returns another org's message, even with an identical vector", async () => {
     const a = await createOrg();
@@ -132,16 +144,24 @@ describe("semantic search on getMessages", () => {
     expect(JSON.stringify(body)).not.toContain("embedding");
   });
 
-  it("orders by score and drops results under the threshold", async () => {
+  it("orders by score and drops results outside the floor/window", async () => {
     const { orgId, ownerId } = await createOrg();
     await msg(orgId, "close", vec(1, 0.2)); // ~0.98
     await msg(orgId, "closest", vec(1, 0)); // 1.0
-    await msg(orgId, "medium", vec(1, 0.9)); // ~0.74
+    await msg(orgId, "medium", vec(1, 0.9)); // ~0.74 — above the floor, outside the window
     await msg(orgId, "far", vec(1, 3)); // ~0.32
     await msg(orgId, "unembedded", null);
     signIn(ownerId, orgId);
     const { body } = await searchGeneral();
-    expect(contents(body)).toEqual(["closest", "close", "medium"]);
+    expect(contents(body)).toEqual(["closest", "close"]);
+  });
+
+  it("returns nothing when no message clears the absolute floor", async () => {
+    const { orgId, ownerId } = await createOrg();
+    await msg(orgId, "unrelated", vec(1, 1.5)); // ~0.55
+    signIn(ownerId, orgId);
+    const { body } = await searchGeneral();
+    expect(body.messages).toEqual([]);
   });
 
   it("returns MEMBER-safe AI views", async () => {

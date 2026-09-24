@@ -35,10 +35,39 @@ const QUERY_EMBED_TIMEOUT_MS = 8_000;
 const SEARCH_RATE_LIMIT = 20;
 const SEARCH_RATE_WINDOW_MS = 10 * 60 * 1000;
 
-/** Default cosine threshold; override with SEMANTIC_MIN_SCORE. */
+// Relevance cut-off, calibrated live against mistral-embed (2026-09-24):
+// unrelated workplace feedback scores 0.48–0.68 against any query, and the
+// right match only 0.05–0.13 above that pack (e.g. "burnout" → the
+// "working until midnight, exhausted" message at 0.62, next-best unrelated
+// 0.57; "overworked and tired" → 0.77 vs 0.68). No single absolute
+// threshold separates them across queries, so a result must clear BOTH an
+// absolute floor (drops everything when nothing is related) and a window
+// below the best score (drops the pack under a strong hit).
+function envNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  const n = Number(raw);
+  return raw && Number.isFinite(n) ? n : fallback;
+}
+
+/** Absolute cosine floor; override with SEMANTIC_MIN_SCORE. */
 export function defaultMinScore(): number {
-  const raw = Number(process.env.SEMANTIC_MIN_SCORE);
-  return Number.isFinite(raw) && process.env.SEMANTIC_MIN_SCORE ? raw : 0.7;
+  return envNumber("SEMANTIC_MIN_SCORE", 0.6);
+}
+
+/** Max distance below the top score; override with SEMANTIC_RELATIVE_WINDOW. */
+export function defaultRelativeWindow(): number {
+  return envNumber("SEMANTIC_RELATIVE_WINDOW", 0.06);
+}
+
+/** Keep hits ≥ minScore and within `window` of the best, best first. */
+export function applyCutoff<T extends { score: number }>(
+  scored: T[],
+  { minScore, window, limit }: { minScore: number; window: number; limit: number }
+): T[] {
+  const sorted = scored.filter((s) => s.score >= minScore).sort((a, b) => b.score - a.score);
+  if (sorted.length === 0) return sorted;
+  const floor = sorted[0].score - window;
+  return sorted.filter((s) => s.score >= floor).slice(0, limit);
 }
 
 export type SearchStrategy = "scan" | "vectorSearch";
@@ -61,6 +90,7 @@ interface SemanticSearchOpts {
   limit?: number;
   candidateCap?: number;
   minScore?: number;
+  relativeWindow?: number;
 }
 
 function norm(v: Float32Array): number {
@@ -102,7 +132,7 @@ function toVector(raw: unknown): Float32Array | null {
 async function scanCandidates(
   filter: Record<string, unknown>,
   q: Float32Array,
-  { limit, candidateCap, minScore }: { limit: number; candidateCap: number; minScore: number }
+  { limit, candidateCap, minScore, window }: { limit: number; candidateCap: number; minScore: number; window: number }
 ): Promise<{ ranked: { id: mongoose.Types.ObjectId; score: number }[]; truncated: boolean }> {
   const docs = await MessageModel.collection
     .find(
@@ -118,17 +148,18 @@ async function scanCandidates(
   for (const doc of docs) {
     const v = toVector(doc.embedding);
     if (!v) continue;
-    const score = cosine(q, qNorm, v);
-    if (score >= minScore) scored.push({ id: doc._id as mongoose.Types.ObjectId, score });
+    scored.push({ id: doc._id as mongoose.Types.ObjectId, score: cosine(q, qNorm, v) });
   }
-  scored.sort((a, b) => b.score - a.score);
-  return { ranked: scored.slice(0, limit), truncated: docs.length === candidateCap };
+  return {
+    ranked: applyCutoff(scored, { minScore, window, limit }),
+    truncated: docs.length === candidateCap,
+  };
 }
 
 async function vectorSearchCandidates(
   filter: Record<string, unknown>,
   q: Float32Array,
-  { limit, minScore }: { limit: number; minScore: number }
+  { limit, minScore, window }: { limit: number; minScore: number; window: number }
 ): Promise<{ id: mongoose.Types.ObjectId; score: number }[]> {
   const casted = castFilter(filter);
   const pre: Record<string, unknown> = {};
@@ -151,10 +182,10 @@ async function vectorSearchCandidates(
     .toArray();
   // Atlas normalises cosine to (1 + cos) / 2; map back so SEMANTIC_MIN_SCORE
   // means the same thing on both paths.
-  return docs
-    .map((d) => ({ id: d._id as mongoose.Types.ObjectId, score: 2 * Number(d.score) - 1 }))
-    .filter((d) => d.score >= minScore)
-    .slice(0, limit);
+  return applyCutoff(
+    docs.map((d) => ({ id: d._id as mongoose.Types.ObjectId, score: 2 * Number(d.score) - 1 })),
+    { minScore, window, limit }
+  );
 }
 
 /**
@@ -170,6 +201,7 @@ export async function semanticSearch({
   limit = SEMANTIC_LIMIT,
   candidateCap = SEMANTIC_CANDIDATE_CAP,
   minScore = defaultMinScore(),
+  relativeWindow = defaultRelativeWindow(),
 }: SemanticSearchOpts): Promise<SemanticSearchResult> {
   const quota = await consumeQuota(orgId, plan, "search");
   if (!quota.ok) return { ok: false, reason: "quota", used: quota.used, limit: quota.limit };
@@ -194,9 +226,14 @@ export async function semanticSearch({
   let ranked: { id: mongoose.Types.ObjectId; score: number }[];
   let truncated = false;
   if (chooseStrategy() === "vectorSearch") {
-    ranked = await vectorSearchCandidates(filter, q, { limit, minScore });
+    ranked = await vectorSearchCandidates(filter, q, { limit, minScore, window: relativeWindow });
   } else {
-    ({ ranked, truncated } = await scanCandidates(filter, q, { limit, candidateCap, minScore }));
+    ({ ranked, truncated } = await scanCandidates(filter, q, {
+      limit,
+      candidateCap,
+      minScore,
+      window: relativeWindow,
+    }));
   }
 
   if (ranked.length === 0) return { ok: true, messages: [], truncated, semantic: true };
