@@ -48,6 +48,15 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // When the last daily digest email actually went out (set only after a
+  // successful send). The digest's AI summary covers messages since then.
+  lastDigestAt: Date,
+  // Include an AI summary of new anonymous feedback in daily digest emails
+  // (only for orgs where the user is OWNER/ADMIN). Missing = true.
+  aiDigestSummary: {
+    type: Boolean,
+    default: true,
+  },
   // Session revocation counter, stamped into the JWT at sign-in and checked
   // on every session read. Bumping it (password change/reset) invalidates
   // every outstanding session. Missing on older docs — treat as 0.

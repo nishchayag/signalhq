@@ -11,17 +11,26 @@ import {
   Button,
 } from "@react-email/components";
 
+/** One org's AI digest summary. Plain strings — rendered as React text, never as HTML. */
+export interface DigestAiSummary {
+  orgName: string;
+  bullets: string[];
+}
+
 interface NewMessageEmailProps {
   name: string;
   count: number;
   dashboardUrl: string;
+  aiSummaries?: DigestAiSummary[];
 }
 
 export default function NewMessageEmail({
   name,
   count,
   dashboardUrl,
+  aiSummaries,
 }: NewMessageEmailProps) {
+  const summaries = (aiSummaries ?? []).filter((s) => s.bullets.length > 0);
   const isSingle = count === 1;
   return (
     <Html>
@@ -42,6 +51,26 @@ export default function NewMessageEmail({
             {isSingle ? "a new message" : `${count} new messages`} on{" "}
             <strong>SignalHQ</strong>.
           </Text>
+
+          {summaries.length > 0 && (
+            <Section style={summarySection}>
+              {summaries.map((summary, i) => (
+                <Section key={i} style={summaryBlock}>
+                  <Text style={summaryHeading}>AI summary · {summary.orgName}</Text>
+                  <ul style={summaryList}>
+                    {summary.bullets.map((bullet, j) => (
+                      <li key={j} style={summaryItem}>
+                        {bullet}
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              ))}
+              <Text style={summaryNote}>
+                Generated automatically — open the dashboard for the full messages.
+              </Text>
+            </Section>
+          )}
 
           <Section style={buttonContainer}>
             <Button style={button} href={dashboardUrl}>
@@ -109,4 +138,39 @@ const footer = {
   color: "#888",
   marginTop: "40px",
   textAlign: "center" as const,
+};
+
+const summarySection = {
+  margin: "24px 0 0",
+};
+
+const summaryBlock = {
+  backgroundColor: "#f4f4f5",
+  borderRadius: "6px",
+  padding: "12px 16px",
+  marginBottom: "12px",
+};
+
+const summaryHeading = {
+  fontSize: "14px",
+  fontWeight: "600",
+  color: "#111",
+  margin: "0 0 6px",
+};
+
+const summaryList = {
+  margin: "0",
+  paddingLeft: "20px",
+};
+
+const summaryItem = {
+  fontSize: "14px",
+  lineHeight: "22px",
+  color: "#333",
+};
+
+const summaryNote = {
+  fontSize: "12px",
+  color: "#888",
+  margin: "4px 0 0",
 };

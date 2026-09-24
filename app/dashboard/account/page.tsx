@@ -13,6 +13,7 @@ import PlanBadge from "@/components/PlanBadge";
 import { PLAN_DISPLAY } from "@/lib/plans";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -283,6 +284,9 @@ export default function AccountSettingsPage() {
   const [notificationPreference, setNotificationPreference] =
     useState<NotificationPreference | null>(null);
   const [savingPreference, setSavingPreference] = useState(false);
+  const [aiDigestSummary, setAiDigestSummary] = useState(true);
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [savingAiDigest, setSavingAiDigest] = useState(false);
 
   useEffect(() => {
     axios
@@ -290,6 +294,8 @@ export default function AccountSettingsPage() {
       .then((res) => {
         if (res.data.success) {
           setNotificationPreference(res.data.notificationPreference);
+          setAiDigestSummary(res.data.aiDigestSummary !== false);
+          setAiAvailable(res.data.aiAvailable === true);
         }
       })
       .catch(() => {
@@ -317,6 +323,28 @@ export default function AccountSettingsPage() {
       toast.error("Failed to update preference");
     } finally {
       setSavingPreference(false);
+    }
+  };
+
+  const handleAiDigestChange = async (value: boolean) => {
+    const previous = aiDigestSummary;
+    setAiDigestSummary(value);
+    setSavingAiDigest(true);
+    try {
+      const res = await axios.patch("/api/account/notifications", {
+        aiDigestSummary: value,
+      });
+      if (res.data.success) {
+        toast.success(value ? "AI summaries turned on" : "AI summaries turned off");
+      } else {
+        setAiDigestSummary(previous);
+        toast.error(res.data.message || "Failed to update preference");
+      }
+    } catch {
+      setAiDigestSummary(previous);
+      toast.error("Failed to update preference");
+    } finally {
+      setSavingAiDigest(false);
     }
   };
 
@@ -423,6 +451,26 @@ export default function AccountSettingsPage() {
                 </button>
               ))}
             </div>
+            {/* Only the daily digest carries a summary; immediate emails stay plain. */}
+            {aiAvailable && notificationPreference === "daily" && (
+              <div className="mt-4 flex items-start justify-between gap-4 rounded-lg border-2 border-ink bg-background p-3">
+                <div>
+                  <Label htmlFor="ai-digest-summary" className="text-sm font-bold text-foreground">
+                    Include an AI summary in digest emails
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    A few bullet points on new anonymous feedback, for organizations you own or admin.
+                  </p>
+                </div>
+                <Switch
+                  id="ai-digest-summary"
+                  className="mt-0.5 border-2 border-ink"
+                  checked={aiDigestSummary}
+                  disabled={savingAiDigest}
+                  onCheckedChange={handleAiDigestChange}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 

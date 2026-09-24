@@ -4,7 +4,7 @@ import { Resend } from "resend";
 import VerificationEmail from "@/emailTemplates/verifyEmailTemplate";
 import ResetPasswordOtpEmail from "@/emailTemplates/resetPasswordTemplate";
 import InvitationEmail from "@/emailTemplates/invitationTemplate";
-import NewMessageEmail from "@/emailTemplates/newMessageEmail";
+import NewMessageEmail, { type DigestAiSummary } from "@/emailTemplates/newMessageEmail";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM = process.env.RESEND_FROM_EMAIL as string;
@@ -105,11 +105,14 @@ export const sendNotificationEmail = async ({
   name,
   count,
   dashboardUrl,
+  aiSummaries,
 }: {
   email: string;
   name: string;
   count: number;
   dashboardUrl: string;
+  // Daily digest only: per-org AI bullet summaries (lib/notifications.ts).
+  aiSummaries?: DigestAiSummary[];
 }): Promise<boolean> => {
   try {
     const { data, error } = await resend.emails.send({
@@ -119,7 +122,7 @@ export const sendNotificationEmail = async ({
         count === 1
           ? "You have a new message on SignalHQ"
           : `You have ${count} new messages on SignalHQ`,
-      react: NewMessageEmail({ name, count, dashboardUrl }),
+      react: NewMessageEmail({ name, count, dashboardUrl, aiSummaries }),
     });
     if (error) {
       console.error("Error sending notification email:", error);

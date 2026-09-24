@@ -21,6 +21,14 @@ vi.mock("@/lib/aiEnrichment", async () => {
   return { ...actual, enrichPending: enrichPendingSpy };
 });
 
+// Pass-through spy to check the digest step's deadline.
+const { flushSpy } = vi.hoisted(() => ({ flushSpy: vi.fn() }));
+vi.mock("@/lib/notifications", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/notifications")>("@/lib/notifications");
+  flushSpy.mockImplementation(actual.flushDailyDigests);
+  return { ...actual, flushDailyDigests: flushSpy };
+});
+
 import { startTestDB, clearTestDB, stopTestDB } from "@/test-utils/db";
 import { GET as cron } from "@/app/api/cron/notifications/route";
 import { flushDailyDigests } from "@/lib/notifications";
@@ -152,6 +160,18 @@ describe("cleanup sweeps", () => {
     expect((await InvitationModel.findOne({ token: "t1" }))?.status).toBe("EXPIRED");
     expect((await InvitationModel.findOne({ token: "t2" }))?.status).toBe("PENDING");
     expect((await InvitationModel.findOne({ token: "t3" }))?.status).toBe("ACCEPTED");
+  });
+});
+
+describe("cron digest step", () => {
+  it("gets a deadline that leaves time for the sweeps and AI enrichment", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    const before = Date.now();
+    expect((await call("Bearer s3cret")).status).toBe(200);
+    const { deadline } = flushSpy.mock.calls.at(-1)![0] as { deadline: number };
+    // The route stamps `start` between `before` and now.
+    expect(deadline).toBeGreaterThanOrEqual(before + 35_000);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 35_000);
   });
 });
 

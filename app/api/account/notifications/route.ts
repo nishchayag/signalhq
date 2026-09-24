@@ -4,8 +4,11 @@ import authOptions from "@/lib/nextAuthOptions";
 import connectDB from "@/lib/connectDB";
 import UserModel from "@/models/user.model";
 import { updateNotificationPreferenceSchema } from "@/schemas/notificationSchema";
+import { isAiEnabled } from "@/lib/ai";
 
-// GET /api/account/notifications — the caller's current notification preference.
+// GET /api/account/notifications — the caller's current notification
+// preference, their digest AI-summary setting, and whether AI is configured
+// at all (`aiAvailable` false → the UI hides the AI toggle).
 export async function GET() {
   await connectDB();
   try {
@@ -18,11 +21,13 @@ export async function GET() {
     }
 
     const user = await UserModel.findById(session.user._id).select(
-      "notificationPreference"
+      "notificationPreference aiDigestSummary"
     );
     return NextResponse.json({
       success: true,
       notificationPreference: user?.notificationPreference ?? "daily",
+      aiDigestSummary: user?.aiDigestSummary !== false,
+      aiAvailable: isAiEnabled(),
     });
   } catch (error) {
     console.error("Error fetching notification preference:", error);
@@ -33,7 +38,8 @@ export async function GET() {
   }
 }
 
-// PATCH /api/account/notifications — update the caller's notification preference.
+// PATCH /api/account/notifications — update the caller's notification
+// preference and/or digest AI-summary setting (either field may be omitted).
 export async function PATCH(request: NextRequest) {
   await connectDB();
   try {
@@ -54,8 +60,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const { notificationPreference, aiDigestSummary } = result.data;
     await UserModel.findByIdAndUpdate(session.user._id, {
-      notificationPreference: result.data.notificationPreference,
+      ...(notificationPreference !== undefined && { notificationPreference }),
+      ...(aiDigestSummary !== undefined && { aiDigestSummary }),
     });
 
     return NextResponse.json({ success: true });

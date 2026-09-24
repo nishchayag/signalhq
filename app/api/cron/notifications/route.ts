@@ -8,8 +8,12 @@ import {
 } from "@/lib/orgCleanup";
 import { enrichPending } from "@/lib/aiEnrichment";
 
-// Budget for the AI enrichment step, measured from the start of the run and
-// kept under maxDuration (60s) with room to respond.
+// Step deadlines, measured from the start of the run and kept under
+// maxDuration (60s) with room to respond. Digests stop starting new users at
+// 35s (their AI summaries stop at 30s at the latest — see
+// flushDailyDigests), leaving the fast sweeps and then AI enrichment the
+// rest, up to 50s.
+const DIGEST_STEP_DEADLINE_MS = 35_000;
 const AI_STEP_DEADLINE_MS = 50_000;
 
 // Vercel caps a function run; batching in the helpers keeps each step bounded.
@@ -46,7 +50,9 @@ export async function GET(request: NextRequest) {
     }
   };
 
-  const digests = await step("digests", () => flushDailyDigests());
+  const digests = await step("digests", () =>
+    flushDailyDigests({ deadline: start + DIGEST_STEP_DEADLINE_MS })
+  );
   const unverifiedUsersDeleted = await step("unverified", () => sweepExpiredUnverifiedUsers());
   const orphans = await step("orphans", () => sweepOrphans());
   const invitationsExpired = await step("invitations", () => expireStaleInvitations());
