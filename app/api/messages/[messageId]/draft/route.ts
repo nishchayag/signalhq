@@ -9,12 +9,15 @@ import { isValidObjectId } from "@/lib/objectId";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { draftReplySchema } from "@/schemas/aiSchema";
 import { fenceUntrusted } from "@/lib/aiPrompt";
+import { threadOf } from "@/lib/thread";
 import { aiObject, isAiEnabled, logAiError } from "@/lib/ai";
 import { consumeQuota, refundQuota, checkGlobalAiCap, getOrgPlan } from "@/lib/aiQuota";
 
 export const maxDuration = 30;
 
 const draftOutputSchema = z.object({ draft: z.string().max(1000) });
+
+const SPEAKER = { org: "Organization", sender: "Sender", member: "Member" } as const;
 
 const TONE_INSTRUCTIONS: Record<"warm" | "neutral" | "brief", string> = {
   warm: "Warm and empathetic, while staying professional.",
@@ -97,18 +100,19 @@ export async function POST(
       ? await QuestionModel.findById(message.questionId).select("questionText")
       : null;
 
-    const existingReplies: string[] = [];
-    if (message.reply?.content) existingReplies.push(message.reply.content);
-    for (const entry of message.replies ?? []) {
-      if (entry.authorRole === "org") existingReplies.push(entry.content);
-    }
+    // Everything after the first turn, in order, labelled by speaker so the
+    // model continues the conversation instead of answering turn 1 again.
+    const laterTurns = threadOf(message).slice(1);
+    const existingReplies = laterTurns.map(
+      (t) => `${SPEAKER[t.authorRole]}: ${t.content}`
+    );
 
     const promptParts = [
       `Organization: ${fenceUntrusted([org?.name ?? "the organization"], "org")}`,
       `Feedback message:\n${fenceUntrusted([message.content], "feedback")}`,
       question ? `The question it answers:\n${fenceUntrusted([question.questionText], "question")}` : null,
       existingReplies.length
-        ? `Already sent (don't repeat it — continue the conversation):\n${fenceUntrusted(existingReplies, "existing-reply")}`
+        ? `The conversation so far, oldest first (don't repeat what the organization already said — reply to the latest turn):\n${fenceUntrusted(existingReplies, "existing-reply")}`
         : null,
       intent ? `What the organization wants to convey:\n${fenceUntrusted([intent], "intent")}` : null,
       `Tone: ${TONE_INSTRUCTIONS[tone]}`,

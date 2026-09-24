@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { escapeCsvField, messagesToCsv } from "@/lib/csv";
-import type { IMessage } from "@/models/message.model";
+import type { ThreadSource } from "@/lib/thread";
 
 describe("escapeCsvField", () => {
   it("leaves a plain field untouched", () => {
@@ -37,17 +37,17 @@ describe("escapeCsvField", () => {
 });
 
 describe("messagesToCsv", () => {
-  function fakeMessage(overrides: Partial<IMessage> = {}): IMessage {
+  function fakeMessage(overrides: Partial<ThreadSource> = {}): ThreadSource {
     return {
       content: "Great product!",
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
       ...overrides,
-    } as IMessage;
+    };
   }
 
   it("emits a header row", () => {
     const csv = messagesToCsv([]);
-    expect(csv).toBe("Content,Submitted At,Reply,Replied At");
+    expect(csv).toBe("Content,Submitted At,Replies,Last Reply At");
   });
 
   it("emits a row per message with empty reply columns when unanswered", () => {
@@ -57,7 +57,7 @@ describe("messagesToCsv", () => {
     expect(lines[1]).toBe("Great product!,2026-01-01T00:00:00.000Z,,");
   });
 
-  it("includes reply content and timestamp when present", () => {
+  it("shims a legacy single reply as an Org turn", () => {
     const csv = messagesToCsv([
       fakeMessage({
         reply: {
@@ -68,7 +68,7 @@ describe("messagesToCsv", () => {
     ]);
     const [, row] = csv.split("\n");
     expect(row).toBe(
-      "Great product!,2026-01-01T00:00:00.000Z,Thanks!,2026-01-02T00:00:00.000Z"
+      "Great product!,2026-01-01T00:00:00.000Z,Org (2026-01-02T00:00:00.000Z): Thanks!,2026-01-02T00:00:00.000Z"
     );
   });
 
@@ -84,5 +84,36 @@ describe("messagesToCsv", () => {
     ]);
     const [, row] = csv.split("\n");
     expect(row.startsWith("'=HYPERLINK")).toBe(true);
+  });
+
+  it("serializes the whole thread in order, one turn per line", () => {
+    const csv = messagesToCsv([
+      fakeMessage({
+        replies: [
+          { authorRole: "sender", content: "Any update?", createdAt: new Date("2026-01-03T00:00:00.000Z") },
+          { authorRole: "org", content: "Looking into it", createdAt: new Date("2026-01-02T00:00:00.000Z") },
+        ],
+      }),
+    ]);
+    const body = csv.slice(csv.indexOf("\n") + 1);
+    expect(body).toBe(
+      'Great product!,2026-01-01T00:00:00.000Z,"Org (2026-01-02T00:00:00.000Z): Looking into it\n' +
+        'Sender (2026-01-03T00:00:00.000Z): Any update?",2026-01-03T00:00:00.000Z'
+    );
+  });
+
+  it("neutralizes formula triggers inside thread turns", () => {
+    const csv = messagesToCsv([
+      fakeMessage({
+        replies: [
+          { authorRole: "sender", content: "=HYPERLINK(evil)\n+cmd", createdAt: new Date("2026-01-02T00:00:00.000Z") },
+          { authorRole: "org", content: "@SUM(1)", createdAt: new Date("2026-01-03T00:00:00.000Z") },
+        ],
+      }),
+    ]);
+    expect(csv).toContain("Sender (2026-01-02T00:00:00.000Z): '=HYPERLINK(evil)\n'+cmd");
+    expect(csv).toContain("Org (2026-01-03T00:00:00.000Z): '@SUM(1)");
+    // No line of the file starts with a raw trigger.
+    for (const line of csv.split("\n")) expect(line).not.toMatch(/^[=+\-@]/);
   });
 });

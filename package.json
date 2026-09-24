@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "migrate:anon-replies": "node --env-file=.env scripts/migrate-anon-replies.ts",
     "analyze": "ANALYZE=true npm run build",
     "lighthouse": "lighthouse http://localhost:3000 --output html --output-path ./lighthouse-report.html",
     "seo-check": "echo 'Run: npm run build && npm run start, then visit http://localhost:3000/sitemap.xml and http://localhost:3000/robots.txt'"

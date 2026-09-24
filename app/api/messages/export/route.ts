@@ -7,6 +7,7 @@ import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
 import { parseSearchQuery } from "@/lib/pagination";
 import { messagesToCsv } from "@/lib/csv";
+import type { ThreadSource } from "@/lib/thread";
 import { loadAndAuthorize } from "@/lib/questionAccess";
 
 // Hard cap so a single export can't pull in an unbounded number of documents.
@@ -53,7 +54,9 @@ export async function GET(request: NextRequest) {
 
     const messages = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
-      .limit(MAX_ROWS);
+      .limit(MAX_ROWS)
+      .select("content createdAt authorType replies reply")
+      .lean<ThreadSource[]>();
 
     const csv = messagesToCsv(messages);
     const filename = `messages-${filenameHint}-${new Date().toISOString().slice(0, 10)}.csv`;

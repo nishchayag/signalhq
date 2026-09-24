@@ -11,6 +11,7 @@ import { can } from "@/lib/permissions";
 import { apiError } from "@/lib/apiError";
 import { useConfirm } from "@/components/ConfirmProvider";
 import type { AiFeature } from "@/models/aiUsage.model";
+import type { ThreadEntryView } from "@/components/MessageCard";
 
 export interface AiStatus {
   enabled: boolean;
@@ -25,8 +26,10 @@ export interface AiStatus {
   };
 }
 
+export type { ThreadEntryView };
+
 export interface ThreadEntry {
-  authorRole: "member" | "org";
+  authorRole: "member" | "org" | "sender";
   content: string;
   createdAt: string;
 }
@@ -418,9 +421,14 @@ export function useDashboardData() {
     else setMessages(drop);
   };
 
-  const handleReplySaved = (messageId: string, reply: { content: string; repliedAt: string }) => {
+  // The reply route returns the full `replies[]` (legacy `reply` folded in).
+  const handleReplySaved = (messageId: string, replies: ThreadEntryView[]) => {
     const applyReply = (msgs: MessageView[]) =>
-      msgs.map((m) => (m._id === messageId ? ({ ...m, reply } as unknown as MessageView) : m));
+      msgs.map((m) =>
+        m._id === messageId
+          ? ({ ...m, replies, reply: undefined, awaitingOrg: false } as unknown as MessageView)
+          : m
+      );
     if (view === "general") setGeneralMessages(applyReply);
     else setMessages(applyReply);
   };

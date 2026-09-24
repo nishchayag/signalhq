@@ -1,7 +1,11 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export type MessageAuthorType = "anonymous" | "member";
-export type ThreadEntryAuthorRole = "member" | "org";
+// "member": a member's own turns in their private thread; "org": OWNER/ADMIN
+// replies (either kind of thread); "sender": an anonymous author's follow-up
+// through their /r/[replyToken] link.
+export const THREAD_AUTHOR_ROLES = ["member", "org", "sender"] as const;
+export type ThreadEntryAuthorRole = (typeof THREAD_AUTHOR_ROLES)[number];
 
 // AI enrichment (lib/aiEnrichment.ts). Fixed enums so model output can't
 // invent labels; the tag list is also what C7 insights and filters key on.
@@ -65,9 +69,10 @@ export interface IMessage extends Document {
   // (not backfilled) so replying to a pre-existing message without one
   // doesn't fail validation on save.
   replyToken?: string;
-  // Single reply from the recipient, if any — deliberately one reply per
-  // message, not an open thread. Still the only reply mechanism for
-  // anonymous (public-question) messages; untouched by member threading.
+  // LEGACY single org reply on anonymous messages. Superseded by `replies[]`
+  // (org turns); still read through lib/thread.ts#threadOf until
+  // scripts/migrate-anon-replies.ts has run everywhere, then dropped. Never
+  // written by new code.
   reply?: {
     content: string;
     repliedAt: Date;
@@ -77,10 +82,15 @@ export interface IMessage extends Document {
   // pre-existing behavior. Set only via the internal-question answer flow.
   authorType?: MessageAuthorType;
   authorUserId?: mongoose.Types.ObjectId; // ref: User — set iff authorType === "member"
-  // Ordered thread continuation for a member's private answer: their own
-  // follow-ups (authorRole "member") interleaved with OWNER/ADMIN replies
-  // (authorRole "org"). `content` above is always the thread's first turn.
+  // Ordered thread continuation after the first turn (`content`). Member
+  // threads: the member's follow-ups ("member") and OWNER/ADMIN replies
+  // ("org"). Anonymous messages: org replies ("org") and the sender's
+  // follow-ups ("sender"). Append-only. Read it through lib/thread.ts#threadOf.
   replies?: IThreadEntry[];
+  // Last time a turn was added (absent ⇒ no turn since creation; use createdAt).
+  lastActivityAt?: Date;
+  // An anonymous sender followed up and the org hasn't replied since.
+  awaitingOrg?: boolean;
   // AI enrichment. `select: false` (default deny): only routes that ask for
   // "+ai" get it, and they must pass docs through lib/messageView.ts's
   // withAiView so MEMBERs never see toxicity/PII.
@@ -159,7 +169,7 @@ const messageSchema: Schema<IMessage> = new Schema({
     type: [
       new Schema(
         {
-          authorRole: { type: String, enum: ["member", "org"], required: true },
+          authorRole: { type: String, enum: THREAD_AUTHOR_ROLES, required: true },
           content: { type: String, required: true },
           createdAt: { type: Date, required: true, default: Date.now },
         },
@@ -169,6 +179,8 @@ const messageSchema: Schema<IMessage> = new Schema({
     default: [],
     required: false,
   },
+  lastActivityAt: { type: Date, required: false },
+  awaitingOrg: { type: Boolean, default: false },
   // Sub-schema (not a nested object) so `ai` stays undefined on messages
   // created with AI off, instead of defaulting to `{}`.
   ai: {

@@ -6,6 +6,7 @@ import { MessageSquare, Reply } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Metadata } from "next";
 import { generateMetadata as createMetadata } from "@/lib/metadata";
+import { threadOf, type ThreadSource } from "@/lib/thread";
 
 // The token in this URL is the sender's only credential: never index it, and
 // never leak it to other sites through the Referer header.
@@ -24,10 +25,12 @@ export default async function ReplyReceiptPage({ params }: PageProps) {
   const { replyToken } = await params;
   await connectDB();
 
-  const message = await MessageModel.findOne({ replyToken }).select(
-    "content createdAt reply"
-  );
-  if (!message) notFound();
+  // Thread fields only — never "+ai" or the embedding.
+  const message = await MessageModel.findOne({ replyToken })
+    .select("content createdAt reply replies authorType")
+    .lean<ThreadSource>();
+  if (!message || message.authorType === "member") notFound();
+  const [first, ...rest] = threadOf(message);
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-dot-grid py-16 px-4">
@@ -53,38 +56,51 @@ export default async function ReplyReceiptPage({ params }: PageProps) {
           </CardHeader>
           <CardContent>
             <p className="text-foreground whitespace-pre-line">
-              {message.content}
+              {first.content}
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
               Sent{" "}
-              {formatDistanceToNow(new Date(message.createdAt), {
+              {formatDistanceToNow(first.createdAt, {
                 addSuffix: true,
               })}
             </p>
           </CardContent>
         </Card>
 
-        {message.reply ? (
-          <Card className="bg-brand-mint/25">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">
-                <Reply className="h-4 w-4" />
-                They replied
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-foreground whitespace-pre-line">
-                {message.reply.content}
-              </p>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Replied{" "}
-                {formatDistanceToNow(new Date(message.reply.repliedAt), {
-                  addSuffix: true,
-                })}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
+        {rest.map((turn, i) =>
+          turn.authorRole === "org" ? (
+            <Card key={i} className="bg-brand-mint/25">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                  <Reply className="h-4 w-4" />
+                  They replied
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-foreground whitespace-pre-line">{turn.content}</p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Replied {formatDistanceToNow(turn.createdAt, { addSuffix: true })}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card key={i}>
+              <CardHeader>
+                <CardTitle className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                  You followed up
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-foreground whitespace-pre-line">{turn.content}</p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Sent {formatDistanceToNow(turn.createdAt, { addSuffix: true })}
+                </p>
+              </CardContent>
+            </Card>
+          )
+        )}
+
+        {!rest.some((t) => t.authorRole === "org") && (
           <div className="rounded-2xl border-2 border-dashed border-ink/40 py-10 text-center">
             <p className="text-sm font-bold text-foreground">No reply yet</p>
             <p className="text-sm text-muted-foreground">

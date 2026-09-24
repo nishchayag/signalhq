@@ -59,7 +59,7 @@ describe("GET /api/messages/export — general (no questionId)", () => {
 
     const body = await res.text();
     const lines = body.split("\n");
-    expect(lines[0]).toBe("Content,Submitted At,Reply,Replied At");
+    expect(lines[0]).toBe("Content,Submitted At,Replies,Last Reply At");
     expect(lines[1]).toContain("Loved the demo");
   });
 

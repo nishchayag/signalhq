@@ -10,8 +10,10 @@ import { questionResponseSchema } from "@/schemas/questionSchema";
 import { isValidObjectId } from "@/lib/objectId";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { withAiViewOne } from "@/lib/messageView";
+import { threadOf } from "@/lib/thread";
 
-// GET /api/messages/:messageId/reply — fetch one message + its thread.
+// GET /api/messages/:messageId/reply — fetch one message + its thread
+// (`message`, plus `turns`: lib/thread.ts#threadOf, first turn included).
 // Only two parties may view it: the member who owns a private
 // (authorType: "member") thread, or an OWNER/ADMIN of the org (oversight).
 // Returns 404 (not 403) on a mismatch so existence isn't leaked.
@@ -71,6 +73,7 @@ export async function GET(
       {
         success: true,
         message: withAiViewOne(message, membership.role, { memberThread: isThreadOwner }),
+        turns: threadOf(message),
       },
       { status: 200 }
     );
@@ -83,12 +86,12 @@ export async function GET(
   }
 }
 
-// POST /api/messages/:messageId/reply — the org replies to a message.
-// - Anonymous (public-question) messages: unchanged single-reply overwrite,
-//   surfaced to the sender via their /r/[replyToken] link.
-// - Member-authored (internal-question) messages: appended to `replies[]`
-//   as an "org" turn — genuine back-and-forth with that one member.
+// POST /api/messages/:messageId/reply — the org replies to a message by
+// appending an "org" turn to `replies[]` (append-only; replies can't be
+// edited). Anonymous messages: the sender reads it via /r/[replyToken], and
+// it clears `awaitingOrg`. Member threads: back-and-forth with that member.
 // Either way this is OWNER/ADMIN only — it speaks for the org.
+// Responds { success, message, replies, turns }.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ messageId: string }> }
@@ -141,25 +144,26 @@ export async function POST(
       );
     }
 
-    if (message.authorType === "member") {
-      message.replies = message.replies || [];
-      message.replies.push({
-        authorRole: "org",
-        content: result.data.content,
-        createdAt: new Date(),
-      });
-      await message.save();
-      return NextResponse.json(
-        { success: true, message: "Reply saved", replies: message.replies },
-        { status: 200 }
-      );
+    const now = new Date();
+    message.replies = message.replies || [];
+    if (message.authorType !== "member" && message.reply?.content && message.reply.repliedAt) {
+      // Not yet migrated (scripts/migrate-anon-replies.ts): fold the legacy
+      // reply in first so the thread stays whole once `reply` is gone.
+      message.replies = threadOf(message).slice(1);
+      message.reply = undefined;
     }
-
-    message.reply = { content: result.data.content, repliedAt: new Date() };
+    message.replies.push({ authorRole: "org", content: result.data.content, createdAt: now });
+    message.lastActivityAt = now;
+    if (message.authorType !== "member") message.awaitingOrg = false;
     await message.save();
 
     return NextResponse.json(
-      { success: true, message: "Reply saved", reply: message.reply },
+      {
+        success: true,
+        message: "Reply saved",
+        replies: message.replies,
+        turns: threadOf(message),
+      },
       { status: 200 }
     );
   } catch (error) {

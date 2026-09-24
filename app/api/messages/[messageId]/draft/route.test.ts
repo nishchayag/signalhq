@@ -167,6 +167,27 @@ describe("POST /api/messages/:messageId/draft", () => {
     expect(stored?.replies ?? []).toHaveLength(0);
   });
 
+  it("builds its context from the whole thread, legacy reply included", async () => {
+    const { orgId, ownerId } = await createOrg();
+    const msg = await MessageModel.create({
+      content: "Workload is crushing us.",
+      createdFor: new mongoose.Types.ObjectId(),
+      organizationId: orgId,
+      reply: { content: "Legacy org reply", repliedAt: new Date("2026-01-02T00:00:00Z") },
+      replies: [
+        { authorRole: "sender", content: "Sender follow-up", createdAt: new Date("2026-01-03T00:00:00Z") },
+      ],
+    });
+    signIn(ownerId, orgId);
+    aiMock.setObject({ draft: "ok" });
+    expect((await call(String(msg._id))).status).toBe(200);
+    const prompt = (aiMock.fns.aiObject.mock.calls[0][0] as unknown as { prompt: string }).prompt;
+    const legacy = prompt.indexOf("Organization: Legacy org reply");
+    const follow = prompt.indexOf("Sender: Sender follow-up");
+    expect(legacy).toBeGreaterThan(-1);
+    expect(follow).toBeGreaterThan(legacy);
+  });
+
   it("returns a draft and never persists it to the message", async () => {
     const { orgId, ownerId } = await createOrg();
     const msg = await createMessage(orgId);

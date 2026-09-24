@@ -25,6 +25,7 @@ import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
 import AiDraftButton from "@/components/AiDraftButton";
 import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
+import { lastOrgTurn, type ThreadSource } from "@/lib/thread";
 
 // Messages at or above this toxicity render collapsed. Only OWNER/ADMIN
 // responses carry `toxicity`/`piiFlag` (lib/messageView.ts), so MEMBERs never
@@ -66,15 +67,19 @@ function AiChips({ ai }: { ai: MessageAiView }) {
   );
 }
 
+export interface ThreadEntryView {
+  authorRole: "member" | "org" | "sender";
+  content: string;
+  createdAt: string;
+}
+
 type MessageCardProps = {
   message: MessageView;
   onMessageDelete: (messageId: string) => void;
   canReply: boolean;
   canDelete: boolean;
-  onReplySaved: (
-    messageId: string,
-    reply: { content: string; repliedAt: string }
-  ) => void;
+  /** Called with the message's full `replies[]` after an org reply is appended. */
+  onReplySaved: (messageId: string, replies: ThreadEntryView[]) => void;
   /** AI status for the active org — undefined/null hides the draft control. */
   ai?: AiStatus | null;
   refreshAi?: () => void;
@@ -95,6 +100,10 @@ const MessageCard = ({
   const flagged = (message.ai?.toxicity ?? 0) >= TOXICITY_COLLAPSE;
   const [revealed, setRevealed] = React.useState(false);
   const collapsed = flagged && !revealed;
+  // Newest org reply (legacy `reply` included) for the preview; replies are
+  // append-only, so the dialog always adds a new one.
+  const lastReply = lastOrgTurn(message as unknown as ThreadSource);
+  const awaitingOrg = Boolean((message as { awaitingOrg?: boolean }).awaitingOrg);
 
   const {
     register,
@@ -105,7 +114,7 @@ const MessageCard = ({
     control,
   } = useForm<QuestionResponseRequest>({
     resolver: zodResolver(questionResponseSchema),
-    defaultValues: { content: message.reply?.content ?? "" },
+    defaultValues: { content: "" },
   });
   const draftText = useWatch({ control, name: "content" });
 
@@ -125,7 +134,7 @@ const MessageCard = ({
   };
 
   const openReplyDialog = () => {
-    reset({ content: message.reply?.content ?? "" });
+    reset({ content: "" });
     setReplyOpen(true);
   };
 
@@ -138,7 +147,7 @@ const MessageCard = ({
       );
       if (response.data.success) {
         toast.success("Reply saved");
-        onReplySaved(message._id as string, response.data.reply);
+        onReplySaved(message._id as string, response.data.replies);
         setReplyOpen(false);
       } else {
         toast.error(response.data.message || "Failed to save reply");
@@ -221,34 +230,26 @@ const MessageCard = ({
           })}`}
         </p>
 
-        {message.reply && (
+        {awaitingOrg && (
+          <span className={`${chip} bg-brand-yellow text-on-brand`}>Awaiting your reply</span>
+        )}
+
+        {lastReply && (
           <div className="rounded-lg border-2 border-ink bg-brand-mint/25 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                <ReplyIcon className="h-3.5 w-3.5" />
-                Your reply
-              </p>
-              {canReply && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={openReplyDialog}
-                >
-                  Edit
-                </Button>
-              )}
-            </div>
+            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              <ReplyIcon className="h-3.5 w-3.5" />
+              Your latest reply
+            </p>
             <p className="mt-1 text-sm text-foreground whitespace-pre-line">
-              {message.reply.content}
+              {lastReply.content}
             </p>
           </div>
         )}
 
-        {!message.reply && canReply && (
+        {canReply && (
           <Button variant="outline" size="sm" onClick={openReplyDialog}>
             <ReplyIcon className="h-4 w-4" />
-            Reply
+            {lastReply ? "Add reply" : "Reply"}
           </Button>
         )}
       </CardContent>
@@ -257,7 +258,7 @@ const MessageCard = ({
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {message.reply ? "Edit reply" : "Reply to this message"}
+              {lastReply ? "Add a reply" : "Reply to this message"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmitReply)} className="space-y-4">
@@ -300,7 +301,7 @@ const MessageCard = ({
                     Saving...
                   </>
                 ) : (
-                  "Save reply"
+                  "Send reply"
                 )}
               </Button>
             </DialogFooter>

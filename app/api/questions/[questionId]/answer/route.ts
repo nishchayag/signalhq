@@ -152,11 +152,13 @@ export async function POST(
 
     if (message) {
       message.replies = message.replies || [];
+      const now = new Date();
       message.replies.push({
         authorRole: "member",
         content,
-        createdAt: new Date(),
+        createdAt: now,
       });
+      message.lastActivityAt = now;
       await message.save();
     } else {
       const aiOn = isAiEnabled();
