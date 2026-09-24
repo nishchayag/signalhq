@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import MessageCard from "@/components/MessageCard";
+import MessageFilters from "@/components/MessageFilters";
 import SemanticSearchToggle, {
   SemanticSearchNotes,
   semanticSearchOffered,
@@ -241,6 +242,15 @@ function PublicQuestionView({ d, question }: { d: DashboardData; question: IQues
         <SemanticSearchNotes ai={d.ai} active={d.messagesSemanticActive} truncated={d.messagesTruncated} />
       </div>
 
+      <MessageFilters
+        filters={d.questionFilters}
+        onChange={d.setQuestionFilters}
+        labels={d.orgLabels}
+        members={d.orgMembers}
+        onMarkAllRead={() => d.markAllRead({ questionId: question._id })}
+        markingAllRead={d.markingAllRead}
+      />
+
       {d.messagesLoading ? (
         <div className="flex justify-center py-10">
           <Loader size="sm" label="Loading responses…" />
@@ -256,6 +266,11 @@ function PublicQuestionView({ d, question }: { d: DashboardData; question: IQues
               onMessageDelete={d.handleDeleteMessage}
               canReply={d.canReply}
               canDelete={d.canDelete}
+              canTriage={d.canTriage}
+              currentUserId={d.currentUserId}
+              orgLabels={d.orgLabels}
+              orgMembers={d.orgMembers}
+              onPatch={d.handlePatchMessage}
             />
           ))}
 

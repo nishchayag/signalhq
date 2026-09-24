@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import MessageCard from "@/components/MessageCard";
+import MessageFilters from "@/components/MessageFilters";
 import SemanticSearchToggle, {
   SemanticSearchNotes,
   semanticSearchOffered,
@@ -82,6 +83,17 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
         <SemanticSearchNotes ai={d.ai} active={d.generalSemanticActive} truncated={d.generalTruncated} />
       </div>
 
+      <div className="mb-4">
+        <MessageFilters
+          filters={d.generalFilters}
+          onChange={d.setGeneralFilters}
+          labels={d.orgLabels}
+          members={d.orgMembers}
+          onMarkAllRead={() => d.markAllRead({ general: true })}
+          markingAllRead={d.markingAllRead}
+        />
+      </div>
+
       <div className="space-y-4">
         {d.generalMessages.map((message) => (
           <MessageCard
@@ -90,6 +102,11 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
             onMessageDelete={d.handleDeleteMessage}
             canReply={d.canReply}
             canDelete={d.canDelete}
+            canTriage={d.canTriage}
+            currentUserId={d.currentUserId}
+            orgLabels={d.orgLabels}
+            orgMembers={d.orgMembers}
+            onPatch={d.handlePatchMessage}
           />
         ))}
 

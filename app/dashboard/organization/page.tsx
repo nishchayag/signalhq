@@ -16,6 +16,8 @@ import {
   CreditCard,
   Check,
   History,
+  Tag,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
@@ -34,8 +36,17 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { apiError } from "@/lib/apiError";
 import type { MembershipRole } from "@/models/membership.model";
 import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
+import { LABEL_COLORS, LABEL_NAME_MAX, ORG_MAX_LABELS, type LabelColor } from "@/lib/triageConstants";
+import type { LabelView } from "@/lib/labels";
 
-type Tab = "members" | "invitations" | "teams" | "settings" | "plan" | "activity";
+type Tab = "members" | "invitations" | "teams" | "labels" | "settings" | "plan" | "activity";
+
+const LABEL_COLOR_BG: Record<LabelColor, string> = {
+  yellow: "bg-brand-yellow",
+  pink: "bg-brand-pink",
+  mint: "bg-brand-mint",
+  blue: "bg-brand-blue",
+};
 
 interface ActivityEntry {
   _id: string;
@@ -125,6 +136,7 @@ export default function OrganizationPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [labels, setLabels] = useState<LabelView[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [activityHasMore, setActivityHasMore] = useState(false);
   const [activityCursor, setActivityCursor] = useState<string | null>(null);
@@ -145,6 +157,14 @@ export default function OrganizationPage() {
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [manageTeam, setManageTeam] = useState<Team | null>(null);
 
+  // Labels
+  const [newLabelName, setNewLabelName] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState<LabelColor>("yellow");
+  const [creatingLabel, setCreatingLabel] = useState(false);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelName, setEditingLabelName] = useState("");
+  const [savingLabelId, setSavingLabelId] = useState<string | null>(null);
+
   // Settings
   const [renameValue, setRenameValue] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -155,10 +175,11 @@ export default function OrganizationPage() {
     if (!orgId) return;
     setLoading(true);
     try {
-      const [org, m, t] = await Promise.all([
+      const [org, m, t, l] = await Promise.all([
         axios.get(`/api/organizations/${orgId}`),
         axios.get(`/api/organizations/${orgId}/members`),
         axios.get(`/api/organizations/${orgId}/teams`),
+        axios.get(`/api/organizations/${orgId}/labels`),
       ]);
       if (org.data.success) {
         setPlan(org.data.organization.plan);
@@ -166,6 +187,7 @@ export default function OrganizationPage() {
       }
       if (m.data.success) setMembers(m.data.members);
       if (t.data.success) setTeams(t.data.teams);
+      if (l.data.success) setLabels(l.data.labels);
       if (can(role, "member:invite")) {
         const inv = await axios.get(`/api/organizations/${orgId}/invitations`);
         if (inv.data.success) setInvites(inv.data.invitations);
@@ -337,6 +359,83 @@ export default function OrganizationPage() {
     setTeams((prev) => prev.filter((x) => x._id !== t._id));
   };
 
+  // ---- Labels ----
+  const createLabel = async () => {
+    if (!newLabelName.trim()) return toast.error("Enter a name");
+    setCreatingLabel(true);
+    try {
+      const res = await axios.post(`/api/organizations/${orgId}/labels`, {
+        name: newLabelName.trim(),
+        color: newLabelColor,
+      });
+      if (res.data.success) {
+        toast.success("Label created");
+        setLabels((prev) => [...prev, res.data.label]);
+        setNewLabelName("");
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (e) {
+      toast.error(apiError(e, "Failed to create label"));
+    } finally {
+      setCreatingLabel(false);
+    }
+  };
+
+  const startRenameLabel = (label: LabelView) => {
+    setEditingLabelId(label._id);
+    setEditingLabelName(label.name);
+  };
+
+  const saveRenameLabel = async (labelId: string) => {
+    const name = editingLabelName.trim();
+    if (!name) return toast.error("Name is required");
+    setSavingLabelId(labelId);
+    try {
+      const res = await axios.patch(`/api/organizations/${orgId}/labels/${labelId}`, { name });
+      if (res.data.success) {
+        setLabels((prev) => prev.map((l) => (l._id === labelId ? res.data.label : l)));
+        setEditingLabelId(null);
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (e) {
+      toast.error(apiError(e, "Failed to rename label"));
+    } finally {
+      setSavingLabelId(null);
+    }
+  };
+
+  const recolorLabel = async (label: LabelView, color: LabelColor) => {
+    if (color === label.color) return;
+    setSavingLabelId(label._id);
+    try {
+      const res = await axios.patch(`/api/organizations/${orgId}/labels/${label._id}`, { color });
+      if (res.data.success) {
+        setLabels((prev) => prev.map((l) => (l._id === label._id ? res.data.label : l)));
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (e) {
+      toast.error(apiError(e, "Failed to recolor label"));
+    } finally {
+      setSavingLabelId(null);
+    }
+  };
+
+  const deleteLabel = async (label: LabelView) => {
+    const ok = await confirm({
+      title: `Delete the "${label.name}" label?`,
+      description: "It's removed from every message that carries it. This can't be undone.",
+      confirmLabel: "Delete label",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/labels/${label._id}`),
+    });
+    if (!ok) return;
+    toast.success("Label deleted");
+    setLabels((prev) => prev.filter((l) => l._id !== label._id));
+  };
+
   // ---- Settings ----
   const renameOrg = async () => {
     if (renameValue.trim().length < 2) return toast.error("Name too short");
@@ -440,6 +539,9 @@ export default function OrganizationPage() {
     { key: "members", label: "Members", icon: <Users className="h-4 w-4" /> },
     { key: "invitations", label: "Invitations", icon: <Mail className="h-4 w-4" /> },
     { key: "teams", label: "Teams", icon: <FolderKanban className="h-4 w-4" /> },
+    ...(can(role, "org:labels")
+      ? [{ key: "labels" as Tab, label: "Labels", icon: <Tag className="h-4 w-4" /> }]
+      : []),
     { key: "plan", label: "Plan", icon: <CreditCard className="h-4 w-4" /> },
     ...(can(role, "org:viewActivity")
       ? [{ key: "activity" as Tab, label: "Activity", icon: <History className="h-4 w-4" /> }]
@@ -675,6 +777,126 @@ export default function OrganizationPage() {
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tab === "labels" && can(role, "org:labels") && (
+              <div className="space-y-6">
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <p className="font-medium">New label</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <Input
+                        placeholder="Label name"
+                        value={newLabelName}
+                        maxLength={LABEL_NAME_MAX}
+                        onChange={(e) => setNewLabelName(e.target.value)}
+                      />
+                      <div className="flex items-center gap-1.5">
+                        {LABEL_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            aria-label={`${c} label color`}
+                            aria-pressed={newLabelColor === c}
+                            onClick={() => setNewLabelColor(c)}
+                            className={`h-7 w-7 shrink-0 rounded-full border-2 ${LABEL_COLOR_BG[c]} ${
+                              newLabelColor === c ? "border-ink ring-2 ring-ring" : "border-ink/40"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <Button onClick={createLabel} disabled={creatingLabel || labels.length >= ORG_MAX_LABELS}>
+                        {creatingLabel ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+                      </Button>
+                    </div>
+                    {labels.length >= ORG_MAX_LABELS && (
+                      <p className="text-xs text-muted-foreground">
+                        An organization can have at most {ORG_MAX_LABELS} labels.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-2">
+                  {labels.length === 0 && (
+                    <p className="text-sm text-muted-foreground/70">No labels yet.</p>
+                  )}
+                  {labels.map((label) => (
+                    <Card key={label._id}>
+                      <CardContent className="p-3 flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          {editingLabelId === label._id ? (
+                            <Input
+                              autoFocus
+                              value={editingLabelName}
+                              maxLength={LABEL_NAME_MAX}
+                              onChange={(e) => setEditingLabelName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveRenameLabel(label._id);
+                                if (e.key === "Escape") setEditingLabelId(null);
+                              }}
+                              className="h-8 max-w-[220px]"
+                            />
+                          ) : (
+                            <span className="truncate text-sm font-medium">{label.name}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {LABEL_COLORS.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              aria-label={`Set color ${c}`}
+                              aria-pressed={label.color === c}
+                              disabled={savingLabelId === label._id}
+                              onClick={() => recolorLabel(label, c)}
+                              className={`h-5 w-5 shrink-0 rounded-full border-2 ${LABEL_COLOR_BG[c]} ${
+                                label.color === c ? "border-ink ring-2 ring-ring" : "border-ink/40"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {editingLabelId === label._id ? (
+                            <Button
+                              size="sm"
+                              onClick={() => saveRenameLabel(label._id)}
+                              disabled={savingLabelId === label._id}
+                            >
+                              {savingLabelId === label._id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              aria-label={`Rename ${label.name}`}
+                              title={`Rename ${label.name}`}
+                              onClick={() => startRenameLabel(label)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            aria-label={`Delete ${label.name}`}
+                            title={`Delete ${label.name}`}
+                            onClick={() => deleteLabel(label)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>

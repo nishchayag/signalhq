@@ -11,6 +11,8 @@ import { can } from "@/lib/permissions";
 import { apiError } from "@/lib/apiError";
 import { useConfirm } from "@/components/ConfirmProvider";
 import type { AiFeature } from "@/models/aiUsage.model";
+import { useMessageTriage } from "./useMessageTriage";
+import type { PatchMessageRequest } from "@/schemas/triageSchema";
 
 export interface AiStatus {
   enabled: boolean;
@@ -116,6 +118,16 @@ export function useDashboardData() {
   const role = session?.user?.activeOrgRole as MembershipRole | undefined;
   const orgSlug = session?.user?.activeOrgSlug;
 
+  const triage = useMessageTriage({
+    orgId: session?.user?.activeOrgId,
+    role,
+    // Filters are never debounced: refetch the affected list right away.
+    onFiltersChange: (which) => {
+      if (which === "general") fetchGeneralMessages(generalSearch);
+      else if (selectedQuestion) fetchQuestionMessages(selectedQuestion._id, messagesSearch);
+    },
+  });
+
   const fetchTeams = async () => {
     const orgId = session?.user?.activeOrgId;
     if (!orgId) return;
@@ -165,7 +177,11 @@ export function useDashboardData() {
     const semantic = isSemanticQuery(generalSemanticRef.current, search);
     try {
       const response = await axios.get("/api/getMessages", {
-        params: { q: search || undefined, mode: semantic ? "semantic" : undefined },
+        params: {
+          q: search || undefined,
+          mode: semantic ? "semantic" : undefined,
+          ...triage.generalParams(),
+        },
       });
       if (req !== generalReq.current) return;
       if (response.data.success) {
@@ -204,7 +220,7 @@ export function useDashboardData() {
     setGeneralLoadingMore(true);
     try {
       const response = await axios.get("/api/getMessages", {
-        params: { before: generalCursor, q: generalSearch || undefined },
+        params: { before: generalCursor, q: generalSearch || undefined, ...triage.generalParams() },
       });
       if (response.data.success) {
         setGeneralMessages((prev) => [...prev, ...response.data.messages]);
@@ -222,6 +238,9 @@ export function useDashboardData() {
   const exportGeneralMessagesCsv = () => {
     const params = new URLSearchParams();
     if (generalSearch) params.set("q", generalSearch);
+    for (const [k, v] of Object.entries(triage.generalParams())) {
+      if (v) params.set(k, v);
+    }
     window.location.href = `/api/messages/export?${params.toString()}`;
   };
 
@@ -229,6 +248,9 @@ export function useDashboardData() {
     if (!selectedQuestion) return;
     const params = new URLSearchParams({ questionId: selectedQuestion._id });
     if (messagesSearch) params.set("q", messagesSearch);
+    for (const [k, v] of Object.entries(triage.questionParams())) {
+      if (v) params.set(k, v);
+    }
     window.location.href = `/api/messages/export?${params.toString()}`;
   };
 
@@ -244,6 +266,8 @@ export function useDashboardData() {
       messagesSemanticRef.current = false;
       setGeneralSemanticState(false);
       setMessagesSemanticState(false);
+      // A new org starts with fresh (unfiltered) triage lists too.
+      triage.resetForNewOrg();
       fetchQuestions();
       fetchGeneralMessages();
       fetchTeams();
@@ -261,7 +285,11 @@ export function useDashboardData() {
     const semantic = isSemanticQuery(messagesSemanticRef.current, search);
     try {
       const response = await axios.get(`/api/questions/${questionId}`, {
-        params: { q: search || undefined, mode: semantic ? "semantic" : undefined },
+        params: {
+          q: search || undefined,
+          mode: semantic ? "semantic" : undefined,
+          ...triage.questionParams(),
+        },
       });
       if (req !== questionReq.current) return; // superseded — don't touch the view
       if (response.data.success) {
@@ -304,7 +332,11 @@ export function useDashboardData() {
     setMessagesLoadingMore(true);
     try {
       const response = await axios.get(`/api/questions/${selectedQuestion._id}`, {
-        params: { before: messagesCursor, q: messagesSearch || undefined },
+        params: {
+          before: messagesCursor,
+          q: messagesSearch || undefined,
+          ...triage.questionParams(),
+        },
       });
       if (response.data.success) {
         setMessages((prev) => [...prev, ...response.data.messages]);
@@ -359,6 +391,14 @@ export function useDashboardData() {
     setMessagesCursor(null);
     setInternalThreads([]);
     setMyThread(null);
+    triage.fetchCounts();
+  };
+
+  /** General view, pre-filtered to messages assigned to the viewer — the
+   * sidebar's "Assigned to me" entry. */
+  const handleAssignedToMeView = () => {
+    handleGeneralView();
+    triage.setGeneralFilters({ assignee: "me" });
   };
 
   const handleQuestionSelect = (question: IQuestion) => {
@@ -376,6 +416,8 @@ export function useDashboardData() {
     setAnswerDraft("");
     setMessagesSearch("");
     setMessagesTruncated(false);
+    triage.resetQuestionFilters();
+    triage.fetchCounts();
     if (question.visibility === "internal") {
       fetchInternalQuestionData(question._id, can(role, "question:viewAllReplies"));
     } else {
@@ -416,6 +458,29 @@ export function useDashboardData() {
     const drop = (msgs: MessageView[]) => msgs.filter((msg) => msg._id !== messageId);
     if (view === "general") setGeneralMessages(drop);
     else setMessages(drop);
+  };
+
+  /** Triage PATCH on the message currently shown in the active list
+   * (general or the selected question's). Drops the message from an "open"
+   * list on archive (or from "archived" on unarchive) — everything else
+   * just updates the card in place. See useMessageTriage#patchMessage. */
+  const handlePatchMessage = (messageId: string, patch: PatchMessageRequest) => {
+    const isGeneral = view === "general";
+    const list = isGeneral ? generalMessages : messages;
+    const filters = isGeneral ? triage.generalFilters : triage.questionFilters;
+    const current = list.find((m) => (m._id as string) === messageId);
+    const shouldRemove =
+      Boolean(current) &&
+      patch.archived !== undefined &&
+      filters.status !== "all" &&
+      ((filters.status === "open" && patch.archived === true) ||
+        (filters.status === "archived" && patch.archived === false));
+    return triage.patchMessage(
+      messageId,
+      patch,
+      isGeneral ? setGeneralMessages : setMessages,
+      shouldRemove
+    );
   };
 
   const handleQuestionCreated = (newQuestion: IQuestion) => {
@@ -483,7 +548,11 @@ export function useDashboardData() {
       const refreshSearch = (isSelected && messagesSearch) || undefined;
       const semantic = isSelected && isSemanticQuery(messagesSemanticRef.current, refreshSearch);
       const response = await axios.get(`/api/questions/${questionId}`, {
-        params: { q: refreshSearch, mode: semantic ? "semantic" : undefined },
+        params: {
+          q: refreshSearch,
+          mode: semantic ? "semantic" : undefined,
+          ...(isSelected ? triage.questionParams() : {}),
+        },
       });
       if (response.data.success) {
         setQuestions((prev) =>
@@ -535,6 +604,21 @@ export function useDashboardData() {
     canDelete: can(role, "message:delete"),
     canUpdateQuestions: can(role, "question:update"),
     canDeleteQuestions: can(role, "question:delete"),
+    // Triage
+    currentUserId: session?.user?._id as string | undefined,
+    canTriage: triage.canTriage,
+    canManageLabels: triage.canManageLabels,
+    orgLabels: triage.labels,
+    orgMembers: triage.members,
+    messageCounts: triage.counts,
+    generalFilters: triage.generalFilters,
+    setGeneralFilters: triage.setGeneralFilters,
+    questionFilters: triage.questionFilters,
+    setQuestionFilters: triage.setQuestionFilters,
+    markAllRead: triage.markAllRead,
+    markingAllRead: triage.markingAllRead,
+    handlePatchMessage,
+    handleAssignedToMeView,
     // AI
     ai,
     refreshAi: fetchAi,

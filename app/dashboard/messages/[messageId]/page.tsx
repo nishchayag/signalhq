@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import axios from "axios";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Send } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Loader2, Send, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
@@ -12,9 +12,33 @@ import { PageLoader } from "@/components/Loader";
 import AiDraftButton from "@/components/AiDraftButton";
 import ThreadView, { type ThreadViewTurn } from "@/components/ThreadView";
 import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
+import type { OrgMemberOption } from "@/app/dashboard/_components/useMessageTriage";
+import type { LabelView } from "@/lib/labels";
+import { MESSAGE_MAX_LABELS } from "@/lib/triageConstants";
+import { can } from "@/lib/permissions";
+import type { MembershipRole } from "@/models/membership.model";
+import { apiError } from "@/lib/apiError";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+const LABEL_CHIP_BG: Record<string, string> = {
+  yellow: "bg-brand-yellow",
+  pink: "bg-brand-pink",
+  mint: "bg-brand-mint",
+  blue: "bg-brand-blue",
+};
 
 interface ThreadMessage {
+  _id?: string;
   awaitingOrg?: boolean;
+  authorType?: "anonymous" | "member";
+  archivedAt?: string | null;
+  labels?: string[];
+  assignedTo?: string | null;
 }
 
 // Owner/admin thread view for an anonymous message (the sender's side lives
@@ -31,6 +55,57 @@ export default function MessageThreadPage() {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [ai, setAi] = useState<AiStatus | null>(null);
+  const [labels, setLabels] = useState<LabelView[]>([]);
+  const [members, setMembers] = useState<OrgMemberOption[]>([]);
+  const [labelPickerOpen, setLabelPickerOpen] = useState(false);
+  const [patching, setPatching] = useState(false);
+  const role = session?.user?.activeOrgRole as MembershipRole | undefined;
+  const canTriage = can(role, "message:triage") && message?.authorType !== "member";
+
+  const fetchTriageData = useCallback(async () => {
+    const orgId = session?.user?.activeOrgId;
+    if (!orgId) return;
+    try {
+      const [l, m] = await Promise.all([
+        axios.get(`/api/organizations/${orgId}/labels`),
+        axios.get(`/api/organizations/${orgId}/members`),
+      ]);
+      if (l.data.success) setLabels(l.data.labels);
+      if (m.data.success) {
+        setMembers(
+          (m.data.members as { userId: string; name: string; username: string }[]).map((mm) => ({
+            userId: mm.userId,
+            name: mm.name,
+            username: mm.username,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching label/member data:", error);
+    }
+  }, [session?.user?.activeOrgId]);
+
+  const patchMessage = async (patch: Record<string, unknown>) => {
+    if (!params.messageId) return;
+    setPatching(true);
+    try {
+      const res = await axios.patch(`/api/messages/${params.messageId}`, patch);
+      if (res.data.success) {
+        setMessage((prev) => (prev ? { ...prev, ...res.data.message } : res.data.message));
+      } else {
+        toast.error(res.data.message || "Failed to update message");
+      }
+    } catch (error) {
+      toast.error(apiError(error, "Failed to update message"));
+    } finally {
+      setPatching(false);
+    }
+  };
+
+  const toggleLabel = (labelId: string) => {
+    const has = (message?.labels ?? []).includes(labelId);
+    patchMessage({ labels: has ? { remove: [labelId] } : { add: [labelId] } });
+  };
 
   const fetchAi = useCallback(async () => {
     const orgId = session?.user?.activeOrgId;
@@ -75,6 +150,11 @@ export default function MessageThreadPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAi();
   }, [fetchAi]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchTriageData();
+  }, [fetchTriageData]);
 
   const handleSend = async () => {
     if (!reply.trim()) return;
@@ -126,6 +206,60 @@ export default function MessageThreadPage() {
           </Button>
         </div>
 
+        {canTriage && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={patching}
+              onClick={() => patchMessage({ archived: !message.archivedAt })}
+            >
+              {message.archivedAt ? (
+                <ArchiveRestore className="h-4 w-4" />
+              ) : (
+                <Archive className="h-4 w-4" />
+              )}
+              {message.archivedAt ? "Unarchive" : "Archive"}
+            </Button>
+            {labels.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setLabelPickerOpen(true)}>
+                <Tag className="h-4 w-4" />
+                Labels
+              </Button>
+            )}
+            {(message.labels ?? []).length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {labels
+                  .filter((l) => (message.labels ?? []).includes(l._id))
+                  .map((l) => (
+                    <span
+                      key={l._id}
+                      className={`inline-flex items-center gap-1 rounded-md border-2 border-ink px-1.5 py-0.5 text-[11px] font-bold uppercase leading-none tracking-wide ${LABEL_CHIP_BG[l.color]} text-on-brand`}
+                    >
+                      {l.name}
+                    </span>
+                  ))}
+              </div>
+            )}
+            {members.length > 0 && (
+              <select
+                aria-label="Assign to"
+                value={message.assignedTo ?? ""}
+                disabled={patching}
+                onChange={(e) => patchMessage({ assignedTo: e.target.value || null })}
+                className="h-9 rounded-lg border-2 border-ink bg-card px-2 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
         {message.awaitingOrg && (
           <span className="mb-4 inline-flex items-center gap-1 rounded-md border-2 border-ink bg-brand-yellow px-1.5 py-0.5 text-[11px] font-bold uppercase leading-none tracking-wide text-on-brand">
             Awaiting your reply
@@ -166,6 +300,42 @@ export default function MessageThreadPage() {
           </Button>
         </div>
       </div>
+
+      {canTriage && (
+        <Dialog open={labelPickerOpen} onOpenChange={setLabelPickerOpen}>
+          <DialogContent className="sm:max-w-[380px]">
+            <DialogHeader>
+              <DialogTitle>Labels</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-1">
+              {labels.map((l) => {
+                const checked = (message.labels ?? []).includes(l._id);
+                const disabled = !checked && (message.labels ?? []).length >= MESSAGE_MAX_LABELS;
+                return (
+                  <label
+                    key={l._id}
+                    className={`flex items-center gap-2 rounded-lg px-2 py-2 ${
+                      disabled ? "opacity-50" : "cursor-pointer hover:bg-secondary"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={() => toggleLabel(l._id)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    <span
+                      className={`inline-block h-3 w-3 rounded-full border border-ink ${LABEL_CHIP_BG[l.color]}`}
+                    />
+                    <span className="text-sm">{l.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

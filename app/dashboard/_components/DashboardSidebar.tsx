@@ -1,11 +1,20 @@
 "use client";
 import Link from "next/link";
-import { HelpCircle, MessageSquare, Plus, Settings, User } from "lucide-react";
+import { HelpCircle, MessageSquare, Plus, Settings, User, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrgSwitcher from "@/components/OrgSwitcher";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import type { DashboardData } from "./useDashboardData";
+
+/** Small pill for an unread count next to a sidebar entry. Caps at 99+. */
+function UnreadBadge({ count }: { count: number }) {
+  return (
+    <span className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full border-2 border-ink bg-brand-pink px-1 text-[11px] font-bold leading-none text-on-brand">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 /** Org switcher, settings links, general-messages entry and question list. */
 export default function DashboardSidebar({ d }: { d: DashboardData }) {
@@ -39,17 +48,37 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
         {/* General messages */}
         <button
           onClick={d.handleGeneralView}
-          className={`mb-6 w-full rounded-xl border-2 p-3 text-left transition-colors ${
+          className={`mb-2 w-full rounded-xl border-2 p-3 text-left transition-colors ${
             d.view === "general"
               ? "border-ink bg-brand-yellow text-on-brand shadow-solid-sm"
               : "border-transparent hover:bg-secondary"
           }`}
         >
-          <div className="flex items-center">
-            <MessageSquare className="mr-3 h-5 w-5" />
-            <div className="font-bold">General messages</div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <MessageSquare className="mr-3 h-5 w-5" />
+              <div className="font-bold">General messages</div>
+            </div>
+            {d.messageCounts.general.unread > 0 && (
+              <UnreadBadge count={d.messageCounts.general.unread} />
+            )}
           </div>
         </button>
+
+        {d.messageCounts.assignedToMe > 0 && (
+          <button
+            onClick={d.handleAssignedToMeView}
+            className="mb-6 w-full rounded-xl border-2 border-transparent p-3 text-left transition-colors hover:bg-secondary"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <UserCheck className="mr-3 h-5 w-5 text-muted-foreground" />
+                <div className="text-sm font-bold text-foreground">Assigned to me</div>
+              </div>
+              <UnreadBadge count={d.messageCounts.assignedToMe} />
+            </div>
+          </button>
+        )}
 
         {/* Questions */}
         <div className="mb-3 flex items-center justify-between">
@@ -107,6 +136,9 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
                         <span className="shrink-0 rounded border border-ink bg-brand-blue/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-foreground">
                           Internal
                         </span>
+                      )}
+                      {(d.messageCounts.questions[question._id] ?? 0) > 0 && (
+                        <UnreadBadge count={d.messageCounts.questions[question._id]} />
                       )}
                     </div>
                     {(question.visibility !== "internal" || d.canViewAllReplies) && (
