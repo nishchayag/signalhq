@@ -11,8 +11,10 @@ import type { AiFeature } from "@/models/aiUsage.model";
 export const AI_PROVIDER = "mistral";
 
 export const MODELS = {
-  fast: "mistral-small-latest",
-  smart: "mistral-medium-latest",
+  // mistral-small/medium have a 0 req/min limit on the free tier (measured
+  // 2026-09-24); the ministral models are open. Swap back on a paid key.
+  fast: "ministral-8b-latest",
+  smart: "ministral-14b-latest",
   embed: "mistral-embed",
   moderation: "mistral-moderation-2603",
 } as const;
