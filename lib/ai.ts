@@ -2,6 +2,7 @@ import { embedMany, generateObject, generateText } from "ai";
 import type { EmbeddingModel, LanguageModel } from "ai";
 import { createMistral } from "@ai-sdk/mistral";
 import { z } from "zod";
+import type { AiFeature } from "@/models/aiUsage.model";
 
 // The ONLY module that talks to the AI provider, and the single mock seam
 // for tests (see test-utils/aiMock.ts). Routes never import the provider or
@@ -17,18 +18,6 @@ export const MODELS = {
 } as const;
 
 export type AiTier = "fast" | "smart";
-
-/** Every metered AI feature — also the quota buckets in lib/aiQuota.ts. */
-export const AI_FEATURES = [
-  "suggest",
-  "enrich",
-  "insights",
-  "draft",
-  "guard",
-  "digest",
-  "search",
-] as const;
-export type AiFeature = (typeof AI_FEATURES)[number];
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MODERATION_TIMEOUT_MS = 8_000;

@@ -5,6 +5,7 @@ import MessageModel from "@/models/message.model";
 import MembershipModel from "@/models/membership.model";
 import OrganizationModel from "@/models/organization.model";
 import UserModel from "@/models/user.model";
+import AiUsageModel from "@/models/aiUsage.model";
 
 beforeAll(startTestDB);
 afterAll(stopTestDB);
@@ -31,6 +32,17 @@ describe("query indexes", () => {
 
   it("Organization has a createdBy index", async () => {
     expect(await keysOf(OrganizationModel)).toContain(JSON.stringify({ createdBy: 1 }));
+  });
+
+  it("AiUsage has a unique per-org/month/feature counter and a TTL", async () => {
+    await AiUsageModel.init();
+    const indexes = await AiUsageModel.collection.indexes();
+    const counter = indexes.find(
+      (i) => JSON.stringify(i.key) === JSON.stringify({ organizationId: 1, period: 1, feature: 1 })
+    );
+    expect(counter?.unique).toBe(true);
+    const ttl = indexes.find((i) => JSON.stringify(i.key) === JSON.stringify({ expiresAt: 1 }));
+    expect(ttl?.expireAfterSeconds).toBe(0);
   });
 
   it("User no longer defines the dead messages array", () => {

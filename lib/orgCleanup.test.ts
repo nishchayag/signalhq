@@ -13,6 +13,7 @@ import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
 import TeamModel from "@/models/team.model";
 import InvitationModel from "@/models/invitation.model";
+import AiUsageModel from "@/models/aiUsage.model";
 
 beforeAll(startTestDB);
 afterEach(clearTestDB);
@@ -57,12 +58,19 @@ describe("deleteOrganizationsCascade", () => {
         invitedBy: owner._id,
         expiresAt: new Date(Date.now() + 1e6),
       });
+      await AiUsageModel.create({
+        organizationId: org._id,
+        period: "2026-09",
+        feature: "suggest",
+        count: 3,
+        expiresAt: new Date(Date.now() + 1e9),
+      });
     }
 
     await deleteOrganizationsCascade([doomed._id]);
 
     expect(await OrganizationModel.exists({ _id: doomed._id })).toBeNull();
-    for (const Model of [MessageModel, QuestionModel, TeamModel, InvitationModel, MembershipModel]) {
+    for (const Model of [MessageModel, QuestionModel, TeamModel, InvitationModel, MembershipModel, AiUsageModel]) {
       expect(await (Model as typeof MessageModel).countDocuments({ organizationId: doomed._id })).toBe(0);
       expect(await (Model as typeof MessageModel).countDocuments({ organizationId: kept._id })).toBe(1);
     }

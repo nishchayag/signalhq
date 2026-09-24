@@ -11,7 +11,7 @@ import type * as AiModule from "@/lib/ai";
  * The factory and the test share this module instance, so `aiMock` controls
  * what the mocked helpers do. Defaults are deterministic: AI enabled, a
  * fixed text, an object you set with `setObject`, hash-based embeddings, and
- * zero moderation scores. `MODELS`, `AI_FEATURES`, `AiUnavailableError` and
+ * zero moderation scores. `MODELS`, `AiUnavailableError` and
  * `logAiError` are the real implementations.
  */
 
@@ -138,7 +138,6 @@ export async function aiMockModule(): Promise<Partial<Ai>> {
   UnavailableCtor = actual.AiUnavailableError;
   return {
     AI_PROVIDER: actual.AI_PROVIDER,
-    AI_FEATURES: actual.AI_FEATURES,
     MODELS: actual.MODELS,
     AiUnavailableError: actual.AiUnavailableError,
     logAiError: actual.logAiError,
