@@ -82,9 +82,8 @@ export async function POST(
     const current = await loadReceipt(replyToken);
     if (!current) return notFound();
 
-    // Turns so far = 1 + replies (+1 for an unmigrated legacy reply).
-    const legacy = current.reply?.content && current.reply.repliedAt ? 1 : 0;
-    const maxReplies = MAX_THREAD_TURNS - 1 - legacy;
+    // Turns so far = 1 + replies.
+    const maxReplies = MAX_THREAD_TURNS - 1;
     if ((current.replies?.length ?? 0) >= maxReplies) {
       return json({ message: "This conversation has reached its limit" }, 409);
     }

@@ -4,7 +4,7 @@ import type { ThreadSource } from "@/lib/thread";
 
 // The only fields a replyToken holder (the anonymous sender) may ever read.
 // Never "+ai", never the embedding, never ids/org/recipient.
-export const RECEIPT_FIELDS = "content createdAt reply replies authorType awaitingOrg";
+export const RECEIPT_FIELDS = "content createdAt replies authorType awaitingOrg";
 
 export type Receipt = ThreadSource & { awaitingOrg?: boolean };
 

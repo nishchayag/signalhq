@@ -1,3 +1,4 @@
+// Run on the production DB on 2026-09-24 (migrated 2; a re-check found 0 left).
 // One-off, idempotent migration: fold the legacy single `reply` of anonymous
 // messages into `replies[]` as an "org" turn, then drop `reply`.
 //

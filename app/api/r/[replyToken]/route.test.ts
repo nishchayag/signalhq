@@ -71,7 +71,7 @@ function expectSafe(body: unknown) {
 describe("GET /api/r/:replyToken", () => {
   it("returns only turns + awaitingOrg", async () => {
     const { token } = await anonMessage({
-      reply: { content: "legacy reply", repliedAt: new Date("2026-01-02T00:00:00Z") },
+      replies: [{ authorRole: "org", content: "org reply", createdAt: new Date("2026-01-02T00:00:00Z") }],
     });
     const res = await get(token);
     expect(res.status).toBe(200);

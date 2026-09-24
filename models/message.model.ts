@@ -69,14 +69,6 @@ export interface IMessage extends Document {
   // (not backfilled) so replying to a pre-existing message without one
   // doesn't fail validation on save.
   replyToken?: string;
-  // LEGACY single org reply on anonymous messages. Superseded by `replies[]`
-  // (org turns); still read through lib/thread.ts#threadOf until
-  // scripts/migrate-anon-replies.ts has run everywhere, then dropped. Never
-  // written by new code.
-  reply?: {
-    content: string;
-    repliedAt: Date;
-  };
   // Identifies a member's private answer to an internal question. Absent
   // (undefined) for every anonymous/public-question message — the default,
   // pre-existing behavior. Set only via the internal-question answer flow.
@@ -139,20 +131,6 @@ const messageSchema: Schema<IMessage> = new Schema({
     type: String,
     unique: true,
     sparse: true,
-  },
-  // A true sub-schema (not a plain nested object) so `reply` itself stays
-  // `undefined` until a reply is actually saved — a plain nested object path
-  // would default every new document to `{}` (truthy, with undefined leaves)
-  // instead, breaking `if (message.reply)` checks everywhere.
-  reply: {
-    type: new Schema(
-      {
-        content: { type: String },
-        repliedAt: { type: Date },
-      },
-      { _id: false }
-    ),
-    required: false,
   },
   authorType: {
     type: String,

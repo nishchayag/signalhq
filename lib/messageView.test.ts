@@ -74,7 +74,7 @@ describe("Message ai/embedding fields are select:false", () => {
   it("saving a hydrated doc doesn't wipe the unselected ai/embedding", async () => {
     const { id, vec } = await seed();
     const doc = (await MessageModel.findById(id))!;
-    doc.reply = { content: "Thanks", repliedAt: new Date() };
+    doc.replies = [{ authorRole: "org", content: "Thanks", createdAt: new Date() }];
     await doc.save();
     const raw = await MessageModel.collection.findOne({ _id: id });
     expect(raw?.ai?.sentiment).toBe("negative");

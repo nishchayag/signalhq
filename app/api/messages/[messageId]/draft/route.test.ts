@@ -163,18 +163,17 @@ describe("POST /api/messages/:messageId/draft", () => {
     expect(usage?.count ?? 0).toBe(0);
 
     const stored = await MessageModel.findById(msg._id);
-    expect(stored?.reply).toBeUndefined();
     expect(stored?.replies ?? []).toHaveLength(0);
   });
 
-  it("builds its context from the whole thread, legacy reply included", async () => {
+  it("builds its context from the whole thread", async () => {
     const { orgId, ownerId } = await createOrg();
     const msg = await MessageModel.create({
       content: "Workload is crushing us.",
       createdFor: new mongoose.Types.ObjectId(),
       organizationId: orgId,
-      reply: { content: "Legacy org reply", repliedAt: new Date("2026-01-02T00:00:00Z") },
       replies: [
+        { authorRole: "org", content: "Earlier org reply", createdAt: new Date("2026-01-02T00:00:00Z") },
         { authorRole: "sender", content: "Sender follow-up", createdAt: new Date("2026-01-03T00:00:00Z") },
       ],
     });
@@ -182,10 +181,10 @@ describe("POST /api/messages/:messageId/draft", () => {
     aiMock.setObject({ draft: "ok" });
     expect((await call(String(msg._id))).status).toBe(200);
     const prompt = (aiMock.fns.aiObject.mock.calls[0][0] as unknown as { prompt: string }).prompt;
-    const legacy = prompt.indexOf("Organization: Legacy org reply");
+    const earlier = prompt.indexOf("Organization: Earlier org reply");
     const follow = prompt.indexOf("Sender: Sender follow-up");
-    expect(legacy).toBeGreaterThan(-1);
-    expect(follow).toBeGreaterThan(legacy);
+    expect(earlier).toBeGreaterThan(-1);
+    expect(follow).toBeGreaterThan(earlier);
   });
 
   it("returns a draft and never persists it to the message", async () => {
@@ -203,7 +202,6 @@ describe("POST /api/messages/:messageId/draft", () => {
     );
 
     const stored = await MessageModel.findById(msg._id);
-    expect(stored?.reply).toBeUndefined();
     expect(stored?.replies ?? []).toHaveLength(0);
 
     const usage = await AiUsageModel.findOne({ organizationId: orgId, period: periodOf(), feature: "draft" });

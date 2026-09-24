@@ -146,12 +146,6 @@ export async function POST(
 
     const now = new Date();
     message.replies = message.replies || [];
-    if (message.authorType !== "member" && message.reply?.content && message.reply.repliedAt) {
-      // Not yet migrated (scripts/migrate-anon-replies.ts): fold the legacy
-      // reply in first so the thread stays whole once `reply` is gone.
-      message.replies = threadOf(message).slice(1);
-      message.reply = undefined;
-    }
     message.replies.push({ authorRole: "org", content: result.data.content, createdAt: now });
     message.lastActivityAt = now;
     if (message.authorType !== "member") message.awaitingOrg = false;

@@ -57,13 +57,12 @@ describe("messagesToCsv", () => {
     expect(lines[1]).toBe("Great product!,2026-01-01T00:00:00.000Z,,");
   });
 
-  it("shims a legacy single reply as an Org turn", () => {
+  it("renders an org reply as an Org turn", () => {
     const csv = messagesToCsv([
       fakeMessage({
-        reply: {
-          content: "Thanks!",
-          repliedAt: new Date("2026-01-02T00:00:00.000Z"),
-        },
+        replies: [
+          { authorRole: "org", content: "Thanks!", createdAt: new Date("2026-01-02T00:00:00.000Z") },
+        ],
       }),
     ]);
     const [, row] = csv.split("\n");

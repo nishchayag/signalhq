@@ -53,28 +53,12 @@ describe("reply route (anonymous messages)", () => {
     const body = await res.json();
     expect(body.replies.map((r: { authorRole: string }) => r.authorRole)).toEqual(["sender", "org"]);
     expect(body.turns).toHaveLength(3);
-    expect(body.reply).toBeUndefined();
 
     await post(msg._id, "second reply");
     const stored = await MessageModel.findById(msg._id);
     expect(stored?.replies?.map((r: { content: string }) => r.content)).toEqual(["any news?", "first reply", "second reply"]);
     expect(stored?.awaitingOrg).toBe(false);
     expect(stored?.lastActivityAt).toBeInstanceOf(Date);
-    expect(stored?.reply).toBeUndefined();
-  });
-
-  it("folds an unmigrated legacy reply into replies[] instead of overwriting it", async () => {
-    const { orgId } = await setup();
-    const msg = await MessageModel.create({
-      content: "hello",
-      createdFor: new mongoose.Types.ObjectId(),
-      organizationId: orgId,
-      reply: { content: "legacy", repliedAt: new Date("2026-01-02T00:00:00Z") },
-    });
-    await post(msg._id, "new");
-    const raw = await MessageModel.collection.findOne({ _id: msg._id as mongoose.Types.ObjectId });
-    expect(raw?.reply).toBeUndefined();
-    expect(raw?.replies.map((r: { content: string }) => r.content)).toEqual(["legacy", "new"]);
   });
 
   it("GET returns the thread turns and never the embedding", async () => {
@@ -83,7 +67,7 @@ describe("reply route (anonymous messages)", () => {
       content: "hello",
       createdFor: new mongoose.Types.ObjectId(),
       organizationId: orgId,
-      reply: { content: "legacy", repliedAt: new Date("2026-01-02T00:00:00Z") },
+      replies: [{ authorRole: "org", content: "earlier", createdAt: new Date("2026-01-02T00:00:00Z") }],
     });
     await MessageModel.collection.updateOne(
       { _id: msg._id as mongoose.Types.ObjectId },

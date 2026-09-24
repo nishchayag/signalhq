@@ -13,38 +13,22 @@ describe("threadOf", () => {
     ).toBe("member");
   });
 
-  it("orders replies by time and folds in a legacy reply as an org turn", () => {
+  it("orders replies by time", () => {
     const turns = threadOf({
       content: "first",
       createdAt: t("2026-01-01T00:00:00Z"),
-      reply: { content: "legacy", repliedAt: t("2026-01-02T00:00:00Z") },
       replies: [
         { authorRole: "sender", content: "later", createdAt: t("2026-01-04T00:00:00Z") },
+        { authorRole: "org", content: "earlier", createdAt: t("2026-01-02T00:00:00Z") },
         { authorRole: "org", content: "middle", createdAt: t("2026-01-03T00:00:00Z") },
       ],
     });
     expect(turns.map((x) => `${x.authorRole}:${x.content}`)).toEqual([
       "sender:first",
-      "org:legacy",
+      "org:earlier",
       "org:middle",
       "sender:later",
     ]);
-  });
-
-  it("doesn't duplicate a legacy reply the migration already copied", () => {
-    const turns = threadOf({
-      content: "first",
-      createdAt: t("2026-01-01T00:00:00Z"),
-      reply: { content: "legacy", repliedAt: t("2026-01-02T00:00:00Z") },
-      replies: [{ authorRole: "org", content: "legacy", createdAt: t("2026-01-02T00:00:00Z") }],
-    });
-    expect(turns).toHaveLength(2);
-  });
-
-  it("ignores an empty legacy reply", () => {
-    expect(
-      threadOf({ content: "x", createdAt: t("2026-01-01T00:00:00Z"), reply: { content: "", repliedAt: null } })
-    ).toHaveLength(1);
   });
 
   it("lastOrgTurn returns the newest org turn, never turn 1", () => {

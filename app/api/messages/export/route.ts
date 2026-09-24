@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const messages = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(MAX_ROWS)
-      .select("content createdAt authorType replies reply")
+      .select("content createdAt authorType replies")
       .lean<ThreadSource[]>();
 
     const csv = messagesToCsv(messages);
