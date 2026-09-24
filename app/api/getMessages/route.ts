@@ -5,7 +5,8 @@ import authOptions from "@/lib/nextAuthOptions";
 import MessageModel from "@/models/message.model";
 import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
-import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
+import { parsePagination, paginate } from "@/lib/pagination";
+import { buildMessageListFilter } from "@/lib/messageListQuery";
 import { withAiView } from "@/lib/messageView";
 import { scheduleLazySweep } from "@/lib/aiEnrichment";
 import { isSemanticRequest, semanticListResponse } from "@/lib/semanticSearch";
@@ -41,10 +42,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const filter: Record<string, unknown> = {
-      organizationId: ctx.organizationId,
-      questionId: null,
-    };
+    const base = { organizationId: ctx.organizationId, questionId: null };
+    const { searchParams } = new URL(request.url);
+    const viewer = { userId: String(ctx.membership.userId), role: ctx.role };
 
     // ?mode=semantic&q=… — ranked by meaning, no pagination (see
     // lib/semanticSearch.ts). Same scoped filter as the regex path.
@@ -54,15 +54,12 @@ export async function GET(request: NextRequest) {
         userId: String(ctx.membership.userId),
         role: ctx.role,
         orgId: ctx.organizationId,
-        filter,
+        filter: buildMessageListFilter({ base, searchParams, viewer, mode: "semantic" }),
       });
     }
 
-    const { limit, before } = parsePagination(request);
-    const search = parseSearchQuery(request);
-    if (before) filter.createdAt = { $lt: before };
-    if (search) filter.content = { $regex: search, $options: "i" };
-
+    const { limit } = parsePagination(request);
+    const filter = buildMessageListFilter({ base, searchParams, viewer });
     const fetched = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit + 1)

@@ -6,7 +6,8 @@ import AiInsightModel from "@/models/aiInsight.model";
 import { updateQuestionSchema } from "@/schemas/questionSchema";
 import { can } from "@/lib/permissions";
 import { loadAndAuthorize } from "@/lib/questionAccess";
-import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
+import { parsePagination, paginate } from "@/lib/pagination";
+import { buildMessageListFilter } from "@/lib/messageListQuery";
 import { withAiView } from "@/lib/messageView";
 import { scheduleLazySweep } from "@/lib/aiEnrichment";
 import { isSemanticRequest, semanticListResponse } from "@/lib/semanticSearch";
@@ -24,7 +25,7 @@ export async function GET(
     const authz = await loadAndAuthorize(questionId);
     if (!authz.ok) return authz.response;
 
-    const filter: Record<string, unknown> = {
+    const base = {
       questionId,
       // Member-authored private threads (internal questions) are never
       // returned here — this general endpoint is org-membership-gated only,
@@ -33,6 +34,8 @@ export async function GET(
       // enforce per-member thread privacy.
       authorType: { $ne: "member" },
     };
+    const { searchParams } = new URL(request.url);
+    const viewer = { userId: authz.userId, role: authz.role };
 
     // Same privacy rule as the list endpoint: a MEMBER must not learn how
     // many colleagues answered an internal question.
@@ -59,16 +62,13 @@ export async function GET(
         userId: authz.userId,
         role: authz.role,
         orgId: authz.question.organizationId,
-        filter,
+        filter: buildMessageListFilter({ base, searchParams, viewer, mode: "semantic" }),
         extra: { question },
       });
     }
 
-    const { limit, before } = parsePagination(request);
-    const search = parseSearchQuery(request);
-    if (before) filter.createdAt = { $lt: before };
-    if (search) filter.content = { $regex: search, $options: "i" };
-
+    const { limit } = parsePagination(request);
+    const filter = buildMessageListFilter({ base, searchParams, viewer });
     const fetched = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit + 1)

@@ -5,7 +5,7 @@ import connectDB from "@/lib/connectDB";
 import MessageModel from "@/models/message.model";
 import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
-import { parseSearchQuery } from "@/lib/pagination";
+import { buildMessageListFilter, type MessageListViewer } from "@/lib/messageListQuery";
 import { messagesToCsv } from "@/lib/csv";
 import type { ThreadSource } from "@/lib/thread";
 import { loadAndAuthorize } from "@/lib/questionAccess";
@@ -22,15 +22,16 @@ export async function GET(request: NextRequest) {
   await connectDB();
   try {
     const questionId = request.nextUrl.searchParams.get("questionId");
-    const search = parseSearchQuery(request);
 
-    let filter: Record<string, unknown>;
+    let base: Record<string, unknown>;
+    let viewer: MessageListViewer;
     let filenameHint: string;
 
     if (questionId) {
       const authz = await loadAndAuthorize(questionId);
       if (!authz.ok) return authz.response;
-      filter = { questionId, authorType: { $ne: "member" } };
+      base = { questionId, authorType: { $ne: "member" } };
+      viewer = { userId: authz.userId, role: authz.role };
       filenameHint = authz.question.slug;
     } else {
       const session = await getServerSession(authOptions);
@@ -47,10 +48,16 @@ export async function GET(request: NextRequest) {
           { status: 403 }
         );
       }
-      filter = { organizationId: ctx.organizationId, questionId: null };
+      base = { organizationId: ctx.organizationId, questionId: null };
+      viewer = { userId: String(ctx.membership.userId), role: ctx.role };
       filenameHint = ctx.organization.slug;
     }
-    if (search) filter.content = { $regex: search, $options: "i" };
+    const filter = buildMessageListFilter({
+      base,
+      searchParams: request.nextUrl.searchParams,
+      viewer,
+      mode: "export",
+    });
 
     const messages = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
