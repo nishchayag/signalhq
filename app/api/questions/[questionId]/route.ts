@@ -7,6 +7,10 @@ import { can } from "@/lib/permissions";
 import { loadAndAuthorize } from "@/lib/questionAccess";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
 import { withAiView } from "@/lib/messageView";
+import { scheduleLazySweep } from "@/lib/aiEnrichment";
+
+// Room for the post-response lazy enrichment sweep (runAfter) on Vercel.
+export const maxDuration = 30;
 
 export async function GET(
   request: NextRequest,
@@ -37,6 +41,7 @@ export async function GET(
       .limit(limit + 1)
       .select("+ai");
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
+    scheduleLazySweep(authz.question.organizationId);
 
     // Same privacy rule as the list endpoint: a MEMBER must not learn how
     // many colleagues answered an internal question.

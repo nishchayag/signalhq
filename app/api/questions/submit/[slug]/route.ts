@@ -8,6 +8,12 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
 import { notifyNewMessage } from "@/lib/notifications";
+import { isAiEnabled } from "@/lib/ai";
+import { runAfter } from "@/lib/background";
+import { enrichMessage } from "@/lib/aiEnrichment";
+
+// Room for the post-response AI enrichment (runAfter) on Vercel.
+export const maxDuration = 30;
 
 export async function GET(
   request: NextRequest,
@@ -124,6 +130,7 @@ export async function POST(
     const { content } = result.data;
 
     const replyToken = nanoid(32);
+    const aiOn = isAiEnabled();
     const message = new MessageModel({
       content,
       createdFor: question.userId,
@@ -132,9 +139,12 @@ export async function POST(
       organizationId: question.organizationId,
       teamId: question.teamId,
       replyToken,
+      ...(aiOn && { ai: { status: "pending", attempts: 0 } }),
     });
 
     await message.save();
+    // After the response; never awaited, never fails the submission.
+    if (aiOn) runAfter(() => enrichMessage(message._id));
 
     // Update response count
     await QuestionModel.findByIdAndUpdate(question._id, {

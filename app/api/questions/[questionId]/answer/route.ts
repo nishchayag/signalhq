@@ -9,6 +9,12 @@ import { notifyNewMessage } from "@/lib/notifications";
 import { canAccessQuestion } from "@/lib/questionAccess";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { withAiViewOne } from "@/lib/messageView";
+import { isAiEnabled } from "@/lib/ai";
+import { runAfter } from "@/lib/background";
+import { enrichMessage } from "@/lib/aiEnrichment";
+
+// Room for the post-response AI enrichment (runAfter) on Vercel.
+export const maxDuration = 30;
 
 // GET /api/questions/:questionId/answer — resolve the caller's own private
 // thread for this question, if they've answered it yet. Lets the dashboard
@@ -153,6 +159,7 @@ export async function POST(
       });
       await message.save();
     } else {
+      const aiOn = isAiEnabled();
       message = await MessageModel.create({
         content,
         createdFor: question.userId,
@@ -162,7 +169,11 @@ export async function POST(
         authorType: "member",
         authorUserId: auth.userId,
         replies: [],
+        ...(aiOn && { ai: { status: "pending", attempts: 0 } }),
       });
+      // New threads only; follow-ups aren't enriched. Never awaited.
+      const created = message;
+      if (aiOn) runAfter(() => enrichMessage(created._id));
       await QuestionModel.findByIdAndUpdate(question._id, {
         $inc: { responseCount: 1 },
       });

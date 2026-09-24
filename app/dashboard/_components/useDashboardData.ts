@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
 import type { IQuestion } from "@/models/question.model";
-import type { IMessage } from "@/models/message.model";
+import type { MessageView } from "@/lib/messageView";
 import type { MembershipRole } from "@/models/membership.model";
 import { can } from "@/lib/permissions";
 import { apiError } from "@/lib/apiError";
@@ -51,12 +51,12 @@ export function useDashboardData() {
   const confirm = useConfirm();
   const [questions, setQuestions] = useState<IQuestion[]>([]);
   const [selectedQuestion, setSelectedQuestion] = useState<IQuestion | null>(null);
-  const [messages, setMessages] = useState<IMessage[]>([]);
+  const [messages, setMessages] = useState<MessageView[]>([]);
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<IQuestion | null>(null);
-  const [generalMessages, setGeneralMessages] = useState<IMessage[]>([]);
+  const [generalMessages, setGeneralMessages] = useState<MessageView[]>([]);
   const [generalHasMore, setGeneralHasMore] = useState(false);
   const [generalCursor, setGeneralCursor] = useState<string | null>(null);
   const [generalLoadingMore, setGeneralLoadingMore] = useState(false);
@@ -371,14 +371,14 @@ export function useDashboardData() {
   };
 
   const handleDeleteMessage = (messageId: string) => {
-    const drop = (msgs: IMessage[]) => msgs.filter((msg) => msg._id !== messageId);
+    const drop = (msgs: MessageView[]) => msgs.filter((msg) => msg._id !== messageId);
     if (view === "general") setGeneralMessages(drop);
     else setMessages(drop);
   };
 
   const handleReplySaved = (messageId: string, reply: { content: string; repliedAt: string }) => {
-    const applyReply = (msgs: IMessage[]) =>
-      msgs.map((m) => (m._id === messageId ? ({ ...m, reply } as unknown as IMessage) : m));
+    const applyReply = (msgs: MessageView[]) =>
+      msgs.map((m) => (m._id === messageId ? ({ ...m, reply } as unknown as MessageView) : m));
     if (view === "general") setGeneralMessages(applyReply);
     else setMessages(applyReply);
   };

@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSend } from "@/lib/enterToSend";
-import { X, Reply as ReplyIcon, Loader2 } from "lucide-react";
+import { X, Reply as ReplyIcon, Loader2, ShieldAlert, EyeOff } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import {
   Dialog,
@@ -19,13 +19,53 @@ import {
   questionResponseSchema,
   QuestionResponseRequest,
 } from "@/schemas/questionSchema";
-import { IMessage } from "@/models/message.model";
+import type { MessageView, MessageAiView } from "@/lib/messageView";
 import { toast } from "sonner";
 import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
 
+// Messages at or above this toxicity render collapsed. Only OWNER/ADMIN
+// responses carry `toxicity`/`piiFlag` (lib/messageView.ts), so MEMBERs never
+// see these treatments.
+const TOXICITY_COLLAPSE = 0.85;
+
+const SENTIMENT_CHIP: Record<NonNullable<MessageAiView["sentiment"]>, string> = {
+  positive: "bg-brand-mint text-on-brand",
+  negative: "bg-brand-pink text-on-brand",
+  mixed: "bg-brand-yellow text-on-brand",
+  neutral: "bg-card text-foreground",
+};
+
+const chip =
+  "inline-flex items-center gap-1 rounded-md border-2 border-ink px-1.5 py-0.5 text-[11px] font-bold uppercase leading-none tracking-wide";
+
+function AiChips({ ai }: { ai: MessageAiView }) {
+  if (!ai.sentiment && !ai.tags?.length && !ai.piiFlag) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {ai.sentiment && (
+        <span className={`${chip} ${SENTIMENT_CHIP[ai.sentiment]}`}>{ai.sentiment}</span>
+      )}
+      {ai.tags?.map((tag) => (
+        <span key={tag} className={`${chip} bg-card text-muted-foreground`}>
+          {tag.replace(/-/g, " ")}
+        </span>
+      ))}
+      {ai.piiFlag && (
+        <span
+          className={`${chip} bg-brand-yellow text-on-brand`}
+          title="May contain personal details (names, contact info) — review before sharing"
+        >
+          <ShieldAlert className="h-3 w-3" strokeWidth={2.5} />
+          Possible PII
+        </span>
+      )}
+    </div>
+  );
+}
+
 type MessageCardProps = {
-  message: IMessage;
+  message: MessageView;
   onMessageDelete: (messageId: string) => void;
   canReply: boolean;
   canDelete: boolean;
@@ -45,6 +85,9 @@ const MessageCard = ({
   const confirm = useConfirm();
   const [replyOpen, setReplyOpen] = React.useState(false);
   const [replying, setReplying] = React.useState(false);
+  const flagged = (message.ai?.toxicity ?? 0) >= TOXICITY_COLLAPSE;
+  const [revealed, setRevealed] = React.useState(false);
+  const collapsed = flagged && !revealed;
 
   const {
     register,
@@ -125,9 +168,26 @@ const MessageCard = ({
     <Card>
       <CardHeader className="flex flex-row justify-between items-start">
         <div className="overflow-auto">
-          <CardTitle className="text-base font-medium">
-            {message.content}
-          </CardTitle>
+          {collapsed ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border-2 border-dashed border-ink/50 px-3 py-2">
+              <EyeOff className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">
+                Flagged as potentially abusive
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setRevealed(true)}
+              >
+                Show
+              </Button>
+            </div>
+          ) : (
+            <CardTitle className="text-base font-medium">
+              {message.content}
+            </CardTitle>
+          )}
         </div>
         {canDelete && (
           <Button
@@ -143,6 +203,8 @@ const MessageCard = ({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {message.ai && <AiChips ai={message.ai} />}
+
         <p className="text-sm text-muted-foreground whitespace-pre-line">
           {`${time}, ${date} (${timezone})\n${formatDistanceToNow(createdAt, {
             addSuffix: true,

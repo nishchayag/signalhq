@@ -7,6 +7,10 @@ import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
 import { withAiView } from "@/lib/messageView";
+import { scheduleLazySweep } from "@/lib/aiEnrichment";
+
+// Room for the post-response lazy enrichment sweep (runAfter) on Vercel.
+export const maxDuration = 30;
 
 // General (non-question) anonymous messages for the active organization.
 // Cursor-paginated via ?limit=&before= (see lib/pagination.ts).
@@ -50,6 +54,7 @@ export async function GET(request: NextRequest) {
       .limit(limit + 1)
       .select("+ai");
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
+    scheduleLazySweep(ctx.organizationId);
 
     return NextResponse.json({
       success: true,

@@ -6,6 +6,11 @@ import {
   sweepExpiredUnverifiedUsers,
   sweepOrphans,
 } from "@/lib/orgCleanup";
+import { enrichPending } from "@/lib/aiEnrichment";
+
+// Budget for the AI enrichment step, measured from the start of the run and
+// kept under maxDuration (60s) with room to respond.
+const AI_STEP_DEADLINE_MS = 50_000;
 
 // Vercel caps a function run; batching in the helpers keeps each step bounded.
 export const maxDuration = 60;
@@ -28,6 +33,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false }, { status: 401 });
   }
 
+  const start = Date.now();
   await connectDB();
 
   // Each step is independent: one failing mustn't skip the others.
@@ -44,6 +50,10 @@ export async function GET(request: NextRequest) {
   const unverifiedUsersDeleted = await step("unverified", () => sweepExpiredUnverifiedUsers());
   const orphans = await step("orphans", () => sweepOrphans());
   const invitationsExpired = await step("invitations", () => expireStaleInvitations());
+  // Last: it's the only step that can use most of the time budget.
+  const aiEnrichment = await step("aiEnrichment", () =>
+    enrichPending({ limit: 25, deadline: start + AI_STEP_DEADLINE_MS })
+  );
 
   return NextResponse.json({
     success: true,
@@ -51,5 +61,6 @@ export async function GET(request: NextRequest) {
     unverifiedUsersDeleted,
     orphans,
     invitationsExpired,
+    aiEnrichment,
   });
 }

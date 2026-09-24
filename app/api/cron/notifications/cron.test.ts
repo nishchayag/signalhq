@@ -11,6 +11,16 @@ vi.mock("@/lib/mailService", () => ({
   sendInvitationEmail: vi.fn(async () => true),
 }));
 
+vi.mock("@/lib/ai", async () => (await import("@/test-utils/aiMock")).aiMockModule());
+import { aiMock } from "@/test-utils/aiMock";
+// Pass-through spy so one test can make the AI step blow up.
+const { enrichPendingSpy } = vi.hoisted(() => ({ enrichPendingSpy: vi.fn() }));
+vi.mock("@/lib/aiEnrichment", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/aiEnrichment")>("@/lib/aiEnrichment");
+  enrichPendingSpy.mockImplementation(actual.enrichPending);
+  return { ...actual, enrichPending: enrichPendingSpy };
+});
+
 import { startTestDB, clearTestDB, stopTestDB } from "@/test-utils/db";
 import { GET as cron } from "@/app/api/cron/notifications/route";
 import { flushDailyDigests } from "@/lib/notifications";
@@ -19,6 +29,7 @@ import UserModel from "@/models/user.model";
 import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
 import InvitationModel from "@/models/invitation.model";
+import MessageModel from "@/models/message.model";
 
 beforeAll(startTestDB);
 afterEach(async () => {
@@ -141,5 +152,43 @@ describe("cleanup sweeps", () => {
     expect((await InvitationModel.findOne({ token: "t1" }))?.status).toBe("EXPIRED");
     expect((await InvitationModel.findOne({ token: "t2" }))?.status).toBe("PENDING");
     expect((await InvitationModel.findOne({ token: "t3" }))?.status).toBe("ACCEPTED");
+  });
+});
+
+describe("cron AI enrichment step", () => {
+  it("runs last, enriches pending messages and reports counts", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    aiMock.reset();
+    aiMock.setObject({ sentiment: "neutral", tags: ["process"] });
+    const org = await OrganizationModel.create({
+      name: "Acme", slug: "acme-cron", createdBy: new mongoose.Types.ObjectId(),
+    });
+    const msg = await MessageModel.create({
+      content: "Standups run long",
+      createdFor: org.createdBy,
+      organizationId: org._id,
+      ai: { status: "pending", attempts: 0 },
+    });
+
+    const res = await call("Bearer s3cret");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.aiEnrichment).toMatchObject({ candidates: 1, done: 1 });
+    expect(enrichPendingSpy).toHaveBeenCalledWith(expect.objectContaining({ limit: 25 }));
+    const deadline = enrichPendingSpy.mock.calls.at(-1)![0].deadline as number;
+    expect(deadline - Date.now()).toBeLessThanOrEqual(50_000);
+    expect((await MessageModel.collection.findOne({ _id: msg._id }))?.ai.status).toBe("done");
+  });
+
+  it("a failing AI step doesn't fail the cron or skip the other steps", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    enrichPendingSpy.mockRejectedValueOnce(new Error("boom"));
+    const res = await call("Bearer s3cret");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ success: true, aiEnrichment: { error: true } });
+    expect(body.digests).not.toHaveProperty("error");
+    spy.mockRestore();
   });
 });
