@@ -28,6 +28,13 @@ import {
 
 type NotificationPreference = "immediate" | "daily" | "off";
 
+type OrgNotificationSetting = {
+  organizationId: string;
+  name: string;
+  role: "OWNER" | "ADMIN" | "MEMBER";
+  muted: boolean;
+};
+
 const NOTIFICATION_OPTIONS: {
   value: NotificationPreference;
   label: string;
@@ -287,6 +294,8 @@ export default function AccountSettingsPage() {
   const [aiDigestSummary, setAiDigestSummary] = useState(true);
   const [aiAvailable, setAiAvailable] = useState(false);
   const [savingAiDigest, setSavingAiDigest] = useState(false);
+  const [orgSettings, setOrgSettings] = useState<OrgNotificationSetting[]>([]);
+  const [savingOrgMute, setSavingOrgMute] = useState<string | null>(null);
 
   useEffect(() => {
     axios
@@ -296,6 +305,7 @@ export default function AccountSettingsPage() {
           setNotificationPreference(res.data.notificationPreference);
           setAiDigestSummary(res.data.aiDigestSummary !== false);
           setAiAvailable(res.data.aiAvailable === true);
+          setOrgSettings(Array.isArray(res.data.orgs) ? res.data.orgs : []);
         }
       })
       .catch(() => {
@@ -345,6 +355,30 @@ export default function AccountSettingsPage() {
       toast.error("Failed to update preference");
     } finally {
       setSavingAiDigest(false);
+    }
+  };
+
+  // The switch reads "Email me about …", so on = not muted.
+  const handleOrgMuteChange = async (organizationId: string, emailMe: boolean) => {
+    const setMuted = (muted: boolean) =>
+      setOrgSettings((orgs) =>
+        orgs.map((o) => (o.organizationId === organizationId ? { ...o, muted } : o))
+      );
+    setMuted(!emailMe);
+    setSavingOrgMute(organizationId);
+    try {
+      const res = await axios.patch("/api/account/notifications", {
+        mutedOrgs: { [organizationId]: !emailMe },
+      });
+      if (!res.data.success) {
+        setMuted(emailMe);
+        toast.error(res.data.message || "Failed to update preference");
+      }
+    } catch (error) {
+      setMuted(emailMe);
+      toast.error(apiError(error, "Failed to update preference"));
+    } finally {
+      setSavingOrgMute(null);
     }
   };
 
@@ -471,6 +505,43 @@ export default function AccountSettingsPage() {
                 />
               </div>
             )}
+            {notificationPreference !== null &&
+              notificationPreference !== "off" &&
+              orgSettings.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-bold text-foreground">Organizations</p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Turn one off to stop emails about its feedback. Owners and admins hear
+                    about all of an organization&apos;s feedback; members, about their own
+                    questions.
+                  </p>
+                  <ul className="flex flex-col gap-2">
+                    {orgSettings.map((org) => {
+                      const id = `org-notify-${org.organizationId}`;
+                      return (
+                        <li
+                          key={org.organizationId}
+                          className="flex items-center justify-between gap-4 rounded-lg border-2 border-ink bg-background p-3"
+                        >
+                          <Label htmlFor={id} className="text-sm font-medium text-foreground">
+                            Email me about new feedback in{" "}
+                            <span className="font-bold">{org.name}</span>
+                          </Label>
+                          <Switch
+                            id={id}
+                            className="border-2 border-ink"
+                            checked={!org.muted}
+                            disabled={savingOrgMute === org.organizationId}
+                            onCheckedChange={(checked) =>
+                              handleOrgMuteChange(org.organizationId, checked)
+                            }
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
           </CardContent>
         </Card>
 

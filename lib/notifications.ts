@@ -9,42 +9,131 @@ import type { DigestAiSummary } from "@/emailTemplates/newMessageEmail";
 import { aiObject, isAiEnabled, logAiError } from "@/lib/ai";
 import { fenceUntrusted } from "@/lib/aiPrompt";
 import { checkGlobalAiCap, consumeQuota, refundQuota } from "@/lib/aiQuota";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { isValidObjectId } from "@/lib/objectId";
+
+// --- Per-event notifications -------------------------------------------
+
+// Immediate emails per user per hour; past this, events fall through to the
+// pending count and the next daily flush covers them in one digest.
+const IMMEDIATE_LIMIT = 10;
+const IMMEDIATE_WINDOW_MS = 60 * 60 * 1000;
+
+type IdLike = string | { toString(): string } | null | undefined;
+
+function errorName(error: unknown): string {
+  return typeof error === "object" && error !== null && typeof (error as { name?: unknown }).name === "string"
+    ? (error as { name: string }).name
+    : typeof error;
+}
 
 /**
- * Called from every route that creates a Message, right after `createdFor`
- * is known. Branches on the recipient's notificationPreference:
- * - "off": no-op.
- * - "immediate": sends a single-message email right away.
- * - "daily": just increments a counter — the daily cron
- *   (app/api/cron/notifications) flushes it into one digest email later, so
- *   a recipient getting replies constantly isn't emailed on every one.
- * Never throws — a notification failure shouldn't fail the message send.
+ * Notify everyone who should hear about new inbound activity on an org's
+ * message. Run it inside `runAfter` — it can send several emails.
+ *
+ * Recipients:
+ * - `primaryUserIds` (the question owner, or `org.createdBy` for general
+ *   feedback),
+ * - every current OWNER/ADMIN of the org,
+ * - on "followup", the message's assignee,
+ * deduped by id, minus `excludeUserId` (the member who wrote it), minus
+ * anyone whose membership in the org has `notificationsMuted`.
+ *
+ * Only *current members* of the org are notified. Membership is what grants
+ * access to the message, so a question owner who has since left the org (or
+ * an assignee removed from it) has no business getting email about its
+ * feedback — and couldn't open it from the dashboard link anyway.
+ *
+ * Each recipient's own preference applies: "off" → nothing; "immediate" →
+ * one email now, throttled at 10/hour, with overflow added to the pending
+ * count (so the next daily flush sends it as a digest); "daily" (or missing)
+ * → pending count +1. A failed immediate send also falls back to the
+ * pending count, so the event isn't lost. Sends run sequentially (Resend's
+ * free tier is ~2 req/s).
+ *
+ * Never throws; logs error names only — never message content or emails.
  */
-export async function notifyNewMessage(userId: string | { toString(): string }) {
+export async function notifyMessageEvent({
+  organizationId,
+  primaryUserIds,
+  excludeUserId,
+  event,
+  messageId,
+}: {
+  organizationId: IdLike;
+  primaryUserIds: IdLike[];
+  excludeUserId?: IdLike;
+  event: "new" | "followup";
+  messageId?: IdLike;
+}): Promise<void> {
   try {
-    const user = await UserModel.findById(userId).select(
-      "email name notificationPreference"
-    );
-    if (!user) return;
+    if (!organizationId || !isValidObjectId(String(organizationId))) return;
+    const orgId = String(organizationId);
 
-    if (user.notificationPreference === "off") return;
+    const candidates = new Set<string>();
+    const add = (id: IdLike) => {
+      if (id && isValidObjectId(String(id))) candidates.add(String(id));
+    };
+    primaryUserIds.forEach(add);
 
-    if (user.notificationPreference === "immediate") {
-      await sendNotificationEmail({
-        email: user.email,
-        name: user.name,
-        count: 1,
-        dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard`,
-      });
-      return;
+    const admins = await MembershipModel.find({
+      organizationId: orgId,
+      role: { $in: ["OWNER", "ADMIN"] },
+    })
+      .select("userId")
+      .lean();
+    admins.forEach((m) => add(m.userId));
+
+    if (event === "followup" && messageId && isValidObjectId(String(messageId))) {
+      const msg = await MessageModel.findOne({ _id: String(messageId), organizationId: orgId })
+        .select("assignedTo")
+        .lean<{ assignedTo?: unknown }>();
+      add(msg?.assignedTo as IdLike);
     }
 
-    // "daily" (and the default for any pre-migration user without the field)
-    await UserModel.findByIdAndUpdate(userId, {
-      $inc: { pendingNotificationCount: 1 },
-    });
+    if (excludeUserId) candidates.delete(String(excludeUserId));
+    if (candidates.size === 0) return;
+
+    // Current, unmuted members only (see above).
+    const memberships = await MembershipModel.find({
+      organizationId: orgId,
+      userId: { $in: [...candidates] },
+      notificationsMuted: { $ne: true },
+    })
+      .select("userId")
+      .lean();
+    const recipientIds = memberships.map((m) => String(m.userId));
+    if (recipientIds.length === 0) return;
+
+    const users = await UserModel.find({ _id: { $in: recipientIds } })
+      .select("email name notificationPreference")
+      .lean<{ _id: unknown; email: string; name: string; notificationPreference?: string }[]>();
+
+    for (const user of users) {
+      const uid = String(user._id);
+      try {
+        const pref = user.notificationPreference ?? "daily";
+        if (pref === "off") continue;
+        if (pref === "immediate") {
+          const allowed = await checkRateLimit(`notifyMail:${uid}`, IMMEDIATE_LIMIT, IMMEDIATE_WINDOW_MS);
+          if (allowed) {
+            const ok = await sendNotificationEmail({
+              email: user.email,
+              name: user.name,
+              count: 1,
+              dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard`,
+            });
+            if (ok) continue;
+          }
+        }
+        // "daily", a throttled immediate, or a failed immediate send.
+        await UserModel.updateOne({ _id: uid }, { $inc: { pendingNotificationCount: 1 } });
+      } catch (error) {
+        console.error(`[notify] recipient ${uid} failed: ${errorName(error)}`);
+      }
+    }
   } catch (error) {
-    console.error("Error notifying user of new message:", error);
+    console.error(`[notify] ${event} event failed: ${errorName(error)}`);
   }
 }
 
@@ -89,9 +178,10 @@ interface DigestUser {
 /**
  * Per-org AI bullet summaries of the anonymous messages a digest covers.
  * Privacy rules:
- * - Only orgs where the recipient is *currently* OWNER or ADMIN — a MEMBER
- *   who created a question must not get org/team feedback summarized into
- *   their inbox.
+ * - Only orgs where the recipient is *currently* OWNER or ADMIN (and not
+ *   muted) — a MEMBER who created a question must not get org/team feedback
+ *   summarized into their inbox. Messages are selected by org, not by
+ *   `createdFor`, since every admin is notified of every org message.
  * - Member-authored private threads are never summarized.
  * - One org per prompt; never mixes orgs.
  * Never throws: any failure just means fewer (or no) summaries, and the
@@ -106,43 +196,44 @@ async function buildDigestSummaries(
     return [];
   }
   try {
+    // Scope: orgs where the recipient is CURRENTLY OWNER/ADMIN and hasn't
+    // muted. Not `createdFor` — admins now hear about every org message, and
+    // a former admin (or a MEMBER who owns a question) gets no summary.
+    const adminOrgIds = (
+      await MembershipModel.find({
+        userId: user._id,
+        role: { $in: ["OWNER", "ADMIN"] },
+        notificationsMuted: { $ne: true },
+      })
+        .select("organizationId")
+        .lean()
+    ).map((ms) => ms.organizationId);
+    if (adminOrgIds.length === 0) return [];
+
     const since = user.lastDigestAt ?? new Date(claimTime.getTime() - DAY_MS);
     const messages = await MessageModel.find({
-      createdFor: user._id,
+      organizationId: { $in: adminOrgIds },
       // Up to the claim: anything later is counted in (and summarized by)
       // the next digest.
       createdAt: { $gt: since, $lte: claimTime },
       authorType: { $ne: "member" },
-      organizationId: { $ne: null },
+      content: { $exists: true, $nin: ["", null] },
     })
       .sort({ createdAt: -1 })
       .limit(DIGEST_MAX_MESSAGES)
       .select("content createdAt organizationId")
       .lean();
-    if (messages.length === 0) return [];
 
     const byOrg = new Map<string, string[]>();
     for (const m of messages) {
+      if (typeof m.content !== "string" || !m.content.trim()) continue;
       const key = String(m.organizationId);
       const list = byOrg.get(key) ?? [];
       list.push(m.content);
       byOrg.set(key, list);
     }
 
-    const adminOf = new Set(
-      (
-        await MembershipModel.find({
-          userId: user._id,
-          organizationId: { $in: [...byOrg.keys()] },
-          role: { $in: ["OWNER", "ADMIN"] },
-        })
-          .select("organizationId")
-          .lean()
-      ).map((ms) => String(ms.organizationId))
-    );
-
     const orgIds = [...byOrg.keys()]
-      .filter((id) => adminOf.has(id))
       .sort((a, b) => byOrg.get(b)!.length - byOrg.get(a)!.length)
       .slice(0, DIGEST_MAX_ORGS);
     if (orgIds.length === 0) return [];
@@ -229,8 +320,10 @@ export async function flushDailyDigests({
   summarized: number;
 }> {
   const aiDeadline = Math.min(Date.now() + DIGEST_AI_BUDGET_MS, deadline);
+  // Not just "daily": an "immediate" user whose emails were throttled (or
+  // failed) has overflow pending too, and gets it here as a digest.
   const pendingUsers = await UserModel.find({
-    notificationPreference: "daily",
+    notificationPreference: { $ne: "off" },
     pendingNotificationCount: { $gt: 0 },
   })
     .select("email name pendingNotificationCount aiDigestSummary lastDigestAt")

@@ -5,8 +5,9 @@ import { questionResponseSchema } from "@/schemas/questionSchema";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { hashedIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
-import { notifyNewMessage } from "@/lib/notifications";
+import { notifyMessageEvent } from "@/lib/notifications";
 import { threadOf } from "@/lib/thread";
+import { runAfter } from "@/lib/background";
 import { MAX_THREAD_TURNS, RECEIPT_FIELDS, loadReceipt, tokenKey } from "@/lib/receipt";
 
 // The anonymous sender's side of a thread. The replyToken in the URL is the
@@ -44,9 +45,9 @@ export async function GET(
 }
 
 // POST /api/r/:replyToken {content} → { turns, awaitingOrg: true }
-// The sender follows up. Not AI-enriched; notifies the recipient like a new
-// message. Rate limits run before any lookup so known and unknown tokens
-// cost the same.
+// The sender follows up. Not AI-enriched; notifies the recipient, the org's
+// admins and the assignee (after the response). Rate limits run before any
+// lookup so known and unknown tokens cost the same.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ replyToken: string }> }
@@ -103,11 +104,20 @@ export async function POST(
         // New inbound activity reopens the message for everyone.
         $unset: { readBy: "", archivedAt: "", archivedBy: "" },
       },
-      { new: true, projection: `${RECEIPT_FIELDS} createdFor` }
-    ).lean<{ createdFor?: unknown } & Parameters<typeof threadOf>[0]>();
+      { new: true, projection: `${RECEIPT_FIELDS} createdFor organizationId` }
+    ).lean<{ _id: unknown; createdFor?: unknown; organizationId?: unknown } & Parameters<typeof threadOf>[0]>();
     if (!updated) return json({ message: "This conversation has reached its limit" }, 409);
 
-    if (updated.createdFor) await notifyNewMessage(String(updated.createdFor));
+    // After the response. "followup" also reaches the message's assignee.
+    const { _id: messageId, createdFor, organizationId } = updated;
+    runAfter(() =>
+      notifyMessageEvent({
+        organizationId: organizationId ? String(organizationId) : null,
+        primaryUserIds: createdFor ? [String(createdFor)] : [],
+        event: "followup",
+        messageId: String(messageId),
+      })
+    );
 
     return json({ turns: threadOf(updated), awaitingOrg: true }, 201);
   } catch (error) {

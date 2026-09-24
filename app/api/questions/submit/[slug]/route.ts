@@ -7,7 +7,7 @@ import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
-import { notifyNewMessage } from "@/lib/notifications";
+import { notifyMessageEvent } from "@/lib/notifications";
 import { isAiEnabled } from "@/lib/ai";
 import { runAfter } from "@/lib/background";
 import { enrichMessage } from "@/lib/aiEnrichment";
@@ -163,7 +163,15 @@ export async function POST(
       $inc: { responseCount: 1 },
     });
 
-    await notifyNewMessage(question.userId);
+    // Emails after the response, too: the sender never waits on Resend.
+    runAfter(() =>
+      notifyMessageEvent({
+        organizationId: question.organizationId,
+        primaryUserIds: [question.userId],
+        event: "new",
+        messageId: message._id,
+      })
+    );
 
     return NextResponse.json(
       {

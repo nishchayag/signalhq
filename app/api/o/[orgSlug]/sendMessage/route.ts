@@ -7,7 +7,7 @@ import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
-import { notifyNewMessage } from "@/lib/notifications";
+import { notifyMessageEvent } from "@/lib/notifications";
 import { isAiEnabled } from "@/lib/ai";
 import { runAfter } from "@/lib/background";
 import { enrichMessage } from "@/lib/aiEnrichment";
@@ -79,7 +79,15 @@ export async function POST(
     // After the response; never awaited, never fails the submission.
     if (aiOn) runAfter(() => enrichMessage(message._id));
 
-    await notifyNewMessage(organization.createdBy);
+    // Emails after the response, too: the sender never waits on Resend.
+    runAfter(() =>
+      notifyMessageEvent({
+        organizationId: organization._id,
+        primaryUserIds: [organization.createdBy],
+        event: "new",
+        messageId: message._id,
+      })
+    );
 
     return NextResponse.json(
       { success: true, message: "Message sent successfully", replyToken },

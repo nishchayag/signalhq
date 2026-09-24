@@ -101,10 +101,10 @@ describe("flushDailyDigests", () => {
     expect((await UserModel.findById(user._id))?.pendingNotificationCount).toBe(2);
   });
 
-  it("ignores users on 'immediate' or 'off'", async () => {
+  it("ignores 'off' users, but flushes an 'immediate' user's throttled overflow", async () => {
     await makeUser({ notificationPreference: "immediate", pendingNotificationCount: 5 });
     await makeUser({ notificationPreference: "off", pendingNotificationCount: 5 });
-    expect((await flushDailyDigests()).total).toBe(0);
+    expect((await flushDailyDigests()).total).toBe(1);
   });
 });
 

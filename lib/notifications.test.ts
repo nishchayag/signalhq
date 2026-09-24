@@ -16,7 +16,7 @@ vi.mock("@/lib/ai", async () => (await import("@/test-utils/aiMock")).aiMockModu
 
 import { startTestDB, clearTestDB, stopTestDB } from "@/test-utils/db";
 import { aiMock } from "@/test-utils/aiMock";
-import { flushDailyDigests, stripUrls } from "@/lib/notifications";
+import { flushDailyDigests, notifyMessageEvent, stripUrls } from "@/lib/notifications";
 import UserModel from "@/models/user.model";
 import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
@@ -313,6 +313,231 @@ describe("flushDailyDigests — AI summary", () => {
     expect(a.sent + b.sent).toBe(1);
     expect(sendNotificationEmail).toHaveBeenCalledTimes(1);
     expect((await UserModel.findById(user._id)).pendingNotificationCount).toBe(0);
+  });
+});
+
+describe("flushDailyDigests — summary scope", () => {
+  it("covers org messages not addressed to the admin via createdFor", async () => {
+    const admin = await makeUser();
+    const other = await makeUser({ notificationPreference: "off", pendingNotificationCount: 0 });
+    const org = await makeOrg(other._id, "OWNER", "Acme");
+    await MembershipModel.create({ organizationId: org._id, userId: admin._id, role: "ADMIN" });
+    await message(other._id, org._id, "addressed-to-the-owner");
+
+    await flushDailyDigests();
+
+    expect(prompts()).toHaveLength(1);
+    expect(prompts()[0]).toContain("addressed-to-the-owner");
+    expect(lastSend().aiSummaries).toHaveLength(1);
+  });
+
+  it("skips a muted org's messages", async () => {
+    const user = await makeUser();
+    const muted = await makeOrg(user._id, "OWNER", "Muted");
+    const live = await makeOrg(user._id, "OWNER", "Live");
+    await MembershipModel.updateOne({ organizationId: muted._id, userId: user._id }, { notificationsMuted: true });
+    await message(user._id, muted._id, "muted-org-content");
+    await message(user._id, live._id, "live-org-content");
+
+    await flushDailyDigests();
+
+    expect(prompts()).toHaveLength(1);
+    expect(prompts()[0]).toContain("live-org-content");
+    expect(prompts().join("\n")).not.toContain("muted-org-content");
+    expect(lastSend().aiSummaries!.map((x) => x.orgName)).toEqual(["Live"]);
+  });
+
+  it("a former admin (membership removed) gets no summary, even for messages createdFor them", async () => {
+    const user = await makeUser();
+    const org = await makeOrg(user._id, "OWNER");
+    await message(user._id, org._id, "old org content");
+    await MembershipModel.deleteMany({ userId: user._id });
+
+    await flushDailyDigests();
+
+    expect(aiMock.fns.aiObject).not.toHaveBeenCalled();
+    expect(sendNotificationEmail).toHaveBeenCalledTimes(1);
+    expect(lastSend().aiSummaries).toBeUndefined();
+  });
+
+  it("skips empty-content messages", async () => {
+    const user = await makeUser();
+    const org = await makeOrg(user._id, "OWNER");
+    await MessageModel.collection.insertOne({
+      content: "",
+      createdFor: user._id,
+      organizationId: org._id,
+      createdAt: new Date(),
+    });
+    await flushDailyDigests();
+    expect(aiMock.fns.aiObject).not.toHaveBeenCalled();
+  });
+
+  it("also flushes an immediate user's pending overflow, never an off user's", async () => {
+    const imm = await makeUser({ notificationPreference: "immediate", pendingNotificationCount: 3 });
+    await makeUser({ notificationPreference: "off", pendingNotificationCount: 5 });
+
+    const result = await flushDailyDigests();
+
+    expect(result).toMatchObject({ sent: 1, total: 1 });
+    expect(lastSend()).toMatchObject({ count: 3 });
+    expect((await UserModel.findById(imm._id)).pendingNotificationCount).toBe(0);
+  });
+});
+
+describe("notifyMessageEvent", () => {
+  const pending = async (id: unknown) =>
+    (await UserModel.findById(id)).pendingNotificationCount as number;
+  const sentTo = () =>
+    sendNotificationEmail.mock.calls.map((c) => (c[0] as { email: string }).email).sort();
+  async function member(orgId: unknown, role: Role, overrides: Record<string, unknown> = {}) {
+    const user = await makeUser({ pendingNotificationCount: 0, ...overrides });
+    await MembershipModel.create({ organizationId: orgId, userId: user._id, role });
+    return user;
+  }
+  async function setup() {
+    const owner = await makeUser({ pendingNotificationCount: 0 });
+    const org = await makeOrg(owner._id, "OWNER");
+    return { owner, org };
+  }
+
+  it("dedupes a question owner who is also an ADMIN: one increment / one email", async () => {
+    const { owner, org } = await setup();
+    const admin = await member(org._id, "ADMIN", { notificationPreference: "immediate" });
+
+    await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [admin._id, owner._id], event: "new" });
+
+    expect(await pending(owner._id)).toBe(1);
+    expect(sendNotificationEmail).toHaveBeenCalledTimes(1);
+    expect(sentTo()).toEqual([admin.email]);
+    expect(await pending(admin._id)).toBe(0);
+  });
+
+  it("OWNER + ADMIN + MEMBER question owner → 3 recipients; other MEMBERs untouched", async () => {
+    const { owner, org } = await setup();
+    const admin = await member(org._id, "ADMIN");
+    const qOwner = await member(org._id, "MEMBER");
+    const bystander = await member(org._id, "MEMBER");
+
+    await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [qOwner._id], event: "new" });
+
+    expect(await pending(owner._id)).toBe(1);
+    expect(await pending(admin._id)).toBe(1);
+    expect(await pending(qOwner._id)).toBe(1);
+    expect(await pending(bystander._id)).toBe(0);
+  });
+
+  it("excludes the author, even when they're an admin and the primary", async () => {
+    const { owner, org } = await setup();
+    const admin = await member(org._id, "ADMIN");
+
+    await notifyMessageEvent({
+      organizationId: org._id,
+      primaryUserIds: [admin._id],
+      excludeUserId: String(admin._id),
+      event: "new",
+    });
+
+    expect(await pending(admin._id)).toBe(0);
+    expect(await pending(owner._id)).toBe(1);
+  });
+
+  it("a muted admin gets nothing", async () => {
+    const { owner, org } = await setup();
+    const admin = await member(org._id, "ADMIN", { notificationPreference: "immediate" });
+    await MembershipModel.updateOne({ userId: admin._id }, { notificationsMuted: true });
+
+    await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [owner._id], event: "new" });
+
+    expect(sendNotificationEmail).not.toHaveBeenCalled();
+    expect(await pending(admin._id)).toBe(0);
+    expect(await pending(owner._id)).toBe(1);
+  });
+
+  it("a primary who is no longer a member of the org gets nothing", async () => {
+    const { owner, org } = await setup();
+    const former = await makeUser({ pendingNotificationCount: 0, notificationPreference: "immediate" });
+
+    await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [former._id], event: "new" });
+
+    expect(sendNotificationEmail).not.toHaveBeenCalled();
+    expect(await pending(former._id)).toBe(0);
+    expect(await pending(owner._id)).toBe(1);
+  });
+
+  it("honours each recipient's own preference", async () => {
+    const { owner, org } = await setup();
+    const imm = await member(org._id, "ADMIN", { notificationPreference: "immediate" });
+    const off = await member(org._id, "ADMIN", { notificationPreference: "off" });
+
+    await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [], event: "new" });
+
+    expect(sentTo()).toEqual([imm.email]);
+    expect(lastSend().count).toBe(1);
+    expect(await pending(imm._id)).toBe(0);
+    expect(await pending(off._id)).toBe(0);
+    expect(await pending(owner._id)).toBe(1);
+  });
+
+  it("throttles immediate email at 10/hour; overflow goes pending and the next flush sends it", async () => {
+    const owner = await makeUser({ pendingNotificationCount: 0, notificationPreference: "immediate" });
+    const org = await makeOrg(owner._id, "OWNER");
+
+    for (let i = 0; i < 12; i++) {
+      await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [], event: "new" });
+    }
+
+    expect(sendNotificationEmail).toHaveBeenCalledTimes(10);
+    expect(await pending(owner._id)).toBe(2);
+
+    const result = await flushDailyDigests();
+    expect(result.sent).toBe(1);
+    expect(lastSend().count).toBe(2);
+    expect(await pending(owner._id)).toBe(0);
+  });
+
+  it("a failed immediate send falls back to the pending count", async () => {
+    sendNotificationEmail.mockResolvedValue(false);
+    const owner = await makeUser({ pendingNotificationCount: 0, notificationPreference: "immediate" });
+    const org = await makeOrg(owner._id, "OWNER");
+    await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [], event: "new" });
+    expect(await pending(owner._id)).toBe(1);
+  });
+
+  it("a follow-up also reaches the message's assignee; a new message doesn't look it up", async () => {
+    const { owner, org } = await setup();
+    const assignee = await member(org._id, "MEMBER");
+    const msg = await message(owner._id, org._id, "x", { assignedTo: assignee._id });
+
+    await notifyMessageEvent({ organizationId: org._id, primaryUserIds: [owner._id], event: "new", messageId: msg._id });
+    expect(await pending(assignee._id)).toBe(0);
+
+    await notifyMessageEvent({
+      organizationId: org._id,
+      primaryUserIds: [owner._id],
+      event: "followup",
+      messageId: msg._id,
+    });
+    expect(await pending(assignee._id)).toBe(1);
+    expect(await pending(owner._id)).toBe(2);
+  });
+
+  it("never throws and never logs content or addresses", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const owner = await makeUser({ pendingNotificationCount: 0, notificationPreference: "immediate" });
+    const org = await makeOrg(owner._id, "OWNER");
+    sendNotificationEmail.mockRejectedValue(new Error(`boom ${owner.email}`));
+
+    await expect(
+      notifyMessageEvent({ organizationId: org._id, primaryUserIds: [], event: "new" })
+    ).resolves.toBeUndefined();
+    await expect(
+      notifyMessageEvent({ organizationId: "not-an-id", primaryUserIds: ["nope"], event: "new" })
+    ).resolves.toBeUndefined();
+
+    const logged = spy.mock.calls.flat().map(String).join("\n");
+    expect(logged).not.toContain(owner.email);
+    spy.mockRestore();
   });
 });
 

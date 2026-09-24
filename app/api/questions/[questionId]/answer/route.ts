@@ -5,7 +5,7 @@ import MessageModel from "@/models/message.model";
 import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { questionResponseSchema } from "@/schemas/questionSchema";
-import { notifyNewMessage } from "@/lib/notifications";
+import { notifyMessageEvent } from "@/lib/notifications";
 import { canAccessQuestion } from "@/lib/questionAccess";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { withAiViewOne } from "@/lib/messageView";
@@ -124,7 +124,7 @@ export async function POST(
       }
     }
 
-    // A new thread fires notifyNewMessage (possibly an immediate email), so
+    // A new thread notifies the org's admins (possibly immediate emails), so
     // an unbounded loop here was an email cannon.
     const allowed = await checkRateLimit(`answer:${auth.userId}`, 30, 10 * 60 * 1000);
     if (!allowed) {
@@ -184,7 +184,17 @@ export async function POST(
       await QuestionModel.findByIdAndUpdate(question._id, {
         $inc: { responseCount: 1 },
       });
-      await notifyNewMessage(question.userId);
+      // The answering member is the author: never email them about it.
+      // Follow-ups on an existing thread (above) don't notify, as before.
+      runAfter(() =>
+        notifyMessageEvent({
+          organizationId: question.organizationId,
+          primaryUserIds: [question.userId],
+          excludeUserId: auth.userId,
+          event: "new",
+          messageId: created._id,
+        })
+      );
     }
 
     return NextResponse.json(

@@ -2,12 +2,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 
-const { getServerSession, notifyNewMessage } = vi.hoisted(() => ({
+const { getServerSession, notifyMessageEvent } = vi.hoisted(() => ({
   getServerSession: vi.fn(),
-  notifyNewMessage: vi.fn(async () => {}),
+  notifyMessageEvent: vi.fn(async (opts: unknown) => {
+    void opts;
+  }),
 }));
 vi.mock("next-auth", () => ({ getServerSession }));
-vi.mock("@/lib/notifications", () => ({ notifyNewMessage }));
+vi.mock("@/lib/notifications", () => ({ notifyMessageEvent }));
 
 import { startTestDB, clearTestDB, stopTestDB } from "@/test-utils/db";
 import { GET, POST } from "@/app/api/r/[replyToken]/route";
@@ -23,7 +25,7 @@ beforeAll(startTestDB);
 afterEach(async () => {
   await clearTestDB();
   getServerSession.mockReset();
-  notifyNewMessage.mockClear();
+  notifyMessageEvent.mockClear();
 });
 afterAll(stopTestDB);
 
@@ -103,7 +105,15 @@ describe("POST /api/r/:replyToken", () => {
       "sender:Any update on this?",
     ]);
     expectSafe(body);
-    expect(notifyNewMessage).toHaveBeenCalledWith(String(createdFor));
+    // Detached (runAfter): let the microtask run.
+    await vi.waitFor(() =>
+      expect(notifyMessageEvent).toHaveBeenCalledWith({
+        organizationId: String(msg.organizationId),
+        primaryUserIds: [String(createdFor)],
+        event: "followup",
+        messageId: String(msg._id),
+      })
+    );
 
     const stored = await MessageModel.findById(msg._id).select("+ai");
     expect(stored?.awaitingOrg).toBe(true);
@@ -138,7 +148,8 @@ describe("POST /api/r/:replyToken", () => {
     const b = await post(token, "hi", "198.51.100.2");
     expect([a.status, b.status]).toEqual([404, 404]);
     expect(await a.json()).toEqual(await b.json());
-    expect(notifyNewMessage).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(notifyMessageEvent).not.toHaveBeenCalled();
   });
 
   it("400s empty content and moderated content", async () => {
