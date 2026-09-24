@@ -8,6 +8,8 @@ const ALL_PERMISSIONS: Permission[] = [
   "org:billing",
   "org:transferOwnership",
   "org:viewActivity",
+  "org:labels",
+  "org:branding",
   "member:invite",
   "member:remove",
   "member:role",
@@ -22,6 +24,7 @@ const ALL_PERMISSIONS: Permission[] = [
   "message:read",
   "message:reply",
   "message:delete",
+  "message:triage",
   "ai:insights",
   "ai:viewSafety",
 ];
@@ -32,6 +35,8 @@ const GRANTED: Record<MembershipRole, Set<Permission>> = {
   OWNER: new Set(ALL_PERMISSIONS),
   ADMIN: new Set([
     "org:viewActivity",
+    "org:labels",
+    "org:branding",
     "member:invite",
     "member:remove",
     "member:role",
@@ -46,6 +51,7 @@ const GRANTED: Record<MembershipRole, Set<Permission>> = {
     "message:read",
     "message:reply",
     "message:delete",
+    "message:triage",
     "ai:insights",
     "ai:viewSafety",
   ]),
@@ -80,6 +86,15 @@ describe("can", () => {
       expect(can("ADMIN", permission)).toBe(true);
       expect(can("MEMBER", permission)).toBe(false);
     }
+  });
+
+  it("triage, labels and branding are OWNER/ADMIN only; MEMBER keeps message:read (read/unread)", () => {
+    for (const permission of ["message:triage", "org:labels", "org:branding"] as Permission[]) {
+      expect(can("OWNER", permission)).toBe(true);
+      expect(can("ADMIN", permission)).toBe(true);
+      expect(can("MEMBER", permission)).toBe(false);
+    }
+    expect(can("MEMBER", "message:read")).toBe(true);
   });
 
   it("returns false for a null or undefined role", () => {

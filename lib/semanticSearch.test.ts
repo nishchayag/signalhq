@@ -359,3 +359,20 @@ describe("backfillEmbeddings", () => {
     expect(await AiUsageModel.countDocuments({ feature: "enrich" })).toBe(0);
   });
 });
+
+describe("semantic results carry per-viewer read state", () => {
+  it("adds read for the caller, never readBy", async () => {
+    const { orgId, ownerId } = await createOrg();
+    const read = await msg(orgId, "seen", vec(1, 0));
+    await msg(orgId, "unseen", vec(1, 0.01));
+    await MessageModel.collection.updateOne({ _id: read._id as Id }, { $set: { readBy: [ownerId] } });
+    signIn(ownerId, orgId);
+    const { status, body } = await searchGeneral();
+    expect(status).toBe(200);
+    expect(JSON.stringify(body)).not.toContain("readBy");
+    const byContent = Object.fromEntries(
+      (body.messages as { content: string; read: boolean }[]).map((m) => [m.content, m.read])
+    );
+    expect(byContent).toEqual({ seen: true, unseen: false });
+  });
+});

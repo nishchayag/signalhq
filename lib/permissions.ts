@@ -42,6 +42,18 @@ import type { MembershipRole } from "@/models/membership.model";
  * OWNER/ADMIN only — generating spends org quota, and safety signals are
  * sensitive enough that a MEMBER shouldn't see them even though they can
  * read the message itself.
+ *
+ * `message:triage` (archive/unarchive, set labels, assign/unassign a
+ * message) is OWNER/ADMIN only. Marking read/unread is per-person state, not
+ * triage, so it needs only `message:read`. One exception, enforced in the
+ * triage route rather than here: the member a message is assigned to may
+ * archive/unarchive ("resolve") that message without `message:triage`
+ * (nothing else — no relabel, no reassign). Member private threads get
+ * read-only triage in v1 (read/unread only).
+ *
+ * `org:labels` (creating/renaming/recolouring/deleting the org's triage
+ * labels) and `org:branding` (logo, accent, welcome text on public pages)
+ * are OWNER/ADMIN only — org-wide configuration, like team management.
  */
 export type Permission =
   | "org:rename"
@@ -49,6 +61,8 @@ export type Permission =
   | "org:billing"
   | "org:transferOwnership"
   | "org:viewActivity"
+  | "org:labels"
+  | "org:branding"
   | "member:invite"
   | "member:remove"
   | "member:role"
@@ -63,6 +77,7 @@ export type Permission =
   | "message:read"
   | "message:reply"
   | "message:delete"
+  | "message:triage"
   | "ai:insights"
   | "ai:viewSafety";
 
@@ -73,6 +88,8 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "org:billing",
     "org:transferOwnership",
     "org:viewActivity",
+    "org:labels",
+    "org:branding",
     "member:invite",
     "member:remove",
     "member:role",
@@ -87,11 +104,14 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "message:read",
     "message:reply",
     "message:delete",
+    "message:triage",
     "ai:insights",
     "ai:viewSafety",
   ],
   ADMIN: [
     "org:viewActivity",
+    "org:labels",
+    "org:branding",
     "member:invite",
     "member:remove",
     "member:role",
@@ -106,6 +126,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "message:read",
     "message:reply",
     "message:delete",
+    "message:triage",
     "ai:insights",
     "ai:viewSafety",
   ],

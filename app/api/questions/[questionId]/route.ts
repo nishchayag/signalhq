@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import { loadAndAuthorize } from "@/lib/questionAccess";
 import { parsePagination, paginate } from "@/lib/pagination";
 import { buildMessageListFilter } from "@/lib/messageListQuery";
+import { effectiveReadSince } from "@/lib/readState";
 import { withAiView } from "@/lib/messageView";
 import { scheduleLazySweep } from "@/lib/aiEnrichment";
 import { isSemanticRequest, semanticListResponse } from "@/lib/semanticSearch";
@@ -35,7 +36,11 @@ export async function GET(
       authorType: { $ne: "member" },
     };
     const { searchParams } = new URL(request.url);
-    const viewer = { userId: authz.userId, role: authz.role };
+    const viewer = {
+      userId: authz.userId,
+      role: authz.role,
+      readSince: authz.membership ? effectiveReadSince(authz.membership) : null,
+    };
 
     // Same privacy rule as the list endpoint: a MEMBER must not learn how
     // many colleagues answered an internal question.
@@ -59,7 +64,8 @@ export async function GET(
       }
       return semanticListResponse({
         url: request.url,
-        userId: authz.userId,
+        userId: viewer.userId,
+        readSince: viewer.readSince,
         role: authz.role,
         orgId: authz.question.organizationId,
         filter: buildMessageListFilter({ base, searchParams, viewer, mode: "semantic" }),
@@ -72,7 +78,7 @@ export async function GET(
     const fetched = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(limit + 1)
-      .select("+ai");
+      .select("+ai +readBy");
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
     scheduleLazySweep(authz.question.organizationId);
 
@@ -80,7 +86,10 @@ export async function GET(
       {
         success: true,
         question,
-        messages: withAiView(page, authz.role),
+        messages: withAiView(page, authz.role, {
+          viewerId: viewer.userId,
+          readSince: viewer.readSince,
+        }),
         hasMore,
         nextCursor,
       },

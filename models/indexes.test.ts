@@ -49,3 +49,45 @@ describe("query indexes", () => {
     expect(UserModel.schema.path("messages")).toBeUndefined();
   });
 });
+
+describe("triage indexes (Phase 2)", () => {
+  type IndexInfo = { key: Record<string, unknown>; partialFilterExpression?: unknown; name?: string };
+  async function find(key: Record<string, number>) {
+    await MessageModel.init();
+    const all = (await MessageModel.collection.indexes()) as IndexInfo[];
+    return all.find((i) => JSON.stringify(i.key) === JSON.stringify(key));
+  }
+
+  it("Message has the partial assignee and labels indexes, and none on readBy", async () => {
+    const assignee = await find({ organizationId: 1, assignedTo: 1, createdAt: -1 });
+    expect(assignee?.partialFilterExpression).toEqual({ assignedTo: { $exists: true } });
+    const labels = await find({ organizationId: 1, labels: 1, createdAt: -1 });
+    expect(labels?.partialFilterExpression).toEqual({ labels: { $exists: true } });
+    const all = (await MessageModel.collection.indexes()) as IndexInfo[];
+    expect(all.some((i) => "readBy" in i.key)).toBe(false);
+  });
+
+  it("the planner uses them for assignee=<id> and label=<id> list queries", async () => {
+    await MessageModel.init();
+    const orgId = new mongoose.Types.ObjectId();
+    const who = new mongoose.Types.ObjectId();
+    const label = new mongoose.Types.ObjectId();
+    await MessageModel.create([
+      { content: "a", createdFor: who, organizationId: orgId, assignedTo: who, labels: [label] },
+      { content: "b", createdFor: who, organizationId: orgId },
+    ]);
+    const usedIndex = async (filter: Record<string, unknown>) => {
+      const plan = (await MessageModel.find(filter).sort({ createdAt: -1 }).explain("queryPlanner")) as unknown as {
+        queryPlanner: { winningPlan: unknown };
+      };
+      return JSON.stringify(plan.queryPlanner.winningPlan);
+    };
+    expect(await usedIndex({ organizationId: orgId, assignedTo: who })).toContain(
+      "organizationId_1_assignedTo_1_createdAt_-1"
+    );
+    expect(await usedIndex({ organizationId: orgId, labels: label })).toContain(
+      "organizationId_1_labels_1_createdAt_-1"
+    );
+    expect(await MessageModel.countDocuments({ organizationId: orgId, assignedTo: who })).toBe(1);
+  });
+});

@@ -1,6 +1,7 @@
 import type { MembershipRole } from "@/models/membership.model";
 import type { AiSentiment, AiTag, IMessage } from "@/models/message.model";
 import { can } from "@/lib/permissions";
+import { isReadFor } from "@/lib/readState";
 
 /**
  * The AI fields a client may see on a message. Every member of the org
@@ -15,10 +16,20 @@ export interface MessageAiView {
   piiFlag?: boolean;
 }
 
-/** A message as dashboard routes return it (see withAiView). */
-export type MessageView = Omit<IMessage, "ai" | "embedding" | "embeddingModel"> & {
+/** A message as dashboard routes return it (see withAiView). `readBy` is
+ * never returned; `read` is the viewer's own read state (list routes). */
+export type MessageView = Omit<IMessage, "ai" | "embedding" | "embeddingModel" | "readBy"> & {
   ai?: MessageAiView;
+  read?: boolean;
 };
+
+export interface MessageViewOpts {
+  memberThread?: boolean;
+  /** Adds `read` for this viewer. The docs must be loaded with "+readBy". */
+  viewerId?: string;
+  /** The viewer's effective readSince (lib/readState.ts#effectiveReadSince). */
+  readSince?: Date | null;
+}
 
 type Plain = Record<string, unknown>;
 
@@ -50,20 +61,31 @@ function aiView(ai: unknown, canViewSafety: boolean): MessageAiView | undefined 
  * `memberThread: true` — a member's private thread viewed by its own
  * author — drops `ai` entirely: nobody is shown how their own words were
  * classified.
+ * Always drops `readBy` (who read what is never exposed); with `viewerId`
+ * adds `read: boolean` via lib/readState.ts#isReadFor — the same rule as
+ * the `unread` filter, readSince included.
  */
 export function withAiView<T = MessageView>(
   docs: unknown[],
   role: MembershipRole | null | undefined,
-  { memberThread = false }: { memberThread?: boolean } = {}
+  { memberThread = false, viewerId, readSince }: MessageViewOpts = {}
 ): T[] {
   const canViewSafety = can(role, "ai:viewSafety");
   return docs.map((doc) => {
     const plain = toPlain(doc);
-    const { ai, embedding, embeddingModel, ...rest } = plain;
+    const { ai, embedding, embeddingModel, readBy, ...rest } = plain;
     void embedding;
     void embeddingModel;
+    const out: Plain = rest;
+    if (viewerId) {
+      out.read = isReadFor(
+        { readBy, createdAt: rest.createdAt as Date, lastActivityAt: rest.lastActivityAt as Date },
+        { userId: viewerId, readSince }
+      );
+    }
     const view = memberThread ? undefined : aiView(ai, canViewSafety);
-    return (view ? { ...rest, ai: view } : rest) as T;
+    if (view) out.ai = view;
+    return out as T;
   });
 }
 
@@ -71,7 +93,7 @@ export function withAiView<T = MessageView>(
 export function withAiViewOne<T = MessageView>(
   doc: unknown,
   role: MembershipRole | null | undefined,
-  opts?: { memberThread?: boolean }
+  opts?: MessageViewOpts
 ): T | null {
   if (!doc) return null;
   return withAiView<T>([doc], role, opts)[0];

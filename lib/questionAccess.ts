@@ -2,17 +2,19 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import authOptions from "@/lib/nextAuthOptions";
 import QuestionModel, { IQuestion } from "@/models/question.model";
-import MembershipModel from "@/models/membership.model";
+import MembershipModel, { type IMembership } from "@/models/membership.model";
 import TeamModel from "@/models/team.model";
 import { can, Permission } from "@/lib/permissions";
 import { isValidObjectId } from "@/lib/objectId";
 import type { MembershipRole } from "@/models/membership.model";
 
-// `role` is null for legacy org-less questions (owner-only access, no org role).
+// `role` and `membership` are null for legacy org-less questions (owner-only
+// access, no org role).
 export type AuthzOk = {
   ok: true;
   question: IQuestion;
   role: MembershipRole | null;
+  membership: IMembership | null;
   userId: string;
 };
 export type AuthzFail = { ok: false; response: NextResponse };
@@ -84,8 +86,9 @@ export async function loadAndAuthorize(
   if (!question) return notFound();
 
   let role: MembershipRole | null = null;
+  let membership: IMembership | null = null;
   if (question.organizationId) {
-    const membership = await MembershipModel.findOne({
+    membership = await MembershipModel.findOne({
       organizationId: question.organizationId,
       userId: session.user._id,
     });
@@ -111,5 +114,5 @@ export async function loadAndAuthorize(
     return notFound();
   }
 
-  return { ok: true, question, role, userId: String(session.user._id) };
+  return { ok: true, question, role, membership, userId: String(session.user._id) };
 }

@@ -93,7 +93,24 @@ export interface IMessage extends Document {
   // lib/aiEnrichment.ts. Absent until embedded (the sweep backfills).
   embedding?: unknown;
   embeddingModel?: string;
+  // ---- Triage (Phase 2). Every field reads correctly when missing. ----
+  // Members who have read this message. `select: false`, never returned by
+  // any route: lib/messageView.ts#withAiView strips it and exposes a
+  // per-viewer `read` boolean instead (see lib/readState.ts, which also
+  // applies Membership.readSince). Absent ⇒ read by nobody. No index.
+  readBy?: mongoose.Types.ObjectId[];
+  // Archived ("resolved"); absent/null ⇒ open. `{archivedAt: null}` matches both.
+  archivedAt?: Date | null;
+  archivedBy?: mongoose.Types.ObjectId;
+  // Ids of Organization.labels entries (≤ MESSAGE_MAX_LABELS). Absent ⇒ none.
+  labels?: mongoose.Types.ObjectId[];
+  // Assigned org member; absent/null ⇒ unassigned.
+  assignedTo?: mongoose.Types.ObjectId | null;
+  assignedAt?: Date;
+  assignedBy?: mongoose.Types.ObjectId;
 }
+
+export const MESSAGE_MAX_LABELS = 5;
 
 const messageSchema: Schema<IMessage> = new Schema({
   content: {
@@ -191,6 +208,26 @@ const messageSchema: Schema<IMessage> = new Schema({
   // rewrap it and drop the float32 subtype). Raw driver access only.
   embedding: { type: Schema.Types.Mixed, select: false },
   embeddingModel: { type: String, select: false },
+  // Triage. `default: undefined` on the arrays so untouched messages don't
+  // store empty arrays (and stay out of the labels partial index).
+  readBy: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    default: undefined,
+    select: false,
+  },
+  archivedAt: { type: Date, default: undefined },
+  archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  labels: {
+    type: [{ type: mongoose.Schema.Types.ObjectId }],
+    default: undefined,
+    validate: {
+      validator: (v: unknown[] | undefined) => !v || v.length <= MESSAGE_MAX_LABELS,
+      message: `At most ${MESSAGE_MAX_LABELS} labels`,
+    },
+  },
+  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: undefined },
+  assignedAt: { type: Date },
+  assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 });
 
 // Covers the two hot list queries (general messages: questionId == null;
@@ -209,6 +246,25 @@ messageSchema.index({ createdFor: 1 });
 messageSchema.index(
   { "ai.status": 1, createdAt: 1 },
   { partialFilterExpression: { "ai.status": { $in: ["pending", "processing", "failed"] } } }
+);
+
+// Triage filters ("Assigned to me" / assignee=<id>, label=<id>) within one
+// org, newest first. Partial so the (majority) never-assigned / unlabelled
+// messages cost nothing. `$exists: true`, not `$type: "objectId"`: measured
+// on MongoDB 8.2 (models/indexes.test.ts), the planner doesn't treat
+// `assignedTo: <ObjectId>` as implying `$type`, so a $type-partial index is
+// never even a candidate; an equality match does imply `$exists`. $exists
+// partial filters work on every supported MongoDB incl. Atlas 8.0. So that
+// the index stays "assigned only", unassign should `$unset` assignedTo
+// (null would still be indexed — harmless, just larger). `assignedTo: null`
+// (assignee=none) can't use it and falls back to the org-prefixed indexes.
+messageSchema.index(
+  { organizationId: 1, assignedTo: 1, createdAt: -1 },
+  { partialFilterExpression: { assignedTo: { $exists: true } } }
+);
+messageSchema.index(
+  { organizationId: 1, labels: 1, createdAt: -1 },
+  { partialFilterExpression: { labels: { $exists: true } } }
 );
 
 const Message =

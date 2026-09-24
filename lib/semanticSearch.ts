@@ -190,8 +190,9 @@ async function vectorSearchCandidates(
 
 /**
  * Charge one "search" unit, embed the query, rank scoped messages by cosine
- * similarity and hydrate the top `limit` (with "+ai", in score order — the
- * caller passes them through withAiView). Never returns embeddings.
+ * similarity and hydrate the top `limit` (with "+ai +readBy", in score order
+ * — the caller MUST pass them through withAiView, which strips readBy).
+ * Never returns embeddings.
  */
 export async function semanticSearch({
   filter,
@@ -240,7 +241,7 @@ export async function semanticSearch({
 
   // Re-apply the full scoped filter: the $vectorSearch pre-filter is coarser.
   const docs = await MessageModel.find({ ...filter, _id: { $in: ranked.map((r) => r.id) } }).select(
-    "+ai"
+    "+ai +readBy"
   );
   const byId = new Map(docs.map((d) => [String(d._id), d]));
   const messages = ranked.map((r) => byId.get(String(r.id))).filter(Boolean) as unknown[];
@@ -255,13 +256,15 @@ export function isSemanticRequest(url: string): boolean {
 /**
  * The shared `mode=semantic` handler for getMessages and questions/[id] GET.
  * The caller has already authenticated and authorized (message:read) and
- * built the scoped filter. Returns the list-route body fields
+ * built the scoped filter (lib/messageListQuery.ts, mode "semantic").
+ * `userId` is also the viewer for `read` (with `readSince`). Returns the list-route body fields
  * (`messages`, `hasMore: false`, `nextCursor: null`, `semantic`, `truncated`)
  * or an error response.
  */
 export async function semanticListResponse({
   url,
   userId,
+  readSince = null,
   role,
   orgId,
   filter,
@@ -269,6 +272,7 @@ export async function semanticListResponse({
 }: {
   url: string;
   userId: string;
+  readSince?: Date | null;
   role: MembershipRole | null;
   orgId: string | mongoose.Types.ObjectId | null | undefined;
   filter: Record<string, unknown>;
@@ -337,7 +341,7 @@ export async function semanticListResponse({
   return NextResponse.json({
     success: true,
     ...extra,
-    messages: withAiView(result.messages, role),
+    messages: withAiView(result.messages, role, { viewerId: userId, readSince }),
     hasMore: false,
     nextCursor: null,
     semantic: true,
