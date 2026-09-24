@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import connectDB from "@/lib/connectDB";
-import MessageModel from "@/models/message.model";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { MessageSquare, Reply } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Metadata } from "next";
 import { generateMetadata as createMetadata } from "@/lib/metadata";
-import { threadOf, type ThreadSource } from "@/lib/thread";
+import { threadOf } from "@/lib/thread";
+import { loadReceipt } from "@/lib/receipt";
 
 // The token in this URL is the sender's only credential: never index it, and
 // never leak it to other sites through the Referer header.
@@ -26,10 +26,8 @@ export default async function ReplyReceiptPage({ params }: PageProps) {
   await connectDB();
 
   // Thread fields only — never "+ai" or the embedding.
-  const message = await MessageModel.findOne({ replyToken })
-    .select("content createdAt reply replies authorType")
-    .lean<ThreadSource>();
-  if (!message || message.authorType === "member") notFound();
+  const message = await loadReceipt(replyToken);
+  if (!message) notFound();
   const [first, ...rest] = threadOf(message);
 
   return (
