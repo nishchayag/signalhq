@@ -250,6 +250,77 @@ export async function enrichPending({
   return result;
 }
 
+export const BACKFILL_BATCH = 16;
+
+export interface BackfillResult {
+  candidates: number;
+  embedded: number;
+  deferred: boolean;
+}
+
+/**
+ * Embed already-enriched messages that have no embedding (the enrich run's
+ * embed call failed or ran out of time), newest first — semantic search
+ * ranks recent messages. One aiEmbed call of at most BACKFILL_BATCH texts.
+ * Not charged to the org: the enrich unit already paid for the embedding.
+ * Still counts against the deployment-wide cap. Never throws.
+ */
+export async function backfillEmbeddings({
+  orgId,
+  limit = BACKFILL_BATCH,
+  deadline,
+}: {
+  orgId?: Id;
+  limit?: number;
+  deadline: number;
+}): Promise<BackfillResult> {
+  const result: BackfillResult = { candidates: 0, embedded: 0, deferred: false };
+  if (!isAiEnabled()) return result;
+  try {
+    const timeoutMs = Math.min(EMBED_TIMEOUT_MS, deadline - Date.now() - DEADLINE_SLACK_MS);
+    if (timeoutMs < 1000) return result;
+    const filter: Record<string, unknown> = {
+      "ai.status": "done",
+      embedding: { $exists: false },
+    };
+    if (orgId) filter.organizationId = new mongoose.Types.ObjectId(String(orgId));
+    const docs = await MessageModel.collection
+      .find(filter, { projection: { content: 1 } })
+      .sort({ createdAt: -1 })
+      .limit(Math.min(limit, BACKFILL_BATCH))
+      .toArray();
+    result.candidates = docs.length;
+    if (docs.length === 0) return result;
+
+    if (!(await checkGlobalAiCap())) {
+      result.deferred = true;
+      return result;
+    }
+    const vectors = await aiEmbed(
+      docs.map((d) => String(d.content ?? "").slice(0, MAX_CONTENT_CHARS)),
+      timeoutMs
+    );
+    for (let i = 0; i < docs.length; i++) {
+      const v = vectors[i];
+      if (!v || v.length === 0) continue;
+      // Conditional so a concurrent enrich/backfill that got there first wins.
+      const res = await MessageModel.collection.updateOne(
+        { _id: docs[i]._id, embedding: { $exists: false } },
+        {
+          $set: {
+            embedding: mongoose.mongo.Binary.fromFloat32Array(v),
+            embeddingModel: MODELS.embed,
+          },
+        }
+      );
+      if (res.modifiedCount > 0) result.embedded++;
+    }
+  } catch (err) {
+    logAiError("enrich", err);
+  }
+  return result;
+}
+
 export const LAZY_SWEEP_INTERVAL_MS = 2 * 60 * 1000;
 const LAZY_SWEEP_LIMIT = 10;
 const LAZY_SWEEP_BUDGET_MS = 25_000;
@@ -265,6 +336,8 @@ export function scheduleLazySweep(orgId: Id | null | undefined): void {
   runAfter(async () => {
     const allowed = await checkRateLimit(`enrichSweep:${String(orgId)}`, 1, LAZY_SWEEP_INTERVAL_MS);
     if (!allowed) return;
-    await enrichPending({ orgId, limit: LAZY_SWEEP_LIMIT, deadline: Date.now() + LAZY_SWEEP_BUDGET_MS });
+    const deadline = Date.now() + LAZY_SWEEP_BUDGET_MS;
+    await enrichPending({ orgId, limit: LAZY_SWEEP_LIMIT, deadline });
+    await backfillEmbeddings({ orgId, deadline });
   });
 }

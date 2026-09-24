@@ -9,6 +9,7 @@ import { loadAndAuthorize } from "@/lib/questionAccess";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
 import { withAiView } from "@/lib/messageView";
 import { scheduleLazySweep } from "@/lib/aiEnrichment";
+import { isSemanticRequest, semanticListResponse } from "@/lib/semanticSearch";
 
 // Room for the post-response lazy enrichment sweep (runAfter) on Vercel.
 export const maxDuration = 30;
@@ -23,8 +24,6 @@ export async function GET(
     const authz = await loadAndAuthorize(questionId);
     if (!authz.ok) return authz.response;
 
-    const { limit, before } = parsePagination(request);
-    const search = parseSearchQuery(request);
     const filter: Record<string, unknown> = {
       questionId,
       // Member-authored private threads (internal questions) are never
@@ -34,15 +33,6 @@ export async function GET(
       // enforce per-member thread privacy.
       authorType: { $ne: "member" },
     };
-    if (before) filter.createdAt = { $lt: before };
-    if (search) filter.content = { $regex: search, $options: "i" };
-
-    const fetched = await MessageModel.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit + 1)
-      .select("+ai");
-    const { page, hasMore, nextCursor } = paginate(fetched, limit);
-    scheduleLazySweep(authz.question.organizationId);
 
     // Same privacy rule as the list endpoint: a MEMBER must not learn how
     // many colleagues answered an internal question.
@@ -54,6 +44,37 @@ export async function GET(
     ) {
       delete question.responseCount;
     }
+
+    // ?mode=semantic&q=… — ranked by meaning, no pagination (see
+    // lib/semanticSearch.ts). Same scoped filter as the regex path.
+    if (isSemanticRequest(request.url)) {
+      if (!can(authz.role, "message:read")) {
+        return NextResponse.json(
+          { success: false, message: "Insufficient permissions" },
+          { status: 403 }
+        );
+      }
+      return semanticListResponse({
+        url: request.url,
+        userId: authz.userId,
+        role: authz.role,
+        orgId: authz.question.organizationId,
+        filter,
+        extra: { question },
+      });
+    }
+
+    const { limit, before } = parsePagination(request);
+    const search = parseSearchQuery(request);
+    if (before) filter.createdAt = { $lt: before };
+    if (search) filter.content = { $regex: search, $options: "i" };
+
+    const fetched = await MessageModel.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1)
+      .select("+ai");
+    const { page, hasMore, nextCursor } = paginate(fetched, limit);
+    scheduleLazySweep(authz.question.organizationId);
 
     return NextResponse.json(
       {

@@ -6,7 +6,7 @@ import {
   sweepExpiredUnverifiedUsers,
   sweepOrphans,
 } from "@/lib/orgCleanup";
-import { enrichPending } from "@/lib/aiEnrichment";
+import { backfillEmbeddings, enrichPending } from "@/lib/aiEnrichment";
 
 // Step deadlines, measured from the start of the run and kept under
 // maxDuration (60s) with room to respond. Digests stop starting new users at
@@ -60,6 +60,9 @@ export async function GET(request: NextRequest) {
   const aiEnrichment = await step("aiEnrichment", () =>
     enrichPending({ limit: 25, deadline: start + AI_STEP_DEADLINE_MS })
   );
+  const embeddingBackfill = await step("embeddingBackfill", () =>
+    backfillEmbeddings({ deadline: start + AI_STEP_DEADLINE_MS })
+  );
 
   return NextResponse.json({
     success: true,
@@ -68,5 +71,6 @@ export async function GET(request: NextRequest) {
     orphans,
     invitationsExpired,
     aiEnrichment,
+    embeddingBackfill,
   });
 }

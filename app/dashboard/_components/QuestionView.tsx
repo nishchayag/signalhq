@@ -18,6 +18,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import MessageCard from "@/components/MessageCard";
+import SemanticSearchToggle, {
+  SemanticSearchNotes,
+  semanticSearchOffered,
+} from "@/components/SemanticSearchToggle";
 import InsightsPanel from "@/components/InsightsPanel";
 import Loader from "@/components/Loader";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
@@ -221,14 +225,20 @@ function InternalQuestionView({ d, question }: { d: DashboardData; question: IQu
 function PublicQuestionView({ d, question }: { d: DashboardData; question: IQuestion }) {
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={d.messagesSearch}
-          onChange={(e) => d.handleMessagesSearchChange(e.target.value)}
-          placeholder="Search responses..."
-          className="pl-9"
-        />
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={d.messagesSearch}
+              onChange={(e) => d.handleMessagesSearchChange(e.target.value)}
+              placeholder={d.messagesSemantic && semanticSearchOffered(d.ai) ? "Search by meaning..." : "Search responses..."}
+              className="pl-9"
+            />
+          </div>
+          <SemanticSearchToggle ai={d.ai} on={d.messagesSemantic} onChange={d.setMessagesSemantic} />
+        </div>
+        <SemanticSearchNotes ai={d.ai} active={d.messagesSemanticActive} truncated={d.messagesTruncated} />
       </div>
 
       {d.messagesLoading ? (
@@ -268,7 +278,7 @@ function PublicQuestionView({ d, question }: { d: DashboardData; question: IQues
             />
           )}
 
-          {d.messagesHasMore && (
+          {d.messagesHasMore && !d.messagesSemanticActive && (
             <LoadMoreButton onClick={d.loadMoreQuestionMessages} loading={d.messagesLoadingMore} />
           )}
         </>

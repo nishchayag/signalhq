@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
 import { withAiView } from "@/lib/messageView";
 import { scheduleLazySweep } from "@/lib/aiEnrichment";
+import { isSemanticRequest, semanticListResponse } from "@/lib/semanticSearch";
 
 // Room for the post-response lazy enrichment sweep (runAfter) on Vercel.
 export const maxDuration = 30;
@@ -40,12 +41,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { limit, before } = parsePagination(request);
-    const search = parseSearchQuery(request);
     const filter: Record<string, unknown> = {
       organizationId: ctx.organizationId,
       questionId: null,
     };
+
+    // ?mode=semantic&q=… — ranked by meaning, no pagination (see
+    // lib/semanticSearch.ts). Same scoped filter as the regex path.
+    if (isSemanticRequest(request.url)) {
+      return semanticListResponse({
+        url: request.url,
+        userId: String(ctx.membership.userId),
+        role: ctx.role,
+        orgId: ctx.organizationId,
+        filter,
+      });
+    }
+
+    const { limit, before } = parsePagination(request);
+    const search = parseSearchQuery(request);
     if (before) filter.createdAt = { $lt: before };
     if (search) filter.content = { $regex: search, $options: "i" };
 

@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import MessageCard from "@/components/MessageCard";
+import SemanticSearchToggle, {
+  SemanticSearchNotes,
+  semanticSearchOffered,
+} from "@/components/SemanticSearchToggle";
 import InsightsPanel from "@/components/InsightsPanel";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -62,14 +66,20 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
 
       <InsightsPanel key={d.orgId} ai={d.ai} refreshAi={d.refreshAi} />
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={d.generalSearch}
-          onChange={(e) => d.handleGeneralSearchChange(e.target.value)}
-          placeholder="Search messages..."
-          className="pl-9"
-        />
+      <div className="mb-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={d.generalSearch}
+              onChange={(e) => d.handleGeneralSearchChange(e.target.value)}
+              placeholder={d.generalSemantic && semanticSearchOffered(d.ai) ? "Search by meaning..." : "Search messages..."}
+              className="pl-9"
+            />
+          </div>
+          <SemanticSearchToggle ai={d.ai} on={d.generalSemantic} onChange={d.setGeneralSemantic} />
+        </div>
+        <SemanticSearchNotes ai={d.ai} active={d.generalSemanticActive} truncated={d.generalTruncated} />
       </div>
 
       <div className="space-y-4">
@@ -102,7 +112,7 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
           />
         )}
 
-        {d.generalHasMore && (
+        {d.generalHasMore && !d.generalSemanticActive && (
           <LoadMoreButton onClick={d.loadMoreGeneralMessages} loading={d.generalLoadingMore} />
         )}
       </div>

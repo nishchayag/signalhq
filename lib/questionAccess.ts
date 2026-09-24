@@ -9,7 +9,12 @@ import { isValidObjectId } from "@/lib/objectId";
 import type { MembershipRole } from "@/models/membership.model";
 
 // `role` is null for legacy org-less questions (owner-only access, no org role).
-export type AuthzOk = { ok: true; question: IQuestion; role: MembershipRole | null };
+export type AuthzOk = {
+  ok: true;
+  question: IQuestion;
+  role: MembershipRole | null;
+  userId: string;
+};
 export type AuthzFail = { ok: false; response: NextResponse };
 
 function notFound(message = "Question not found"): AuthzFail {
@@ -106,5 +111,5 @@ export async function loadAndAuthorize(
     return notFound();
   }
 
-  return { ok: true, question, role };
+  return { ok: true, question, role, userId: String(session.user._id) };
 }

@@ -41,6 +41,12 @@ export interface ThreadSummary {
 
 export type DashboardView = "general" | "question";
 
+/** Semantic mode only kicks in once the query is long enough (server min 3). */
+export const SEMANTIC_MIN_QUERY = 3;
+function isSemanticQuery(on: boolean, search?: string): boolean {
+  return on && (search ?? "").trim().length >= SEMANTIC_MIN_QUERY;
+}
+
 /**
  * All dashboard state and data-fetching, shared by the sidebar (desktop
  * aside and the mobile sheet) and the main views. Kept in one hook because
@@ -67,6 +73,14 @@ export function useDashboardData() {
   const [messagesSearch, setMessagesSearch] = useState("");
   const generalSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Semantic ("by meaning") search toggles, one per list. Refs mirror them
+  // so debounced fetches read the current value, not a stale closure.
+  const [generalSemantic, setGeneralSemanticState] = useState(false);
+  const [messagesSemantic, setMessagesSemanticState] = useState(false);
+  const generalSemanticRef = useRef(false);
+  const messagesSemanticRef = useRef(false);
+  const [generalTruncated, setGeneralTruncated] = useState(false);
+  const [messagesTruncated, setMessagesTruncated] = useState(false);
   const [view, setView] = useState<DashboardView>("general");
   const [refreshingQuestionId, setRefreshingQuestionId] = useState<string | null>(null);
   const [teams, setTeams] = useState<{ _id: string; name: string }[]>([]);
@@ -148,9 +162,10 @@ export function useDashboardData() {
   const fetchGeneralMessages = async (search?: string) => {
     const req = ++generalReq.current;
     setGeneralError(null);
+    const semantic = isSemanticQuery(generalSemanticRef.current, search);
     try {
       const response = await axios.get("/api/getMessages", {
-        params: { q: search || undefined },
+        params: { q: search || undefined, mode: semantic ? "semantic" : undefined },
       });
       if (req !== generalReq.current) return;
       if (response.data.success) {
@@ -158,12 +173,22 @@ export function useDashboardData() {
         setGeneralMessages(response.data.messages);
         setGeneralHasMore(response.data.hasMore);
         setGeneralCursor(response.data.nextCursor);
+        setGeneralTruncated(Boolean(response.data.truncated));
       }
     } catch (error) {
       if (req !== generalReq.current) return;
       console.error("Error fetching general messages:", error);
       setGeneralError(apiError(error, "Couldn't load messages"));
+    } finally {
+      if (semantic) fetchAi();
     }
+  };
+
+  const setGeneralSemantic = (on: boolean) => {
+    generalSemanticRef.current = on;
+    setGeneralSemanticState(on);
+    if (generalSearchTimer.current) clearTimeout(generalSearchTimer.current);
+    fetchGeneralMessages(generalSearch);
   };
 
   const handleGeneralSearchChange = (value: string) => {
@@ -214,6 +239,11 @@ export function useDashboardData() {
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (orgKey) {
+      // A new org may not offer semantic search; start every org in regex mode.
+      generalSemanticRef.current = false;
+      messagesSemanticRef.current = false;
+      setGeneralSemanticState(false);
+      setMessagesSemanticState(false);
       fetchQuestions();
       fetchGeneralMessages();
       fetchTeams();
@@ -228,9 +258,10 @@ export function useDashboardData() {
     const req = ++questionReq.current;
     setMessagesLoading(true);
     setQuestionError(null);
+    const semantic = isSemanticQuery(messagesSemanticRef.current, search);
     try {
       const response = await axios.get(`/api/questions/${questionId}`, {
-        params: { q: search || undefined },
+        params: { q: search || undefined, mode: semantic ? "semantic" : undefined },
       });
       if (req !== questionReq.current) return; // superseded — don't touch the view
       if (response.data.success) {
@@ -238,6 +269,7 @@ export function useDashboardData() {
         setSelectedQuestion(response.data.question);
         setMessagesHasMore(response.data.hasMore);
         setMessagesCursor(response.data.nextCursor);
+        setMessagesTruncated(Boolean(response.data.truncated));
       }
     } catch (error) {
       if (req !== questionReq.current) return;
@@ -245,7 +277,16 @@ export function useDashboardData() {
       setQuestionError(apiError(error, "Couldn't load responses"));
     } finally {
       if (req === questionReq.current) setMessagesLoading(false);
+      if (semantic) fetchAi();
     }
+  };
+
+  const setMessagesSemantic = (on: boolean) => {
+    messagesSemanticRef.current = on;
+    setMessagesSemanticState(on);
+    if (!selectedQuestion) return;
+    if (messagesSearchTimer.current) clearTimeout(messagesSearchTimer.current);
+    fetchQuestionMessages(selectedQuestion._id, messagesSearch);
   };
 
   const handleMessagesSearchChange = (value: string) => {
@@ -334,6 +375,7 @@ export function useDashboardData() {
     setMyThread(null);
     setAnswerDraft("");
     setMessagesSearch("");
+    setMessagesTruncated(false);
     if (question.visibility === "internal") {
       fetchInternalQuestionData(question._id, can(role, "question:viewAllReplies"));
     } else {
@@ -445,8 +487,10 @@ export function useDashboardData() {
         toast.success("Question refreshed");
         return;
       }
+      const refreshSearch = (isSelected && messagesSearch) || undefined;
+      const semantic = isSelected && isSemanticQuery(messagesSemanticRef.current, refreshSearch);
       const response = await axios.get(`/api/questions/${questionId}`, {
-        params: { q: (isSelected && messagesSearch) || undefined },
+        params: { q: refreshSearch, mode: semantic ? "semantic" : undefined },
       });
       if (response.data.success) {
         setQuestions((prev) =>
@@ -460,6 +504,7 @@ export function useDashboardData() {
           setMessages(response.data.messages);
           setMessagesHasMore(response.data.hasMore);
           setMessagesCursor(response.data.nextCursor);
+          setMessagesTruncated(Boolean(response.data.truncated));
         }
         toast.success("Question refreshed successfully");
       }
@@ -516,6 +561,14 @@ export function useDashboardData() {
     editingQuestion,
     setEditingQuestion,
     handleQuestionUpdated,
+    generalSemantic,
+    setGeneralSemantic,
+    generalTruncated,
+    generalSemanticActive: isSemanticQuery(generalSemantic, generalSearch),
+    messagesSemantic,
+    setMessagesSemantic,
+    messagesTruncated,
+    messagesSemanticActive: isSemanticQuery(messagesSemantic, messagesSearch),
     generalMessages,
     generalHasMore,
     generalLoadingMore,
