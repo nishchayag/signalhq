@@ -21,6 +21,8 @@ interface QuestionData {
   description?: string;
   slug: string;
   username: string;
+  /** Offer the AI anonymity check (POST /api/guard)? AI on + org has guard quota. */
+  guardAvailable?: boolean;
 }
 
 /**

@@ -13,7 +13,14 @@ import { enterToSend, enterToSendHint } from "@/lib/enterToSend";
 type FormData = { content: string };
 
 // Anonymous general-feedback form for an organization's public page.
-export default function OrgFeedbackForm({ orgSlug }: { orgSlug: string }) {
+// `guardAvailable` (from the page) says whether to offer the AI anonymity
+// check (POST /api/guard) — AI configured and the org has guard quota left.
+export default function OrgFeedbackForm({
+  orgSlug,
+}: {
+  orgSlug: string;
+  guardAvailable?: boolean;
+}) {
   const [submitting, setSubmitting] = useState(false);
   const [replyToken, setReplyToken] = useState<string | null>(null);
   const { register, handleSubmit, reset } = useForm<FormData>({

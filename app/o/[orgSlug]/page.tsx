@@ -6,6 +6,7 @@ import { generateMetadata as createMetadata } from "@/lib/metadata";
 import { getPublicOrg } from "@/lib/publicLookups";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import OrgFeedbackForm from "@/components/OrgFeedbackForm";
+import { isGuardOffered } from "@/lib/aiQuota";
 
 interface PageProps {
   params: Promise<{ orgSlug: string }>;
@@ -30,6 +31,9 @@ export default async function OrgPublicPage({ params }: PageProps) {
   const { orgSlug } = await params;
   const organization = await getPublicOrg(orgSlug);
   if (!organization) notFound();
+
+  // Whether to offer the anonymity guard — a boolean only, never quota numbers.
+  const guardAvailable = await isGuardOffered(organization._id);
 
   const questions = await QuestionModel.find({
     organizationId: organization._id,
@@ -65,7 +69,7 @@ export default async function OrgPublicPage({ params }: PageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <OrgFeedbackForm orgSlug={organization.slug} />
+            <OrgFeedbackForm orgSlug={organization.slug} guardAvailable={guardAvailable} />
           </CardContent>
         </Card>
 

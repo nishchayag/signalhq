@@ -11,6 +11,7 @@ import { notifyNewMessage } from "@/lib/notifications";
 import { isAiEnabled } from "@/lib/ai";
 import { runAfter } from "@/lib/background";
 import { enrichMessage } from "@/lib/aiEnrichment";
+import { isGuardOffered } from "@/lib/aiQuota";
 
 // Room for the post-response AI enrichment (runAfter) on Vercel.
 export const maxDuration = 30;
@@ -34,7 +35,7 @@ export async function GET(
       visibility: { $ne: "internal" },
     })
       .populate("userId", "username")
-      .select("questionText description slug userId");
+      .select("questionText description slug userId organizationId");
 
     if (!question) {
       return NextResponse.json(
@@ -50,6 +51,13 @@ export async function GET(
       slug: string;
     };
 
+    // Whether the form should offer the AI anonymity guard. A boolean only —
+    // quota numbers never reach this public endpoint. Legacy questions with
+    // no org can't be guarded (the guard meters per org).
+    const guardAvailable = question.organizationId
+      ? await isGuardOffered(question.organizationId)
+      : false;
+
     return NextResponse.json(
       {
         success: true,
@@ -58,6 +66,7 @@ export async function GET(
           description: question.description,
           slug: question.slug,
           username: populatedQuestion.userId.username,
+          guardAvailable,
         },
       },
       { status: 200 }

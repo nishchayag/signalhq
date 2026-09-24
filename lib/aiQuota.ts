@@ -3,6 +3,7 @@ import AiUsageModel, { AI_FEATURES, type AiFeature } from "@/models/aiUsage.mode
 import OrganizationModel from "@/models/organization.model";
 import { PLAN_LIMITS, type Plan } from "@/lib/plans";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { isAiEnabled } from "@/lib/ai";
 
 export type { AiFeature };
 
@@ -151,6 +152,16 @@ export async function guardAvailable(
     .select("count")
     .lean();
   return (doc?.count ?? 0) < limit;
+}
+
+/**
+ * The public `guardAvailable` flag the /o pages and the public question GET
+ * hand to their forms: AI is configured and the org still has guard quota.
+ * A plain boolean on purpose — public surfaces never see usage numbers.
+ */
+export async function isGuardOffered(orgId: Id): Promise<boolean> {
+  if (!isAiEnabled()) return false;
+  return guardAvailable(orgId, await getOrgPlan(orgId));
 }
 
 /**
