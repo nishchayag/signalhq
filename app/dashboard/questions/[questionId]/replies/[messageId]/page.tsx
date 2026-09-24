@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import { PageLoader } from "@/components/Loader";
+import AiDraftButton from "@/components/AiDraftButton";
+import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
 
 interface ThreadEntry {
   _id?: string;
@@ -35,6 +37,22 @@ export default function ThreadPage() {
   const [thread, setThread] = useState<ThreadMessage | null>(null);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [ai, setAi] = useState<AiStatus | null>(null);
+
+  const fetchAi = useCallback(async () => {
+    const orgId = session?.user?.activeOrgId;
+    if (!orgId) return;
+    try {
+      const res = await axios.get(`/api/organizations/${orgId}/ai`);
+      setAi(res.data as AiStatus);
+    } catch (error) {
+      console.error("Error fetching AI status:", error);
+      setAi({
+        enabled: false,
+        can: { suggest: false, insights: false, draft: false, viewSafety: false, search: false },
+      });
+    }
+  }, [session?.user?.activeOrgId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +76,11 @@ export default function ThreadPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAi();
+  }, [fetchAi]);
 
   const isThreadOwner =
     !!thread && !!session?.user?._id && thread.authorUserId === session.user._id;
@@ -156,6 +179,15 @@ export default function ThreadPage() {
         </div>
 
         <div className="mt-6 space-y-3">
+          {!isThreadOwner && (
+            <AiDraftButton
+              messageId={params.messageId}
+              currentText={reply}
+              onDraft={setReply}
+              ai={ai}
+              refreshAi={fetchAi}
+            />
+          )}
           <Textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}

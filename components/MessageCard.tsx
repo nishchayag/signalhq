@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   questionResponseSchema,
@@ -23,6 +23,8 @@ import type { MessageView, MessageAiView } from "@/lib/messageView";
 import { toast } from "sonner";
 import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
+import AiDraftButton from "@/components/AiDraftButton";
+import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
 
 // Messages at or above this toxicity render collapsed. Only OWNER/ADMIN
 // responses carry `toxicity`/`piiFlag` (lib/messageView.ts), so MEMBERs never
@@ -73,6 +75,9 @@ type MessageCardProps = {
     messageId: string,
     reply: { content: string; repliedAt: string }
   ) => void;
+  /** AI status for the active org — undefined/null hides the draft control. */
+  ai?: AiStatus | null;
+  refreshAi?: () => void;
 };
 
 const MessageCard = ({
@@ -81,6 +86,8 @@ const MessageCard = ({
   canReply,
   canDelete,
   onReplySaved,
+  ai,
+  refreshAi,
 }: MessageCardProps) => {
   const confirm = useConfirm();
   const [replyOpen, setReplyOpen] = React.useState(false);
@@ -94,10 +101,13 @@ const MessageCard = ({
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
+    control,
   } = useForm<QuestionResponseRequest>({
     resolver: zodResolver(questionResponseSchema),
     defaultValues: { content: message.reply?.content ?? "" },
   });
+  const draftText = useWatch({ control, name: "content" });
 
   // Runs inside the shared confirm dialog, which stays open with a spinner
   // until the delete settles and shows the server's reason if it fails.
@@ -251,6 +261,15 @@ const MessageCard = ({
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmitReply)} className="space-y-4">
+            {ai && (
+              <AiDraftButton
+                messageId={message._id as string}
+                currentText={draftText ?? ""}
+                onDraft={(text) => setValue("content", text, { shouldValidate: true })}
+                ai={ai}
+                refreshAi={refreshAi ?? (() => {})}
+              />
+            )}
             <div className="space-y-2">
               <Textarea
                 {...register("content")}

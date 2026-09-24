@@ -81,6 +81,8 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
             canReply={d.canReply}
             canDelete={d.canDelete}
             onReplySaved={d.handleReplySaved}
+            ai={d.ai}
+            refreshAi={d.refreshAi}
           />
         ))}
 

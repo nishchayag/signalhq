@@ -247,6 +247,8 @@ function PublicQuestionView({ d, question }: { d: DashboardData; question: IQues
               canReply={d.canReply}
               canDelete={d.canDelete}
               onReplySaved={d.handleReplySaved}
+              ai={d.ai}
+              refreshAi={d.refreshAi}
             />
           ))}
 
