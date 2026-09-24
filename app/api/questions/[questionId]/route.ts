@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
+import AiInsightModel from "@/models/aiInsight.model";
 import { updateQuestionSchema } from "@/schemas/questionSchema";
 import { can } from "@/lib/permissions";
 import { loadAndAuthorize } from "@/lib/questionAccess";
@@ -163,6 +164,7 @@ export async function DELETE(
     if (!authz.ok) return authz.response;
 
     const deletedMessages = await MessageModel.deleteMany({ questionId });
+    await AiInsightModel.deleteOne({ scope: "question", questionId });
     await QuestionModel.findByIdAndDelete(questionId);
 
     return NextResponse.json(

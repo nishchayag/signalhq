@@ -3,6 +3,7 @@ import connectDB from "@/lib/connectDB";
 import authOptions from "@/lib/nextAuthOptions";
 import messageModel from "@/models/message.model";
 import QuestionModel from "@/models/question.model";
+import AiInsightModel from "@/models/aiInsight.model";
 import { getServerSession } from "next-auth";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { isValidObjectId } from "@/lib/objectId";
@@ -70,6 +71,17 @@ export async function POST(request: NextRequest) {
     if (message.questionId) {
       await QuestionModel.findByIdAndUpdate(message.questionId, {
         $inc: { responseCount: -1 },
+      });
+    }
+
+    // A cached insight may have quoted this message verbatim — simplest
+    // correct approach is to drop the whole summary for its scope rather
+    // than try to patch just the affected quote/count.
+    if (message.organizationId) {
+      await AiInsightModel.deleteOne({
+        organizationId: message.organizationId,
+        scope: message.questionId ? "question" : "general",
+        questionId: message.questionId ?? null,
       });
     }
 

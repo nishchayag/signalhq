@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import MessageCard from "@/components/MessageCard";
+import InsightsPanel from "@/components/InsightsPanel";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import LoadMoreButton from "./LoadMoreButton";
@@ -58,6 +59,8 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
           </div>
         </CardContent>
       </Card>
+
+      <InsightsPanel key={d.orgId} ai={d.ai} refreshAi={d.refreshAi} />
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

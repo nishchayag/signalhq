@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import MessageCard from "@/components/MessageCard";
+import InsightsPanel from "@/components/InsightsPanel";
 import Loader from "@/components/Loader";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import type { IQuestion } from "@/models/question.model";
@@ -52,6 +53,8 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
           </div>
         )}
       </div>
+
+      <InsightsPanel key={question._id} questionId={question._id} ai={d.ai} refreshAi={d.refreshAi} />
 
       {question.visibility === "internal" ? (
         <InternalQuestionView d={d} question={question} />
