@@ -35,6 +35,12 @@ import type { MembershipRole } from "@/models/membership.model";
  *
  * `org:viewActivity` (the audit log of role changes, member removals, org
  * renames/deletion, etc.) is OWNER/ADMIN only, same tier as member management.
+ *
+ * `ai:insights` (generating/viewing AI question & general insights) and
+ * `ai:viewSafety` (seeing a message's toxicity/PII AI fields, vs. just tags
+ * and sentiment) are OWNER/ADMIN only — insights summarize feedback for
+ * organizational decisions, and safety signals are sensitive enough that a
+ * MEMBER shouldn't see them even though they can read the message itself.
  */
 export type Permission =
   | "org:rename"
@@ -55,7 +61,9 @@ export type Permission =
   | "question:viewAllReplies"
   | "message:read"
   | "message:reply"
-  | "message:delete";
+  | "message:delete"
+  | "ai:insights"
+  | "ai:viewSafety";
 
 const MATRIX: Record<MembershipRole, Permission[]> = {
   OWNER: [
@@ -78,6 +86,8 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "message:read",
     "message:reply",
     "message:delete",
+    "ai:insights",
+    "ai:viewSafety",
   ],
   ADMIN: [
     "org:viewActivity",
@@ -95,6 +105,8 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "message:read",
     "message:reply",
     "message:delete",
+    "ai:insights",
+    "ai:viewSafety",
   ],
   MEMBER: ["question:create", "question:answer", "message:read"],
 };

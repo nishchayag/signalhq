@@ -10,6 +10,20 @@ import type { MembershipRole } from "@/models/membership.model";
 import { can } from "@/lib/permissions";
 import { apiError } from "@/lib/apiError";
 import { useConfirm } from "@/components/ConfirmProvider";
+import type { AiFeature } from "@/models/aiUsage.model";
+
+export interface AiStatus {
+  enabled: boolean;
+  usage?: Record<AiFeature, { used: number; limit: number | null }>;
+  resetsAt?: string;
+  can: {
+    suggest: boolean;
+    insights: boolean;
+    draft: boolean;
+    viewSafety: boolean;
+    search: boolean;
+  };
+}
 
 export interface ThreadEntry {
   authorRole: "member" | "org";
@@ -71,6 +85,12 @@ export function useDashboardData() {
   // Sticky "this org has received general feedback" — set from unsearched
   // loads only, so typing a search that matches nothing can't flip it back.
   const [hadGeneralMessages, setHadGeneralMessages] = useState(false);
+  // AI status for the active org: enabled flag, this month's usage, and
+  // which AI controls this role may use. null while loading (or before an
+  // org is active) so callers can distinguish "not fetched yet" from
+  // "fetched, disabled". A fetch failure is treated as disabled rather than
+  // surfacing an error state — AI is an enhancement, not core functionality.
+  const [ai, setAi] = useState<AiStatus | null>(null);
 
   // Monotonic request ids: a response is applied only if no newer request of
   // the same kind (or a view switch) happened meanwhile. Without this, a slow
@@ -92,6 +112,21 @@ export function useDashboardData() {
     } catch (error) {
       console.error("Error fetching teams:", error);
       setTeamsError(apiError(error, "Couldn't load teams"));
+    }
+  };
+
+  const fetchAi = async () => {
+    const orgId = session?.user?.activeOrgId;
+    if (!orgId) return;
+    try {
+      const res = await axios.get(`/api/organizations/${orgId}/ai`);
+      setAi(res.data as AiStatus);
+    } catch (error) {
+      console.error("Error fetching AI status:", error);
+      setAi({
+        enabled: false,
+        can: { suggest: false, insights: false, draft: false, viewSafety: false, search: false },
+      });
     }
   };
 
@@ -182,6 +217,8 @@ export function useDashboardData() {
       fetchQuestions();
       fetchGeneralMessages();
       fetchTeams();
+      setAi(null);
+      fetchAi();
     }
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -460,6 +497,9 @@ export function useDashboardData() {
     canDelete: can(role, "message:delete"),
     canUpdateQuestions: can(role, "question:update"),
     canDeleteQuestions: can(role, "question:delete"),
+    // AI
+    ai,
+    refreshAi: fetchAi,
     // state
     loading,
     view,

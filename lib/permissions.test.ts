@@ -22,6 +22,8 @@ const ALL_PERMISSIONS: Permission[] = [
   "message:read",
   "message:reply",
   "message:delete",
+  "ai:insights",
+  "ai:viewSafety",
 ];
 
 // Ground truth mirrored from lib/permissions.ts's MATRIX, kept independent
@@ -44,6 +46,8 @@ const GRANTED: Record<MembershipRole, Set<Permission>> = {
     "message:read",
     "message:reply",
     "message:delete",
+    "ai:insights",
+    "ai:viewSafety",
   ]),
   MEMBER: new Set(["question:create", "question:answer", "message:read"]),
 };
@@ -66,6 +70,14 @@ describe("can", () => {
       "org:transferOwnership",
     ] as Permission[]) {
       expect(can("ADMIN", permission)).toBe(false);
+      expect(can("MEMBER", permission)).toBe(false);
+    }
+  });
+
+  it("ai:insights and ai:viewSafety are OWNER/ADMIN only, denied to MEMBER", () => {
+    for (const permission of ["ai:insights", "ai:viewSafety"] as Permission[]) {
+      expect(can("OWNER", permission)).toBe(true);
+      expect(can("ADMIN", permission)).toBe(true);
       expect(can("MEMBER", permission)).toBe(false);
     }
   });
