@@ -3,6 +3,45 @@ import mongoose, { Schema, Document } from "mongoose";
 export type MessageAuthorType = "anonymous" | "member";
 export type ThreadEntryAuthorRole = "member" | "org";
 
+// AI enrichment (lib/aiEnrichment.ts). Fixed enums so model output can't
+// invent labels; the tag list is also what C7 insights and filters key on.
+export const AI_STATUSES = ["pending", "processing", "done", "failed", "skipped_quota"] as const;
+export type AiStatus = (typeof AI_STATUSES)[number];
+export const AI_SENTIMENTS = ["positive", "neutral", "negative", "mixed"] as const;
+export type AiSentiment = (typeof AI_SENTIMENTS)[number];
+export const AI_TAGS = [
+  "management",
+  "communication",
+  "workload",
+  "culture",
+  "compensation",
+  "process",
+  "tools",
+  "product",
+  "customer-service",
+  "recognition",
+  "growth",
+  "wellbeing",
+  "safety",
+  "praise",
+  "other",
+] as const;
+export type AiTag = (typeof AI_TAGS)[number];
+export const AI_MAX_TAGS = 3;
+
+export interface IMessageAi {
+  status: AiStatus;
+  attempts: number;
+  lockedAt?: Date | null;
+  sentiment?: AiSentiment;
+  tags?: AiTag[];
+  toxicity?: number; // 0..1, max abuse-category moderation score
+  pii?: number; // 0..1, moderation PII score
+  piiFlag?: boolean; // pii >= 0.5
+  model?: string;
+  enrichedAt?: Date;
+}
+
 export interface IThreadEntry {
   authorRole: ThreadEntryAuthorRole;
   content: string;
@@ -42,6 +81,16 @@ export interface IMessage extends Document {
   // follow-ups (authorRole "member") interleaved with OWNER/ADMIN replies
   // (authorRole "org"). `content` above is always the thread's first turn.
   replies?: IThreadEntry[];
+  // AI enrichment. `select: false` (default deny): only routes that ask for
+  // "+ai" get it, and they must pass docs through lib/messageView.ts's
+  // withAiView so MEMBERs never see toxicity/PII.
+  ai?: IMessageAi;
+  // BSON Binary float32 vector (subtype 9). Never returned by any route.
+  // Read/write it only through MessageModel.collection (raw driver) with
+  // mongoose.mongo.Binary.fromFloat32Array / .toFloat32Array() — see
+  // lib/aiEnrichment.ts. Absent until embedded (the sweep backfills).
+  embedding?: unknown;
+  embeddingModel?: string;
 }
 
 const messageSchema: Schema<IMessage> = new Schema({
@@ -120,6 +169,38 @@ const messageSchema: Schema<IMessage> = new Schema({
     default: [],
     required: false,
   },
+  // Sub-schema (not a nested object) so `ai` stays undefined on messages
+  // created with AI off, instead of defaulting to `{}`.
+  ai: {
+    type: new Schema(
+      {
+        status: { type: String, enum: AI_STATUSES, required: true },
+        attempts: { type: Number, default: 0 },
+        lockedAt: { type: Date },
+        sentiment: { type: String, enum: AI_SENTIMENTS },
+        tags: {
+          type: [{ type: String, enum: AI_TAGS }],
+          default: undefined,
+          validate: {
+            validator: (v: unknown[] | undefined) => !v || v.length <= AI_MAX_TAGS,
+            message: `At most ${AI_MAX_TAGS} tags`,
+          },
+        },
+        toxicity: { type: Number, min: 0, max: 1 },
+        pii: { type: Number, min: 0, max: 1 },
+        piiFlag: { type: Boolean },
+        model: { type: String },
+        enrichedAt: { type: Date },
+      },
+      { _id: false }
+    ),
+    required: false,
+    select: false,
+  },
+  // Mixed so Mongoose never casts the BSON Binary vector (a Buffer path would
+  // rewrap it and drop the float32 subtype). Raw driver access only.
+  embedding: { type: Schema.Types.Mixed, select: false },
+  embeddingModel: { type: String, select: false },
 });
 
 // Covers the two hot list queries (general messages: questionId == null;
@@ -132,6 +213,13 @@ messageSchema.index({ organizationId: 1, questionId: 1, createdAt: -1 });
 messageSchema.index({ questionId: 1, createdAt: -1 });
 // Legacy-message cleanup on account delete filters by recipient.
 messageSchema.index({ createdFor: 1 });
+// Enrichment sweep (lib/aiEnrichment.ts#enrichPending): only unfinished
+// messages (incl. "processing", so a crashed run's stale lock is found),
+// oldest first. `$in` in a partial filter needs MongoDB 6.0+.
+messageSchema.index(
+  { "ai.status": 1, createdAt: 1 },
+  { partialFilterExpression: { "ai.status": { $in: ["pending", "processing", "failed"] } } }
+);
 
 const Message =
   mongoose.models.Message || mongoose.model<IMessage>("Message", messageSchema);

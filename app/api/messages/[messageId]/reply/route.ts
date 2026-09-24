@@ -9,6 +9,7 @@ import { can } from "@/lib/permissions";
 import { questionResponseSchema } from "@/schemas/questionSchema";
 import { isValidObjectId } from "@/lib/objectId";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { withAiViewOne } from "@/lib/messageView";
 
 // GET /api/messages/:messageId/reply — fetch one message + its thread.
 // Only two parties may view it: the member who owns a private
@@ -27,7 +28,7 @@ export async function GET(
         { status: 404 }
       );
     }
-    const message = await MessageModel.findById(messageId);
+    const message = await MessageModel.findById(messageId).select("+ai");
     if (!message || !message.organizationId) {
       return NextResponse.json(
         { success: false, message: "Message not found" },
@@ -65,7 +66,14 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, message }, { status: 200 });
+    // The thread's own author never sees how their words were classified.
+    return NextResponse.json(
+      {
+        success: true,
+        message: withAiViewOne(message, membership.role, { memberThread: isThreadOwner }),
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error fetching message thread:", error);
     return NextResponse.json(

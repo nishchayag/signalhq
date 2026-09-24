@@ -6,6 +6,7 @@ import MessageModel from "@/models/message.model";
 import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
+import { withAiView } from "@/lib/messageView";
 
 // General (non-question) anonymous messages for the active organization.
 // Cursor-paginated via ?limit=&before= (see lib/pagination.ts).
@@ -46,12 +47,13 @@ export async function GET(request: NextRequest) {
 
     const fetched = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
-      .limit(limit + 1);
+      .limit(limit + 1)
+      .select("+ai");
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
 
     return NextResponse.json({
       success: true,
-      messages: page,
+      messages: withAiView(page, ctx.role),
       hasMore,
       nextCursor,
     });

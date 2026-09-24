@@ -6,6 +6,7 @@ import { updateQuestionSchema } from "@/schemas/questionSchema";
 import { can } from "@/lib/permissions";
 import { loadAndAuthorize } from "@/lib/questionAccess";
 import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
+import { withAiView } from "@/lib/messageView";
 
 export async function GET(
   request: NextRequest,
@@ -33,7 +34,8 @@ export async function GET(
 
     const fetched = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
-      .limit(limit + 1);
+      .limit(limit + 1)
+      .select("+ai");
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
 
     // Same privacy rule as the list endpoint: a MEMBER must not learn how
@@ -48,7 +50,13 @@ export async function GET(
     }
 
     return NextResponse.json(
-      { success: true, question, messages: page, hasMore, nextCursor },
+      {
+        success: true,
+        question,
+        messages: withAiView(page, authz.role),
+        hasMore,
+        nextCursor,
+      },
       { status: 200 }
     );
   } catch (error) {

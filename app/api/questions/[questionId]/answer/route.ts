@@ -8,6 +8,7 @@ import { questionResponseSchema } from "@/schemas/questionSchema";
 import { notifyNewMessage } from "@/lib/notifications";
 import { canAccessQuestion } from "@/lib/questionAccess";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { withAiViewOne } from "@/lib/messageView";
 
 // GET /api/questions/:questionId/answer — resolve the caller's own private
 // thread for this question, if they've answered it yet. Lets the dashboard
@@ -54,7 +55,9 @@ export async function GET(
       {
         success: true,
         question: { _id: question._id, questionText: question.questionText },
-        thread,
+        // Always the caller's own thread: no "+ai", and memberThread strips
+        // it regardless.
+        thread: withAiViewOne(thread, auth.membership.role, { memberThread: true }),
       },
       { status: 200 }
     );
