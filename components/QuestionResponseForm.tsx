@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   questionResponseSchema,
@@ -14,6 +14,7 @@ import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
 import { Loader2, Send } from "lucide-react";
 import ReplyReceiptCard from "@/components/ReplyReceiptCard";
+import AnonymityGuard from "@/components/AnonymityGuard";
 import { enterToSend, enterToSendHint } from "@/lib/enterToSend";
 
 interface QuestionData {
@@ -41,9 +42,12 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
     handleSubmit,
     formState: { errors },
     reset,
+    control,
+    setValue,
   } = useForm<QuestionResponseRequest>({
     resolver: zodResolver(questionResponseSchema),
   });
+  const content = useWatch({ control, name: "content" });
 
   useEffect(() => {
     const fetchQuestion = async () => {
@@ -184,6 +188,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
                   placeholder="Type your anonymous response here..."
                   className="min-h-[120px] resize-none"
                   disabled={submitting}
+                  data-clarity-mask="true"
                 />
                 {errors.content && (
                   <p className="text-sm text-destructive mt-1">
@@ -193,6 +198,16 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
                 <p className="text-xs text-muted-foreground mt-1">
                   {enterToSendHint}
                 </p>
+                {question.guardAvailable && (
+                  <AnonymityGuard
+                    content={content ?? ""}
+                    target={{ questionSlug: question.slug }}
+                    onApplyRewrite={(text) =>
+                      setValue("content", text, { shouldValidate: true, shouldDirty: true })
+                    }
+                    disabled={submitting}
+                  />
+                )}
               </div>
 
               <Button

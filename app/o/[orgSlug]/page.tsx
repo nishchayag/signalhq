@@ -69,7 +69,11 @@ export default async function OrgPublicPage({ params }: PageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <OrgFeedbackForm orgSlug={organization.slug} guardAvailable={guardAvailable} />
+            <OrgFeedbackForm
+              orgSlug={organization.slug}
+              guardAvailable={guardAvailable}
+              orgName={organization.name}
+            />
           </CardContent>
         </Card>
 

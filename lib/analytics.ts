@@ -12,7 +12,8 @@ export type AnalyticsEvent =
   | "signup_completed"
   | "question_created"
   | "link_copied"
-  | "feedback_sent";
+  | "feedback_sent"
+  | "guard_used";
 
 /**
  * Fire a custom analytics event (Google Analytics + Microsoft Clarity, when
