@@ -1,31 +1,15 @@
 "use client";
 import React from "react";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { enterToSend } from "@/lib/enterToSend";
-import { X, Reply as ReplyIcon, Loader2, ShieldAlert, EyeOff } from "lucide-react";
+import { X, Reply as ReplyIcon, ShieldAlert, EyeOff } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  questionResponseSchema,
-  QuestionResponseRequest,
-} from "@/schemas/questionSchema";
 import type { MessageView, MessageAiView } from "@/lib/messageView";
 import { toast } from "sonner";
 import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
-import AiDraftButton from "@/components/AiDraftButton";
-import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
-import { lastOrgTurn, type ThreadSource } from "@/lib/thread";
+import { lastTurn, type ThreadSource } from "@/lib/thread";
 
 // Messages at or above this toxicity render collapsed. Only OWNER/ADMIN
 // responses carry `toxicity`/`piiFlag` (lib/messageView.ts), so MEMBERs never
@@ -67,56 +51,22 @@ function AiChips({ ai }: { ai: MessageAiView }) {
   );
 }
 
-export interface ThreadEntryView {
-  authorRole: "member" | "org" | "sender";
-  content: string;
-  createdAt: string;
-}
-
 type MessageCardProps = {
   message: MessageView;
   onMessageDelete: (messageId: string) => void;
   canReply: boolean;
   canDelete: boolean;
-  /** Called with the message's full `replies[]` after an org reply is appended. */
-  onReplySaved: (messageId: string, replies: ThreadEntryView[]) => void;
-  /** AI status for the active org — undefined/null hides the draft control. */
-  ai?: AiStatus | null;
-  refreshAi?: () => void;
 };
 
-const MessageCard = ({
-  message,
-  onMessageDelete,
-  canReply,
-  canDelete,
-  onReplySaved,
-  ai,
-  refreshAi,
-}: MessageCardProps) => {
+const MessageCard = ({ message, onMessageDelete, canReply, canDelete }: MessageCardProps) => {
   const confirm = useConfirm();
-  const [replyOpen, setReplyOpen] = React.useState(false);
-  const [replying, setReplying] = React.useState(false);
   const flagged = (message.ai?.toxicity ?? 0) >= TOXICITY_COLLAPSE;
   const [revealed, setRevealed] = React.useState(false);
   const collapsed = flagged && !revealed;
-  // Newest org reply (legacy `reply` included) for the preview; replies are
-  // append-only, so the dialog always adds a new one.
-  const lastReply = lastOrgTurn(message as unknown as ThreadSource);
+  // Newest turn overall (org reply or the sender's own follow-up), for the
+  // card preview. Full history lives at /dashboard/messages/[id].
+  const latest = lastTurn(message as unknown as ThreadSource);
   const awaitingOrg = Boolean((message as { awaitingOrg?: boolean }).awaitingOrg);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    setValue,
-    control,
-  } = useForm<QuestionResponseRequest>({
-    resolver: zodResolver(questionResponseSchema),
-    defaultValues: { content: "" },
-  });
-  const draftText = useWatch({ control, name: "content" });
 
   // Runs inside the shared confirm dialog, which stays open with a spinner
   // until the delete settles and shows the server's reason if it fails.
@@ -131,33 +81,6 @@ const MessageCard = ({
     if (!ok) return;
     toast.success("Message deleted");
     onMessageDelete(message._id as string);
-  };
-
-  const openReplyDialog = () => {
-    reset({ content: "" });
-    setReplyOpen(true);
-  };
-
-  const onSubmitReply = async (data: QuestionResponseRequest) => {
-    setReplying(true);
-    try {
-      const response = await axios.post(
-        `/api/messages/${message._id}/reply`,
-        data
-      );
-      if (response.data.success) {
-        toast.success("Reply saved");
-        onReplySaved(message._id as string, response.data.replies);
-        setReplyOpen(false);
-      } else {
-        toast.error(response.data.message || "Failed to save reply");
-      }
-    } catch (error) {
-      console.error("Error saving reply:", error);
-      toast.error("Failed to save reply");
-    } finally {
-      setReplying(false);
-    }
   };
 
   const createdAt = new Date(message.createdAt);
@@ -234,80 +157,26 @@ const MessageCard = ({
           <span className={`${chip} bg-brand-yellow text-on-brand`}>Awaiting your reply</span>
         )}
 
-        {lastReply && (
-          <div className="rounded-lg border-2 border-ink bg-brand-mint/25 p-3">
-            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              <ReplyIcon className="h-3.5 w-3.5" />
-              Your latest reply
-            </p>
-            <p className="mt-1 text-sm text-foreground whitespace-pre-line">
-              {lastReply.content}
+        {latest && (
+          <div className="rounded-lg border-2 border-ink bg-card p-3">
+            <p className="text-sm text-foreground line-clamp-2 whitespace-pre-line">
+              <span className="font-bold">
+                {latest.authorRole === "org" ? "You replied" : "They replied"}:
+              </span>{" "}
+              {latest.content}
             </p>
           </div>
         )}
 
         {canReply && (
-          <Button variant="outline" size="sm" onClick={openReplyDialog}>
-            <ReplyIcon className="h-4 w-4" />
-            {lastReply ? "Add reply" : "Reply"}
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/messages/${message._id}`}>
+              <ReplyIcon className="h-4 w-4" />
+              Open thread
+            </Link>
           </Button>
         )}
       </CardContent>
-
-      <Dialog open={replyOpen} onOpenChange={setReplyOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>
-              {lastReply ? "Add a reply" : "Reply to this message"}
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit(onSubmitReply)} className="space-y-4">
-            {ai && (
-              <AiDraftButton
-                messageId={message._id as string}
-                currentText={draftText ?? ""}
-                onDraft={(text) => setValue("content", text, { shouldValidate: true })}
-                ai={ai}
-                refreshAi={refreshAi ?? (() => {})}
-              />
-            )}
-            <div className="space-y-2">
-              <Textarea
-                {...register("content")}
-                onKeyDown={enterToSend}
-                placeholder="Write a reply the sender will see via their link..."
-                className="min-h-[100px] resize-none"
-                disabled={replying}
-              />
-              {errors.content && (
-                <p className="text-sm text-destructive">
-                  {errors.content.message}
-                </p>
-              )}
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setReplyOpen(false)}
-                disabled={replying}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={replying}>
-                {replying ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Send reply"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 };

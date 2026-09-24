@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import connectDB from "@/lib/connectDB";
 import QuestionModel from "@/models/question.model";
 import OrganizationModel from "@/models/organization.model";
+import MessageModel from "@/models/message.model";
 import { getPublicOrg } from "@/lib/publicLookups";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { hashedIp } from "@/lib/getClientIp";
@@ -72,11 +74,25 @@ const notFound = () =>
 /**
  * Resolve the organization a guarded draft is headed to. Only targets that
  * accept public submissions count; anything else (unknown, inactive,
- * internal, or a legacy question with no org) is null → one identical 404.
+ * internal, a legacy question with no org, or a replyToken that doesn't
+ * resolve to an anonymous thread) is null → one identical 404.
  */
 async function resolveOrg(target: GuardTarget) {
   if ("orgSlug" in target) {
     const org = await getPublicOrg(target.orgSlug);
+    return org ? { id: org._id, name: org.name } : null;
+  }
+  if ("replyToken" in target) {
+    // Same "anonymous thread only" check as lib/receipt.ts#loadReceipt, so a
+    // member-thread token 404s identically to an unknown one.
+    const message = await MessageModel.findOne({
+      replyToken: target.replyToken,
+      authorType: { $ne: "member" },
+    })
+      .select("organizationId")
+      .lean<{ organizationId?: mongoose.Types.ObjectId }>();
+    if (!message?.organizationId) return null;
+    const org = await OrganizationModel.findById(message.organizationId).select("name").lean();
     return org ? { id: org._id, name: org.name } : null;
   }
   const question = await QuestionModel.findOne({

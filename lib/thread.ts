@@ -65,3 +65,12 @@ export function lastOrgTurn(msg: ThreadSource): ThreadTurn | null {
   }
   return null;
 }
+
+/** The most recent turn after the first, if any — unlike lastOrgTurn, this
+ * also surfaces a sender's own follow-up so a dashboard card can preview
+ * "They replied: …" while awaiting an org reply. Null when nothing has been
+ * added since the message was created. */
+export function lastTurn(msg: ThreadSource): ThreadTurn | null {
+  const turns = threadOf(msg);
+  return turns.length > 1 ? turns[turns.length - 1] : null;
+}

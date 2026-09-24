@@ -34,7 +34,7 @@ const CATEGORY_LABEL: Record<GuardCategory, string> = {
 };
 
 // Derives the coarse analytics label from the target's discriminant key —
-// never anything content-shaped. `replyToken` is for C16's follow-up guard.
+// never anything content-shaped. `replyToken` is the sender's follow-up guard.
 function targetCategory(target: GuardTarget): "org" | "question" | "reply" {
   if ("orgSlug" in target) return "org";
   if ("questionSlug" in target) return "question";

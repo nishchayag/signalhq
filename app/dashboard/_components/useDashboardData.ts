@@ -11,7 +11,6 @@ import { can } from "@/lib/permissions";
 import { apiError } from "@/lib/apiError";
 import { useConfirm } from "@/components/ConfirmProvider";
 import type { AiFeature } from "@/models/aiUsage.model";
-import type { ThreadEntryView } from "@/components/MessageCard";
 
 export interface AiStatus {
   enabled: boolean;
@@ -25,8 +24,6 @@ export interface AiStatus {
     search: boolean;
   };
 }
-
-export type { ThreadEntryView };
 
 export interface ThreadEntry {
   authorRole: "member" | "org" | "sender";
@@ -421,18 +418,6 @@ export function useDashboardData() {
     else setMessages(drop);
   };
 
-  // The reply route returns the full `replies[]` (legacy `reply` folded in).
-  const handleReplySaved = (messageId: string, replies: ThreadEntryView[]) => {
-    const applyReply = (msgs: MessageView[]) =>
-      msgs.map((m) =>
-        m._id === messageId
-          ? ({ ...m, replies, reply: undefined, awaitingOrg: false } as unknown as MessageView)
-          : m
-      );
-    if (view === "general") setGeneralMessages(applyReply);
-    else setMessages(applyReply);
-  };
-
   const handleQuestionCreated = (newQuestion: IQuestion) => {
     setQuestions((prev) => [newQuestion, ...prev]);
     setShowCreateDialog(false);
@@ -612,7 +597,6 @@ export function useDashboardData() {
     handleSubmitAnswer,
     copyQuestionLink,
     handleDeleteMessage,
-    handleReplySaved,
     handleQuestionCreated,
     handleToggleActive,
     handleDeleteQuestion,

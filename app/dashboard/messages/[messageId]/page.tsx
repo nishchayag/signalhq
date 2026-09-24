@@ -1,40 +1,33 @@
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import axios from "axios";
 import { toast } from "sonner";
-import { Loader2, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import { PageLoader } from "@/components/Loader";
 import AiDraftButton from "@/components/AiDraftButton";
-import ThreadView from "@/components/ThreadView";
+import ThreadView, { type ThreadViewTurn } from "@/components/ThreadView";
 import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
 
-interface ThreadEntry {
-  _id?: string;
-  authorRole: "member" | "org";
-  content: string;
-  createdAt: string;
-}
-
 interface ThreadMessage {
-  _id: string;
-  content: string;
-  createdAt: string;
-  questionId: string;
-  authorUserId: string;
-  replies: ThreadEntry[];
+  awaitingOrg?: boolean;
 }
 
-export default function ThreadPage() {
-  const params = useParams<{ questionId: string; messageId: string }>();
+// Owner/admin thread view for an anonymous message (the sender's side lives
+// at /r/[replyToken] — no session, no account). Only OWNER/ADMIN can reach
+// this: the reply GET route 404s for anyone else so existence isn't leaked.
+export default function MessageThreadPage() {
+  const params = useParams<{ messageId: string }>();
   const router = useRouter();
   const { data: session } = useSession();
   const [loading, setLoading] = useState(true);
-  const [thread, setThread] = useState<ThreadMessage | null>(null);
+  const [notFoundState, setNotFoundState] = useState(false);
+  const [message, setMessage] = useState<ThreadMessage | null>(null);
+  const [turns, setTurns] = useState<ThreadViewTurn[]>([]);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [ai, setAi] = useState<AiStatus | null>(null);
@@ -59,13 +52,14 @@ export default function ThreadPage() {
     try {
       const res = await axios.get(`/api/messages/${params.messageId}/reply`);
       if (res.data.success) {
-        setThread(res.data.message);
+        setMessage(res.data.message);
+        setTurns(res.data.turns);
+        setNotFoundState(false);
       } else {
-        toast.error(res.data.message || "Failed to load thread");
+        setNotFoundState(true);
       }
-    } catch (error) {
-      const msg = axios.isAxiosError(error) ? error.response?.data?.message : null;
-      toast.error(msg || "Failed to load thread");
+    } catch {
+      setNotFoundState(true);
     } finally {
       setLoading(false);
     }
@@ -82,26 +76,22 @@ export default function ThreadPage() {
     fetchAi();
   }, [fetchAi]);
 
-  const isThreadOwner =
-    !!thread && !!session?.user?._id && thread.authorUserId === session.user._id;
-
   const handleSend = async () => {
-    if (!thread || !reply.trim()) return;
+    if (!reply.trim()) return;
     setSending(true);
     try {
-      const url = isThreadOwner
-        ? `/api/questions/${params.questionId}/answer`
-        : `/api/messages/${params.messageId}/reply`;
-      const res = await axios.post(url, { content: reply.trim() });
+      const res = await axios.post(`/api/messages/${params.messageId}/reply`, {
+        content: reply.trim(),
+      });
       if (res.data.success) {
         setReply("");
         await load();
       } else {
-        toast.error(res.data.message || "Failed to send");
+        toast.error(res.data.message || "Failed to send reply");
       }
     } catch (error) {
       const msg = axios.isAxiosError(error) ? error.response?.data?.message : null;
-      toast.error(msg || "Failed to send");
+      toast.error(msg || "Failed to send reply");
     } finally {
       setSending(false);
     }
@@ -111,65 +101,52 @@ export default function ThreadPage() {
     return <PageLoader />;
   }
 
-  if (!thread) {
+  if (notFoundState || !message) {
     return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 text-center">
+      <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="text-muted-foreground">
           This thread doesn&apos;t exist, or you don&apos;t have access to it.
         </p>
+        <Button variant="outline" onClick={() => router.push("/dashboard")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to dashboard
+        </Button>
       </div>
     );
   }
-
-  const turns: ThreadEntry[] = [
-    { authorRole: "member", content: thread.content, createdAt: thread.createdAt },
-    ...thread.replies,
-  ];
-  // Org turns always show "Org reply" here — only the member's own turns
-  // switch to "You" when they're viewing their own thread; an oversight
-  // admin's own reply isn't singled out as "You" either.
-  const viewerRole = isThreadOwner ? "member" : undefined;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
-            Thread
-          </h1>
-          <Button
-            variant="outline"
-            onClick={() =>
-              router.push(
-                isThreadOwner
-                  ? "/dashboard"
-                  : `/dashboard/questions/${params.questionId}/replies`
-              )
-            }
-          >
+          <h1 className="text-2xl font-black tracking-tight text-foreground">Thread</h1>
+          <Button variant="outline" onClick={() => router.push("/dashboard")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
         </div>
 
-        <ThreadView turns={turns} viewerRole={viewerRole} />
+        {message.awaitingOrg && (
+          <span className="mb-4 inline-flex items-center gap-1 rounded-md border-2 border-ink bg-brand-yellow px-1.5 py-0.5 text-[11px] font-bold uppercase leading-none tracking-wide text-on-brand">
+            Awaiting your reply
+          </span>
+        )}
+
+        <ThreadView turns={turns} viewerRole="org" />
 
         <div className="mt-6 space-y-3">
-          {!isThreadOwner && (
-            <AiDraftButton
-              messageId={params.messageId}
-              currentText={reply}
-              onDraft={setReply}
-              ai={ai}
-              refreshAi={fetchAi}
-            />
-          )}
+          <AiDraftButton
+            messageId={params.messageId}
+            currentText={reply}
+            onDraft={setReply}
+            ai={ai}
+            refreshAi={fetchAi}
+          />
           <Textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             onKeyDown={enterToSendWith(handleSend)}
-            placeholder={
-              isThreadOwner ? "Add a follow-up..." : "Reply to this member..."
-            }
+            placeholder="Write a reply the sender will see via their link..."
             className="min-h-[100px] resize-none"
             disabled={sending}
           />

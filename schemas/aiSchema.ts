@@ -16,12 +16,14 @@ export const draftReplySchema = z.object({
 
 export type DraftReplyRequest = z.infer<typeof draftReplySchema>;
 
-// Where a guarded draft is headed. A union of single-key objects so later
-// targets (e.g. `{ replyToken }` for follow-ups) slot in as one more member;
-// `.strict()` makes a body naming two targets invalid rather than ambiguous.
+// Where a guarded draft is headed. A union of single-key objects; `.strict()`
+// makes a body naming two targets invalid rather than ambiguous. `replyToken`
+// covers a sender's follow-up on their own anonymous thread — 200 chars to
+// match lib/receipt.ts#loadReceipt's own length check.
 export const guardTargetSchema = z.union([
   z.object({ orgSlug: z.string().min(1).max(100) }).strict(),
   z.object({ questionSlug: z.string().min(1).max(100) }).strict(),
+  z.object({ replyToken: z.string().min(1).max(200) }).strict(),
 ]);
 
 export const guardRequestSchema = z.object({
