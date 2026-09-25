@@ -10,15 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import { PageLoader } from "@/components/Loader";
 import AiDraftButton from "@/components/AiDraftButton";
-import ThreadView from "@/components/ThreadView";
+import ThreadView, { type ThreadViewTurn } from "@/components/ThreadView";
 import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
-
-interface ThreadEntry {
-  _id?: string;
-  authorRole: "member" | "org";
-  content: string;
-  createdAt: string;
-}
 
 interface ThreadMessage {
   _id: string;
@@ -26,7 +19,6 @@ interface ThreadMessage {
   createdAt: string;
   questionId: string;
   authorUserId: string;
-  replies: ThreadEntry[];
 }
 
 export default function ThreadPage() {
@@ -35,6 +27,7 @@ export default function ThreadPage() {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(true);
   const [thread, setThread] = useState<ThreadMessage | null>(null);
+  const [turns, setTurns] = useState<ThreadViewTurn[]>([]);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [ai, setAi] = useState<AiStatus | null>(null);
@@ -60,6 +53,7 @@ export default function ThreadPage() {
       const res = await axios.get(`/api/messages/${params.messageId}/reply`);
       if (res.data.success) {
         setThread(res.data.message);
+        setTurns(res.data.turns);
       } else {
         toast.error(res.data.message || "Failed to load thread");
       }
@@ -121,11 +115,9 @@ export default function ThreadPage() {
     );
   }
 
-  const turns: ThreadEntry[] = [
-    { authorRole: "member", content: thread.content, createdAt: thread.createdAt },
-    ...thread.replies,
-  ];
-  // Org turns always show "Org reply" here — only the member's own turns
+  // `turns` comes straight from the API's lib/thread.ts#threadOf (state, set
+  // in `load`), so a typed answer's chip renders the same way it does
+  // everywhere else. Org turns always show "Org reply" here — only the member's own turns
   // switch to "You" when they're viewing their own thread; an oversight
   // admin's own reply isn't singled out as "You" either.
   const viewerRole = isThreadOwner ? "member" : undefined;

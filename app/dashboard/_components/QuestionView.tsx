@@ -16,7 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import MessageCard from "@/components/MessageCard";
 import MessageFilters from "@/components/MessageFilters";
 import SemanticSearchToggle, {
@@ -25,7 +24,10 @@ import SemanticSearchToggle, {
 } from "@/components/SemanticSearchToggle";
 import InsightsPanel from "@/components/InsightsPanel";
 import Loader from "@/components/Loader";
-import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
+import AnswerFields from "@/components/AnswerFields";
+import { enterToSendHint } from "@/lib/enterToSend";
+import { canSubmitAnswer, closedMessage } from "@/lib/answerForm";
+import { formatAnswer, publicQuestionConfig, questionState } from "@/lib/answers";
 import type { IQuestion } from "@/models/question.model";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -75,6 +77,7 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
  *  mobile); here they're labelled and live with the thing they act on. */
 function QuestionActions({ d, question }: { d: DashboardData; question: IQuestion }) {
   const refreshing = d.refreshingQuestionId === question._id;
+  const closed = questionState(question).closed;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <span
@@ -84,6 +87,16 @@ function QuestionActions({ d, question }: { d: DashboardData; question: IQuestio
       >
         {question.isActive ? "Accepting responses" : "Paused"}
       </span>
+      {closed && (
+        <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-muted px-2.5 py-0.5 text-xs font-bold text-muted-foreground">
+          Closed
+        </span>
+      )}
+      {typeof question.maxResponses === "number" && (
+        <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-card px-2.5 py-0.5 text-xs font-bold text-foreground">
+          {question.responseCount}/{question.maxResponses}
+        </span>
+      )}
       {d.canUpdateQuestions && (
         <Button variant="ghost" size="sm" onClick={() => d.setEditingQuestion(question)}>
           <Pencil className="mr-1.5 h-4 w-4" />
@@ -138,7 +151,14 @@ function ThreadCard({
             <p className="truncate font-bold text-foreground">{heading}</p>
             {subheading && <span className="text-xs text-muted-foreground">{subheading}</span>}
           </div>
-          <p className="mt-1 truncate text-sm text-muted-foreground">{thread.content}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+            {thread.answer && (
+              <span className="shrink-0 rounded-md border-2 border-ink bg-brand-blue/30 px-1.5 py-0.5 text-xs font-bold text-foreground">
+                {formatAnswer(thread.answer)}
+              </span>
+            )}
+            <span className="truncate">{thread.content}</span>
+          </p>
           {thread.replies.length > 0 && (
             <p className="mt-1 text-xs text-muted-foreground/70">
               {thread.replies.length} follow-up{thread.replies.length === 1 ? "" : "s"}
@@ -196,25 +216,34 @@ function InternalQuestionView({ d, question }: { d: DashboardData; question: IQu
     return <ThreadCard questionId={question._id} thread={d.myThread} heading="Your answer" />;
   }
 
+  const state = questionState(question);
+  if (state.closed) {
+    return (
+      <div className="rounded-2xl border-2 border-ink bg-card p-5 text-center shadow-solid-sm">
+        <p className="text-sm text-muted-foreground">{closedMessage(state.reason)}</p>
+      </div>
+    );
+  }
+
+  const config = publicQuestionConfig(question);
   return (
     <div className="rounded-2xl border-2 border-ink bg-card p-5 shadow-solid-sm">
       <p className="mb-3 text-sm text-muted-foreground">
         Your answer creates a private thread only you and the org&apos;s owner/admins can see.
       </p>
-      <Textarea
-        value={d.answerDraft}
-        onChange={(e) => d.setAnswerDraft(e.target.value)}
-        onKeyDown={enterToSendWith(d.handleSubmitAnswer)}
-        placeholder="Write your answer..."
-        aria-label="Your answer"
-        className="min-h-[100px] resize-none"
+      <AnswerFields
+        config={config}
+        values={d.answerValues}
+        onChange={d.setAnswerValues}
         disabled={d.submittingAnswer}
+        onEnterSend={d.handleSubmitAnswer}
+        textPlaceholder="Write your answer..."
       />
       <p className="mt-1 text-xs text-muted-foreground">{enterToSendHint}</p>
       <Button
         className="mt-3"
         onClick={d.handleSubmitAnswer}
-        disabled={d.submittingAnswer || !d.answerDraft.trim()}
+        disabled={d.submittingAnswer || !canSubmitAnswer(config, d.answerValues)}
       >
         {d.submittingAnswer ? "Submitting..." : "Submit answer"}
       </Button>

@@ -47,7 +47,7 @@ export async function GET(
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .populate("authorUserId", "name username")
-      .select("content createdAt replies authorUserId +ai");
+      .select("content answer createdAt replies authorUserId +ai");
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
     // OWNER/ADMIN oversight view; an OWNER/ADMIN's own answer (if they
     // answered too) still hides its AI fields from them, like any author.

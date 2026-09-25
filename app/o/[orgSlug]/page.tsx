@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import QuestionModel from "@/models/question.model";
 import { generateMetadata as createMetadata } from "@/lib/metadata";
 import { getPublicOrg } from "@/lib/publicLookups";
+import { questionState } from "@/lib/answers";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import OrgFeedbackForm from "@/components/OrgFeedbackForm";
 import { isGuardOffered } from "@/lib/aiQuota";
@@ -35,7 +36,7 @@ export default async function OrgPublicPage({ params }: PageProps) {
   // Whether to offer the anonymity guard — a boolean only, never quota numbers.
   const guardAvailable = await isGuardOffered(organization._id);
 
-  const questions = await QuestionModel.find({
+  const allQuestions = await QuestionModel.find({
     organizationId: organization._id,
     isActive: true,
     // Internal questions are never listed on the public page. `$ne` (not
@@ -44,8 +45,12 @@ export default async function OrgPublicPage({ params }: PageProps) {
     visibility: { $ne: "internal" },
   })
     .sort({ createdAt: -1 })
-    .select("questionText slug")
+    .select("questionText slug closesAt maxResponses responseCount")
     .lean();
+  // A closed question (past its close date, or at its response cap) is
+  // simply not offered here — questionState is the same computed check the
+  // submit routes use, never a stored flag.
+  const questions = allQuestions.filter((q) => !questionState(q).closed);
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-dot-grid py-16 px-4">

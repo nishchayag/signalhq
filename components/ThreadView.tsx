@@ -1,12 +1,19 @@
 import { Building2, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { ThreadEntryAuthorRole } from "@/models/message.model";
+import { formatAnswer, type MessageAnswer } from "@/lib/answers";
 
 export interface ThreadViewTurn {
   authorRole: ThreadEntryAuthorRole;
   content: string;
   createdAt: string | Date;
+  /** Turn 1 only, on a typed question: the structured answer. `content` is
+   *  then the optional comment, and may be "". */
+  answer?: MessageAnswer;
 }
+
+const answerChip =
+  "inline-flex w-fit items-center rounded-md border-2 border-ink bg-brand-blue/30 px-1.5 py-0.5 text-xs font-bold text-foreground";
 
 const ROLE_CARD_STYLE: Record<ThreadEntryAuthorRole, string> = {
   sender: "bg-brand-blue/20",
@@ -66,7 +73,12 @@ export default function ThreadView({ turns, viewerRole, roleLabels, className }:
                 · {formatDistanceToNow(new Date(turn.createdAt), { addSuffix: true })}
               </span>
             </div>
-            <p className="whitespace-pre-line text-sm text-foreground">{turn.content}</p>
+            {turn.answer && (
+              <span className={`mb-2 ${answerChip}`}>{formatAnswer(turn.answer)}</span>
+            )}
+            {turn.content && (
+              <p className="whitespace-pre-line text-sm text-foreground">{turn.content}</p>
+            )}
           </div>
         );
       })}

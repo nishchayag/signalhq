@@ -1,21 +1,23 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  questionResponseSchema,
-  QuestionResponseRequest,
-} from "@/schemas/questionSchema";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Lock, Send } from "lucide-react";
 import ReplyReceiptCard from "@/components/ReplyReceiptCard";
 import AnonymityGuard from "@/components/AnonymityGuard";
-import { enterToSend, enterToSendHint } from "@/lib/enterToSend";
+import AnswerFields from "@/components/AnswerFields";
+import { enterToSendHint } from "@/lib/enterToSend";
+import {
+  buildAnswerBody,
+  canSubmitAnswer,
+  closedMessage,
+  emptyAnswerValues,
+  type AnswerFormValues,
+} from "@/lib/answerForm";
+import type { ClosedReason, PublicQuestionConfig } from "@/lib/answers";
 
 interface QuestionData {
   questionText: string;
@@ -24,30 +26,26 @@ interface QuestionData {
   username: string;
   /** Offer the AI anonymity check (POST /api/guard)? AI on + org has guard quota. */
   guardAvailable?: boolean;
+  config: PublicQuestionConfig;
+  closesAt: string | null;
+  closed: { reason: ClosedReason } | null;
 }
 
 /**
  * Anonymous question-response form, keyed by the question's global slug.
  * Shared by the org-scoped route (/o/[orgSlug]/q/[slug]) and the legacy
- * fallback (/q/[slug]).
+ * fallback (/q/[slug]). Renders the type-specific fields via AnswerFields.
  */
 export default function QuestionResponseForm({ slug }: { slug: string }) {
   const [question, setQuestion] = useState<QuestionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [replyToken, setReplyToken] = useState<string | null>(null);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    control,
-    setValue,
-  } = useForm<QuestionResponseRequest>({
-    resolver: zodResolver(questionResponseSchema),
-  });
-  const content = useWatch({ control, name: "content" });
+  const [values, setValues] = useState<AnswerFormValues>(emptyAnswerValues());
+  // A question can close between the GET and the POST (a cap reached by
+  // someone else, or the close date ticking over); the 410 response doesn't
+  // carry the reason, so this renders the generic closed message.
+  const [raceClosed, setRaceClosed] = useState(false);
 
   useEffect(() => {
     const fetchQuestion = async () => {
@@ -68,24 +66,29 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
     fetchQuestion();
   }, [slug]);
 
-  const onSubmit = async (data: QuestionResponseRequest) => {
+  const handleSend = async () => {
+    if (!question || submitting || !canSubmitAnswer(question.config, values)) return;
     setSubmitting(true);
     try {
-      const response = await axios.post(`/api/questions/submit/${slug}`, data);
+      const body = buildAnswerBody(question.config, values);
+      const response = await axios.post(`/api/questions/submit/${slug}`, body);
       if (response.data.success) {
         toast.success("Response submitted successfully!");
         trackEvent("feedback_sent", "question");
-        reset();
+        setValues(emptyAnswerValues());
         setReplyToken(response.data.replyToken);
       } else {
         toast.error(response.data.message || "Failed to submit response");
       }
     } catch (error) {
-      console.error("Error submitting response:", error);
-      const msg = axios.isAxiosError(error)
-        ? error.response?.data?.message
-        : null;
-      toast.error(msg || "Failed to submit response");
+      const data = axios.isAxiosError(error)
+        ? (error.response?.data as { code?: string; message?: string } | undefined)
+        : undefined;
+      if (data?.code === "QUESTION_CLOSED") {
+        setRaceClosed(true);
+      } else {
+        toast.error(data?.message || "Failed to submit response");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -156,6 +159,22 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
     );
   }
 
+  if (question.closed || raceClosed) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-dot-grid px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 space-y-3 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink bg-muted">
+              <Lock className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-black text-foreground">This question is closed</h2>
+            <p className="text-muted-foreground">{closedMessage(question.closed?.reason)}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-dot-grid py-12 px-4">
       <div className="max-w-2xl mx-auto">
@@ -180,30 +199,30 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
             )}
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="space-y-4"
+            >
               <div>
-                <Textarea
-                  {...register("content")}
-                  onKeyDown={enterToSend}
-                  placeholder="Type your anonymous response here..."
-                  className="min-h-[120px] resize-none"
+                <AnswerFields
+                  config={question.config}
+                  values={values}
+                  onChange={setValues}
                   disabled={submitting}
-                  data-clarity-mask="true"
+                  onEnterSend={handleSend}
                 />
-                {errors.content && (
-                  <p className="text-sm text-destructive mt-1">
-                    {errors.content.message}
-                  </p>
-                )}
                 <p className="text-xs text-muted-foreground mt-1">
                   {enterToSendHint}
                 </p>
-                {question.guardAvailable && (
+                {question.guardAvailable && values.content.trim() && (
                   <AnonymityGuard
-                    content={content ?? ""}
+                    content={values.content}
                     target={{ questionSlug: question.slug }}
                     onApplyRewrite={(text) =>
-                      setValue("content", text, { shouldValidate: true, shouldDirty: true })
+                      setValues((v) => ({ ...v, content: text }))
                     }
                     disabled={submitting}
                   />
@@ -212,7 +231,7 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
 
               <Button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !canSubmitAnswer(question.config, values)}
                 className="w-full"
                 size="lg"
               >

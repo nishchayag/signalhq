@@ -13,6 +13,8 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import type { AiFeature } from "@/models/aiUsage.model";
 import { useMessageTriage } from "./useMessageTriage";
 import type { PatchMessageRequest } from "@/schemas/triageSchema";
+import { publicQuestionConfig, type MessageAnswer } from "@/lib/answers";
+import { buildAnswerBody, canSubmitAnswer, emptyAnswerValues, type AnswerFormValues } from "@/lib/answerForm";
 
 export interface AiStatus {
   enabled: boolean;
@@ -36,6 +38,7 @@ export interface ThreadEntry {
 export interface ThreadSummary {
   _id: string;
   content: string;
+  answer?: MessageAnswer;
   createdAt: string;
   replies: ThreadEntry[];
   authorUserId?: { _id: string; name: string; username: string } | null;
@@ -90,7 +93,7 @@ export function useDashboardData() {
   const [internalThreads, setInternalThreads] = useState<ThreadSummary[]>([]);
   const [myThread, setMyThread] = useState<ThreadSummary | null>(null);
   const [internalLoading, setInternalLoading] = useState(false);
-  const [answerDraft, setAnswerDraft] = useState("");
+  const [answerValues, setAnswerValues] = useState<AnswerFormValues>(emptyAnswerValues());
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   // Per-fetch errors, so a failed load renders ErrorState + Retry instead of
   // the "No … yet" empty state it used to fall through to.
@@ -413,7 +416,7 @@ export function useDashboardData() {
     setView("question");
     setInternalThreads([]);
     setMyThread(null);
-    setAnswerDraft("");
+    setAnswerValues(emptyAnswerValues());
     setMessagesSearch("");
     setMessagesTruncated(false);
     triage.resetQuestionFilters();
@@ -426,14 +429,17 @@ export function useDashboardData() {
   };
 
   const handleSubmitAnswer = async () => {
-    if (!selectedQuestion || !answerDraft.trim()) return;
+    if (!selectedQuestion) return;
+    const config = publicQuestionConfig(selectedQuestion);
+    if (!canSubmitAnswer(config, answerValues)) return;
     setSubmittingAnswer(true);
     try {
-      const res = await axios.post(`/api/questions/${selectedQuestion._id}/answer`, {
-        content: answerDraft.trim(),
-      });
+      const res = await axios.post(
+        `/api/questions/${selectedQuestion._id}/answer`,
+        buildAnswerBody(config, answerValues)
+      );
       if (res.data.success) {
-        setAnswerDraft("");
+        setAnswerValues(emptyAnswerValues());
         toast.success("Answer submitted");
         fetchInternalQuestionData(selectedQuestion._id, false);
       } else {
@@ -491,7 +497,10 @@ export function useDashboardData() {
   };
 
   const handleQuestionUpdated = (updated: IQuestion) => {
-    const merge = (q: IQuestion) => ({ ...q, questionText: updated.questionText, description: updated.description }) as IQuestion;
+    // The PUT response is the full updated document (type/config/closesAt/
+    // maxResponses included) — spread it wholesale rather than picking two
+    // fields, so an edit to the type/options/close-date/cap actually sticks.
+    const merge = (q: IQuestion) => ({ ...q, ...updated }) as IQuestion;
     setQuestions((prev) => prev.map((q) => (q._id === updated._id ? merge(q) : q)));
     setSelectedQuestion((prev) => (prev && prev._id === updated._id ? merge(prev) : prev));
     setEditingQuestion(null);
@@ -658,8 +667,8 @@ export function useDashboardData() {
     internalThreads,
     myThread,
     internalLoading,
-    answerDraft,
-    setAnswerDraft,
+    answerValues,
+    setAnswerValues,
     submittingAnswer,
     questionsError,
     generalError,

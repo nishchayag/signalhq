@@ -9,6 +9,7 @@ import { MessageSquare, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatAnswer, type MessageAnswer } from "@/lib/answers";
 
 interface ThreadEntry {
   authorRole: "member" | "org";
@@ -19,6 +20,7 @@ interface ThreadEntry {
 interface ThreadSummary {
   _id: string;
   content: string;
+  answer?: MessageAnswer;
   createdAt: string;
   replies: ThreadEntry[];
   authorUserId: { _id: string; name: string; username: string } | null;
@@ -109,8 +111,13 @@ export default function QuestionRepliesPage() {
                           @{thread.authorUserId?.username || "unknown"}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground truncate">
-                        {thread.content}
+                      <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                        {thread.answer && (
+                          <span className="shrink-0 rounded-md border-2 border-ink bg-brand-blue/30 px-1.5 py-0.5 text-xs font-bold text-foreground">
+                            {formatAnswer(thread.answer)}
+                          </span>
+                        )}
+                        <span className="truncate">{thread.content}</span>
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground/70">
                         {thread.replies.length > 0

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HelpCircle, MessageSquare, Plus, Settings, User, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrgSwitcher from "@/components/OrgSwitcher";
+import { questionState } from "@/lib/answers";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import type { DashboardData } from "./useDashboardData";
@@ -116,7 +117,10 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
         )}
 
         <div className="space-y-1.5">
-          {d.filteredQuestions.map((question) => (
+          {d.filteredQuestions.map((question) => {
+            const closed = questionState(question).closed;
+            const hasCap = typeof question.maxResponses === "number";
+            return (
             <button
               key={question._id}
               onClick={() => d.handleQuestionSelect(question)}
@@ -137,13 +141,19 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
                           Internal
                         </span>
                       )}
+                      {closed && (
+                        <span className="shrink-0 rounded border border-ink bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                          Closed
+                        </span>
+                      )}
                       {(d.messageCounts.questions[question._id] ?? 0) > 0 && (
                         <UnreadBadge count={d.messageCounts.questions[question._id]} />
                       )}
                     </div>
                     {(question.visibility !== "internal" || d.canViewAllReplies) && (
                       <div className="mt-1 text-xs font-medium text-muted-foreground">
-                        {question.responseCount} responses
+                        {question.responseCount}
+                        {hasCap ? `/${question.maxResponses}` : ""} responses
                       </div>
                     )}
                     {d.teams.length > 0 && (
@@ -168,7 +178,8 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
 
               </div>
             </button>
-          ))}
+            );
+          })}
 
           {d.questionsError ? (
             <ErrorState compact message={d.questionsError} onRetry={d.retryQuestions} />

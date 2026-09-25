@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
 import { lastTurn, type ThreadSource } from "@/lib/thread";
+import { formatAnswer } from "@/lib/answers";
 
 const LABEL_CHIP_BG: Record<string, string> = {
   yellow: "bg-brand-yellow",
@@ -208,7 +209,14 @@ const MessageCard = ({
                   title="Unread"
                 />
               )}
-              <span>{message.content}</span>
+              <span className="flex min-w-0 flex-col gap-1">
+                {message.answer && (
+                  <span className={`${chip} w-fit bg-brand-blue/30 text-foreground`}>
+                    {formatAnswer(message.answer)}
+                  </span>
+                )}
+                {message.content && <span>{message.content}</span>}
+              </span>
             </CardTitle>
           )}
         </div>
