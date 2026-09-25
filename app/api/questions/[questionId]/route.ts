@@ -3,7 +3,13 @@ import connectDB from "@/lib/connectDB";
 import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
 import AiInsightModel from "@/models/aiInsight.model";
-import { updateQuestionSchema } from "@/schemas/questionSchema";
+import {
+  normalizeQuestionConfig,
+  questionConfigIssues,
+  updateQuestionSchema,
+  type QuestionConfigInput,
+} from "@/schemas/questionSchema";
+import { assignOptionIds, isChoiceType, questionType, sameOptionIds } from "@/lib/answers";
 import { can } from "@/lib/permissions";
 import { loadAndAuthorize } from "@/lib/questionAccess";
 import { parsePagination, paginate } from "@/lib/pagination";
@@ -51,6 +57,7 @@ export async function GET(
       !can(authz.role, "question:viewAllReplies")
     ) {
       delete question.responseCount;
+      delete question.maxResponses;
     }
 
     // ?mode=semantic&q=… — ranked by meaning, no pagination (see
@@ -123,11 +130,87 @@ export async function PUT(
       );
     }
 
-    const question = await QuestionModel.findByIdAndUpdate(
-      questionId,
-      result.data,
-      { new: true }
+    const { type: nextTypeInput, config: configInput, closesAt, maxResponses, ...plain } =
+      result.data;
+    const current = authz.question;
+    const currentType = questionType(current);
+    const $set: Record<string, unknown> = { ...plain };
+    const $unset: Record<string, ""> = {};
+
+    // Type/config: validate the merged, post-edit state, then check the lock.
+    let structural = false;
+    if (nextTypeInput !== undefined || configInput !== undefined) {
+      const nextType = nextTypeInput ?? currentType;
+      const currentConfig = current.config
+        ? (JSON.parse(JSON.stringify(current.config)) as QuestionConfigInput)
+        : undefined;
+      // No config sent ⇒ carry the current one over (normalize drops keys the
+      // new type doesn't use, so single ↔ multi keeps its options).
+      const merged = configInput !== undefined ? configInput : currentConfig;
+      const issues = questionConfigIssues(nextType, merged);
+      if (issues.length > 0) {
+        return NextResponse.json(
+          { success: false, message: issues[0].message, errors: issues },
+          { status: 400 }
+        );
+      }
+      const normalized = normalizeQuestionConfig(nextType, merged);
+      const options =
+        normalized?.options &&
+        assignOptionIds(normalized.options, (current.config?.options ?? []).map((o) => o.id));
+      const config = normalized && { ...normalized, ...(options && { options }) };
+      structural =
+        nextType !== currentType ||
+        (isChoiceType(nextType) && !sameOptionIds(options, current.config?.options));
+      $set.type = nextType;
+      if (config) $set.config = config;
+      else $unset.config = "";
+    }
+    if (closesAt !== undefined) {
+      if (closesAt === null) $unset.closesAt = "";
+      else $set.closesAt = new Date(closesAt);
+    }
+    if (maxResponses !== undefined) {
+      if (maxResponses === null) $unset.maxResponses = "";
+      else $set.maxResponses = maxResponses;
+    }
+
+    // Changing the type or the option ids after the first answer would orphan
+    // every stored answer. responseCount is the fast check; the message probe
+    // covers legacy counts that drifted. The update is also conditional on the
+    // count still being 0, so an answer landing in between can't slip past.
+    const lockedResponse = () =>
+      NextResponse.json(
+        {
+          success: false,
+          code: "QUESTION_LOCKED",
+          message: "This question already has responses, so its type and options can't change.",
+        },
+        { status: 409 }
+      );
+    if (structural) {
+      if ((current.responseCount ?? 0) > 0 || (await MessageModel.exists({ questionId }))) {
+        return lockedResponse();
+      }
+    }
+
+    const update: Record<string, unknown> = {};
+    if (Object.keys($set).length > 0) update.$set = $set;
+    if (Object.keys($unset).length > 0) update.$unset = $unset;
+    const question = await QuestionModel.findOneAndUpdate(
+      structural
+        ? { _id: questionId, responseCount: { $in: [0, null] } }
+        : { _id: questionId },
+      update,
+      { new: true, runValidators: true }
     );
+    if (!question) {
+      if (structural) return lockedResponse();
+      return NextResponse.json(
+        { success: false, message: "Question not found" },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json(
       { success: true, message: "Question updated successfully", question },

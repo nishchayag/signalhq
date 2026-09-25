@@ -4,7 +4,8 @@ import authOptions from "@/lib/nextAuthOptions";
 import connectDB from "@/lib/connectDB";
 import QuestionModel from "@/models/question.model";
 import TeamModel from "@/models/team.model";
-import { createQuestionSchema } from "@/schemas/questionSchema";
+import { createQuestionSchema, normalizeQuestionConfig } from "@/schemas/questionSchema";
+import { assignOptionIds } from "@/lib/answers";
 import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
 import { nanoid } from "nanoid";
@@ -48,7 +49,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { questionText, description, teamId, visibility } = result.data;
+    const { questionText, description, teamId, visibility, closesAt, maxResponses } = result.data;
+    const type = result.data.type ?? "text";
+    const normalized = normalizeQuestionConfig(type, result.data.config);
+    const config = normalized && {
+      ...normalized,
+      ...(normalized.options && { options: assignOptionIds(normalized.options) }),
+    };
 
     // Validate the team (if any) belongs to this org — and, for a MEMBER,
     // that they're actually on it (they can't see other teams' questions,
@@ -87,6 +94,10 @@ export async function POST(request: NextRequest) {
       teamId: teamId || undefined,
       slug,
       visibility: visibility || "public",
+      type,
+      ...(config && { config }),
+      ...(closesAt && { closesAt: new Date(closesAt) }),
+      ...(typeof maxResponses === "number" && { maxResponses }),
     });
 
     return NextResponse.json(
@@ -102,6 +113,10 @@ export async function POST(request: NextRequest) {
           teamId: question.teamId,
           visibility: question.visibility,
           responseCount: question.responseCount,
+          type: question.type,
+          config: question.config,
+          closesAt: question.closesAt,
+          maxResponses: question.maxResponses,
           createdAt: question.createdAt,
         },
       },
@@ -144,7 +159,7 @@ export async function GET(request: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .select(
-        "questionText description slug isActive teamId visibility responseCount createdAt"
+        "questionText description slug isActive teamId visibility responseCount type config closesAt maxResponses createdAt"
       );
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
 
@@ -155,6 +170,8 @@ export async function GET(request: NextRequest) {
       const obj = q.toObject() as unknown as Record<string, unknown>;
       if (!canSeeAllReplies && q.visibility === "internal") {
         delete obj.responseCount;
+        // The cap would reveal the count once the question closes on it.
+        delete obj.maxResponses;
       }
       return obj;
     });

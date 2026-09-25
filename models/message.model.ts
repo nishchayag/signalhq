@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { MESSAGE_MAX_LABELS } from "@/lib/triageConstants";
+import { ANSWER_KINDS, type MessageAnswer } from "@/lib/answers";
 
 export type MessageAuthorType = "anonymous" | "member";
 // "member": a member's own turns in their private thread; "org": OWNER/ADMIN
@@ -54,7 +55,12 @@ export interface IThreadEntry {
 }
 
 export interface IMessage extends Document {
+  // The free-text turn 1. For a typed answer (`answer` set) it's the optional
+  // comment and may be "" — required only when there is no `answer`.
   content: string;
+  // A typed question's structured answer (lib/answers.ts). Absent for text
+  // questions and general feedback. Render with lib/answers.ts#formatAnswer.
+  answer?: MessageAnswer;
   createdAt: Date;
   createdFor: mongoose.Types.ObjectId;
   questionId?: mongoose.Types.ObjectId; // Reference to specific question (optional for backward compatibility)
@@ -122,7 +128,24 @@ export { MESSAGE_MAX_LABELS };
 const messageSchema: Schema<IMessage> = new Schema({
   content: {
     type: String,
-    required: true,
+    // Mongoose's `required` rejects "", so a typed answer with no comment
+    // needs the requirement lifted — only when an answer is present.
+    required: function (this: IMessage) {
+      return !this.answer;
+    },
+    default: "",
+  },
+  answer: {
+    type: new Schema(
+      {
+        kind: { type: String, enum: ANSWER_KINDS, required: true },
+        score: { type: Number },
+        choices: { type: [String], default: undefined },
+        labels: { type: [String], default: undefined },
+      },
+      { _id: false }
+    ),
+    required: false,
   },
   createdAt: {
     type: Date,
