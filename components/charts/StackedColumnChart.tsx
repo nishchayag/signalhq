@@ -117,7 +117,21 @@ export default function StackedColumnChart({
               });
               return (
                 <g key={d.bucket}>
-                  {/* Hit target: the whole band, taller than the bars, for a generous hover/focus area. */}
+                  {segments.map((seg) => (
+                    <rect
+                      key={seg.key}
+                      x={cx - barWidth / 2}
+                      y={seg.y}
+                      width={barWidth}
+                      height={seg.height}
+                      rx={seg.isBottom ? 0 : 3}
+                      fill={seg.color}
+                      opacity={active === null || active === i ? 1 : 0.45}
+                      style={{ transition: "opacity 120ms ease", pointerEvents: "none" }}
+                    />
+                  ))}
+                  {/* Hit target: the whole band, taller than the bars, painted after the
+                      segments so it stays on top and actually receives the pointer. */}
                   <rect
                     x={PLOT_LEFT + bandWidth * i}
                     y={PLOT_TOP}
@@ -134,19 +148,6 @@ export default function StackedColumnChart({
                     onFocus={() => setActive(i)}
                     onBlur={() => setActive((cur) => (cur === i ? null : cur))}
                   />
-                  {segments.map((seg) => (
-                    <rect
-                      key={seg.key}
-                      x={cx - barWidth / 2}
-                      y={seg.y}
-                      width={barWidth}
-                      height={seg.height}
-                      rx={seg.isBottom ? 0 : 3}
-                      fill={seg.color}
-                      opacity={active === null || active === i ? 1 : 0.45}
-                      style={{ transition: "opacity 120ms ease" }}
-                    />
-                  ))}
                   {i % labelStep === 0 && (
                     <text x={cx} y={PLOT_BOTTOM + 16} textAnchor="middle" fontSize={10} fill="var(--muted-foreground)">
                       {bucketLabel(d.bucket, bucket)}
