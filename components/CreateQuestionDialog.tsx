@@ -625,7 +625,8 @@ export default function CreateQuestionDialog({
               max={MAX_RESPONSES_LIMIT}
               disabled={loading}
               {...register("maxResponses", {
-                setValueAs: (v) => (v === "" || v === undefined ? null : Number(v)),
+                // An untouched field feeds its `null` default through here, and Number(null) is 0.
+                setValueAs: (v) => (v === "" || v == null ? null : Number(v)),
               })}
             />
             {errors.maxResponses && (
