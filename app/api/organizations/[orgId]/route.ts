@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
+import OrgAssetModel from "@/models/orgAsset.model";
 import { renameOrganizationSchema } from "@/schemas/organizationSchema";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
@@ -38,6 +39,14 @@ async function handleGET(
     organizationId: orgId,
   });
 
+  // Whether an OrgAsset logo row exists — never selects `bytes` (select:
+  // false on the schema already guards that, but `.exists()` never pulls
+  // fields at all). This is what the settings UI should key "a logo exists"
+  // on, not `branding.logoVersion > 0`, since the version is bumped on
+  // delete too (see the logo route) and would otherwise keep pointing the
+  // preview/public <img> at a URL that 404s after a removal.
+  const hasLogo = !!(await OrgAssetModel.exists({ organizationId: orgId, kind: "logo" }));
+
   return NextResponse.json(
     {
       success: true,
@@ -46,6 +55,7 @@ async function handleGET(
       memberCount,
       branding: brandingView(organization),
       brandingAllowed: hasFeature(organization.plan, "branding"),
+      hasLogo,
     },
     { status: 200 }
   );

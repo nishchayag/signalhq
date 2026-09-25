@@ -31,7 +31,17 @@ interface BrandingSettingsProps {
   branding: BrandingSettingsValue;
   /** Does the org's current plan allow branding to render/serve at all? */
   brandingAllowed: boolean;
+  /**
+   * Whether an OrgAsset logo row actually exists (from GET
+   * /api/organizations/:orgId's `hasLogo`). Deliberately separate from
+   * `branding.logoVersion` — the backend bumps logoVersion on delete too
+   * (so a stale cached `?v=` URL never collides with the next upload), so
+   * `logoVersion > 0` is true right after a removal and would build a
+   * preview/public <img> that 404s.
+   */
+  hasLogo: boolean;
   onBrandingChange: (branding: BrandingSettingsValue) => void;
+  onHasLogoChange: (hasLogo: boolean) => void;
 }
 
 function brandingErrorMessage(e: unknown, fallback: string): string {
@@ -68,7 +78,9 @@ export default function BrandingSettings({
   role,
   branding,
   brandingAllowed,
+  hasLogo,
   onBrandingChange,
+  onHasLogoChange,
 }: BrandingSettingsProps) {
   const { trackEvent } = useAnalytics();
   const confirm = useConfirm();
@@ -80,6 +92,7 @@ export default function BrandingSettings({
   const [accent, setAccent] = useState<BrandingAccent>(branding.accent);
   const [welcomeText, setWelcomeText] = useState(branding.welcomeText);
   const [logoVersion, setLogoVersion] = useState(branding.logoVersion);
+  const [logoPresent, setLogoPresent] = useState(hasLogo);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   // Object URL for a just-picked file, shown immediately while it uploads —
@@ -97,6 +110,15 @@ export default function BrandingSettings({
     setAccent(branding.accent);
     setWelcomeText(branding.welcomeText);
     setLogoVersion(branding.logoVersion);
+  }
+
+  // Same reset-on-prop-change treatment for `hasLogo`, which lives outside
+  // `branding` (it isn't part of the accent/welcomeText/logoVersion PATCH
+  // response shape).
+  const [prevHasLogo, setPrevHasLogo] = useState(hasLogo);
+  if (hasLogo !== prevHasLogo) {
+    setPrevHasLogo(hasLogo);
+    setLogoPresent(hasLogo);
   }
 
   useEffect(
@@ -153,7 +175,9 @@ export default function BrandingSettings({
         toast.success("Logo uploaded");
         trackEvent("logo_uploaded", contentType === "image/webp" ? "webp" : "png");
         setLogoVersion(res.data.logoVersion);
+        setLogoPresent(true);
         onBrandingChange({ accent, welcomeText, logoVersion: res.data.logoVersion });
+        onHasLogoChange(true);
       } else {
         toast.error(res.data.message || "Failed to upload logo");
       }
@@ -183,12 +207,14 @@ export default function BrandingSettings({
     // cached pre-delete `?v=` URL never collides with the next upload.
     const nextVersion = logoVersion + 1;
     setLogoVersion(nextVersion);
+    setLogoPresent(false);
     toast.success("Logo removed");
     onBrandingChange({ accent, welcomeText, logoVersion: nextVersion });
+    onHasLogoChange(false);
   };
 
   const publicLogoUrl =
-    orgSlug && brandingAllowed && logoVersion > 0
+    orgSlug && brandingAllowed && logoPresent
       ? `/api/o/${orgSlug}/logo?v=${logoVersion}`
       : null;
   const previewSrc = pendingPreviewUrl ?? publicLogoUrl;
@@ -290,9 +316,9 @@ export default function BrandingSettings({
                   ) : (
                     <Upload className="mr-2 h-4 w-4" />
                   )}
-                  {logoVersion > 0 ? "Replace logo" : "Upload logo"}
+                  {logoPresent ? "Replace logo" : "Upload logo"}
                 </Button>
-                {logoVersion > 0 && (
+                {logoPresent && (
                   <Button
                     type="button"
                     variant="ghost"

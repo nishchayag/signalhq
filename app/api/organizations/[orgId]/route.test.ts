@@ -9,6 +9,7 @@ import { jsonReq, seedTriageWorld, sessionFor, type TriageWorld } from "@/test-u
 import { GET } from "@/app/api/organizations/[orgId]/route";
 import { PATCH as patchBranding } from "@/app/api/organizations/[orgId]/branding/route";
 import OrganizationModel from "@/models/organization.model";
+import OrgAssetModel from "@/models/orgAsset.model";
 
 type Id = mongoose.Types.ObjectId;
 
@@ -42,6 +43,8 @@ describe("GET /api/organizations/:orgId", () => {
     expect(body.brandingAllowed).toBe(false);
     // Never leaks logo bytes.
     expect(body.organization.branding?.bytes).toBeUndefined();
+    // No OrgAsset row yet.
+    expect(body.hasLogo).toBe(false);
   });
 
   it("PRO org: reflects stored branding and brandingAllowed true", async () => {
@@ -69,6 +72,23 @@ describe("GET /api/organizations/:orgId", () => {
   it("outsider: 403", async () => {
     as(w.outsider);
     expect((await get()).status).toBe(403);
+  });
+
+  it("hasLogo is true once an OrgAsset logo row exists, never leaking bytes", async () => {
+    await setPlan("PRO");
+    await OrgAssetModel.create({
+      organizationId: w.org,
+      kind: "logo",
+      contentType: "image/png",
+      bytes: Buffer.from("fake-png-bytes"),
+      size: 14,
+      sha256: "deadbeef",
+    });
+    as(w.owner);
+    const res = await get();
+    const body = await res.json();
+    expect(body.hasLogo).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("fake-png-bytes");
   });
 
   it("a downgrade to FREE keeps the stored branding readable, just not allowed", async () => {

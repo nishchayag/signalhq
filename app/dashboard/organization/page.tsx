@@ -163,6 +163,7 @@ export default function OrganizationPage() {
     logoVersion: 0,
   });
   const [brandingAllowed, setBrandingAllowed] = useState(false);
+  const [hasLogo, setHasLogo] = useState(false);
   const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [shareOpen, setShareOpen] = useState(false);
@@ -207,6 +208,7 @@ export default function OrganizationPage() {
         setOrgName(org.data.organization.name);
         if (org.data.branding) setBranding(org.data.branding);
         setBrandingAllowed(!!org.data.brandingAllowed);
+        setHasLogo(!!org.data.hasLogo);
       }
       if (m.data.success) setMembers(m.data.members);
       if (t.data.success) setTeams(t.data.teams);
@@ -937,7 +939,9 @@ export default function OrganizationPage() {
                 role={role}
                 branding={branding}
                 brandingAllowed={brandingAllowed}
+                hasLogo={hasLogo}
                 onBrandingChange={setBranding}
+                onHasLogoChange={setHasLogo}
               />
             )}
 
