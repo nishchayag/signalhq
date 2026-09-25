@@ -22,7 +22,25 @@ export interface Segment {
  * sentiment colors only — never a categorical hue — since every caller here
  * is a good↔bad share, not series identity.
  */
-export default function SegmentBar({ segments, caption, legend }: { segments: Segment[]; caption: string; legend?: ReactNode }) {
+export default function SegmentBar({
+  segments,
+  caption,
+  legend,
+  onSegmentClick,
+  clickLabel,
+}: {
+  segments: Segment[];
+  caption: string;
+  legend?: ReactNode;
+  /** Present only when the caller's target filter is actually supported
+   * downstream (mirrors BarListChart's `onItemClick`) — a segment becomes a
+   * keyboard-focusable button; omit to render a plain, non-interactive bar. */
+  onSegmentClick?: (segment: Segment) => void;
+  /** Screen-reader hint appended to each clickable segment's aria-label. A
+   * function receives the segment and returns the full aria-label (e.g.
+   * "Filter messages by sentiment negative"). */
+  clickLabel?: string | ((segment: Segment) => string);
+}) {
   const clipId = useId();
   const { ref, width } = useContainerWidth(360);
   const [active, setActive] = useState<number | null>(null);
@@ -47,25 +65,46 @@ export default function SegmentBar({ segments, caption, legend }: { segments: Se
             <rect x={0} y={0} width={width} height={H} rx={6} ry={6} />
           </clipPath>
           <g clipPath={`url(#${clipId})`}>
-            {laid.map((seg, i) => (
-              <rect
-                key={seg.key}
-                x={seg.x}
-                y={0}
-                width={seg.w}
-                height={H}
-                fill={seg.color}
-                opacity={active === null || active === i ? 1 : 0.5}
-                style={{ transition: "opacity 120ms ease" }}
-                onPointerEnter={() => setActive(i)}
-                onPointerLeave={() => setActive((cur) => (cur === i ? null : cur))}
-                onFocus={() => setActive(i)}
-                onBlur={() => setActive((cur) => (cur === i ? null : cur))}
-                tabIndex={seg.w > 0 ? 0 : undefined}
-                role={seg.w > 0 ? "img" : undefined}
-                aria-label={`${seg.label}: ${seg.value} (${formatPercent(safeRatio(seg.value, total))})`}
-              />
-            ))}
+            {laid.map((seg, i) => {
+              const clickable = Boolean(onSegmentClick && seg.value > 0);
+              return (
+                <rect
+                  key={seg.key}
+                  x={seg.x}
+                  y={0}
+                  width={seg.w}
+                  height={H}
+                  fill={seg.color}
+                  opacity={active === null || active === i ? 1 : 0.5}
+                  style={{ transition: "opacity 120ms ease" }}
+                  className={clickable ? "cursor-pointer" : undefined}
+                  onPointerEnter={() => setActive(i)}
+                  onPointerLeave={() => setActive((cur) => (cur === i ? null : cur))}
+                  onFocus={() => setActive(i)}
+                  onBlur={() => setActive((cur) => (cur === i ? null : cur))}
+                  onClick={clickable ? () => onSegmentClick?.(seg) : undefined}
+                  onKeyDown={
+                    clickable
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onSegmentClick?.(seg);
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={seg.w > 0 ? 0 : undefined}
+                  role={seg.w > 0 ? (clickable ? "button" : "img") : undefined}
+                  aria-label={
+                    clickable && typeof clickLabel === "function"
+                      ? clickLabel(seg)
+                      : `${seg.label}: ${seg.value} (${formatPercent(safeRatio(seg.value, total))})${
+                          clickable && clickLabel ? `. ${clickLabel}` : ""
+                        }`
+                  }
+                />
+              );
+            })}
           </g>
         </svg>
         {active !== null && width > 0 && laid[active] && (

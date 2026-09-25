@@ -46,6 +46,8 @@ describe("triageFiltersToParams", () => {
       assignee: "none",
       score: "",
       choice: "",
+      tag: "",
+      sentiment: "",
     };
     expect(triageFiltersToParams(filters)).toEqual({
       status: "all",
@@ -63,6 +65,15 @@ describe("triageFiltersToParams", () => {
       choice: "opt1",
     });
   });
+
+  it("passes tag and sentiment through unchanged", () => {
+    expect(triageFiltersToParams({ ...DEFAULT_TRIAGE_FILTERS, tag: "workload" })).toEqual({
+      tag: "workload",
+    });
+    expect(triageFiltersToParams({ ...DEFAULT_TRIAGE_FILTERS, sentiment: "negative" })).toEqual({
+      sentiment: "negative",
+    });
+  });
 });
 
 describe("isFilterActive", () => {
@@ -77,5 +88,7 @@ describe("isFilterActive", () => {
     expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, assignee: "me" })).toBe(true);
     expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, score: "4" })).toBe(true);
     expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, choice: "opt1" })).toBe(true);
+    expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, tag: "workload" })).toBe(true);
+    expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, sentiment: "negative" })).toBe(true);
   });
 });

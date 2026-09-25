@@ -17,9 +17,9 @@ import { useQuestionStats } from "./useQuestionStats";
  * The per-question Results panel (QuestionView): distribution, average, an
  * NPS block for nps questions, comment rate and cap progress — all of that
  * hidden for plain text questions, which get only volume + sentiment.
- * Score/choice bars are click-to-filter (wired through the same
- * questionFilters the message list below already reads); a text question's
- * volume/sentiment charts aren't, since there's no per-answer filter to set.
+ * Score/choice bars, the top-tags bar list and the sentiment segments are
+ * all click-to-filter (wired through the same questionFilters the message
+ * list below already reads).
  */
 export default function QuestionResults({ d, question }: { d: DashboardData; question: IQuestion }) {
   const { data, loading, error, rateLimited, retry } = useQuestionStats(question._id);
@@ -148,7 +148,24 @@ export default function QuestionResults({ d, question }: { d: DashboardData; que
         caption={`${caption} — volume over time`}
       />
 
-      <SentimentBar title="Sentiment" totals={data.sentiment.totals} caption={`${caption} — sentiment`} />
+      {data.tags.length > 0 && (
+        <BarListChart
+          title="Top tags"
+          caption={`${caption} — top tags`}
+          items={data.tags.map((t) => ({ id: t.tag, label: t.tag, value: t.count }))}
+          onItemClick={internal ? undefined : (item) => d.setQuestionFilters({ tag: item.id })}
+          clickLabel={(item) => `Filter messages by tag ${item.label}`}
+        />
+      )}
+
+      <SentimentBar
+        title="Sentiment"
+        totals={data.sentiment.totals}
+        caption={`${caption} — sentiment`}
+        onSentimentClick={
+          internal ? undefined : (sentiment) => d.setQuestionFilters({ sentiment })
+        }
+      />
     </div>
   );
 }

@@ -113,6 +113,28 @@ export default function MessageFilters({
         </button>
       )}
 
+      {filters.tag && (
+        <button
+          type="button"
+          onClick={() => onChange({ tag: "" })}
+          className="pop flex h-9 items-center gap-1.5 rounded-lg border-2 border-ink bg-brand-mint/30 px-3 text-sm font-bold text-foreground"
+        >
+          Tag: {filters.tag}
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      {filters.sentiment && (
+        <button
+          type="button"
+          onClick={() => onChange({ sentiment: "" })}
+          className="pop flex h-9 items-center gap-1.5 rounded-lg border-2 border-ink bg-brand-pink/30 px-3 text-sm font-bold text-foreground"
+        >
+          Sentiment: {filters.sentiment}
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+
       <button
         type="button"
         onClick={onMarkAllRead}

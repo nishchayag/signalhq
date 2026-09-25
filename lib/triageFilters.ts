@@ -18,6 +18,11 @@ export interface TriageFilters {
   // bar or a choice bar). "" = no answer filter.
   score: string; // "N" or "N-M", e.g. NPS detractors "0-6"
   choice: string; // an option id
+  // AI-enrichment filters (lib/messageListQuery.ts) — set from an analytics
+  // chart's click-to-filter (a tag bar or a sentiment segment). "" = no
+  // filter.
+  tag: string; // an AI_TAGS entry, e.g. "workload"
+  sentiment: string; // an AI_SENTIMENTS entry, e.g. "negative"
 }
 
 export const DEFAULT_TRIAGE_FILTERS: TriageFilters = {
@@ -27,6 +32,8 @@ export const DEFAULT_TRIAGE_FILTERS: TriageFilters = {
   assignee: "",
   score: "",
   choice: "",
+  tag: "",
+  sentiment: "",
 };
 
 /** True if `filters` differs from the all-open, unfiltered default. */
@@ -37,7 +44,9 @@ export function isFilterActive(filters: TriageFilters): boolean {
     filters.label !== "" ||
     filters.assignee !== "" ||
     filters.score !== "" ||
-    filters.choice !== ""
+    filters.choice !== "" ||
+    filters.tag !== "" ||
+    filters.sentiment !== ""
   );
 }
 
@@ -56,5 +65,7 @@ export function triageFiltersToParams(
   if (filters.assignee) params.assignee = filters.assignee;
   if (filters.score) params.score = filters.score;
   if (filters.choice) params.choice = filters.choice;
+  if (filters.tag) params.tag = filters.tag;
+  if (filters.sentiment) params.sentiment = filters.sentiment;
   return params;
 }

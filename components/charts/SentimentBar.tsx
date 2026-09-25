@@ -20,18 +20,21 @@ const SENTIMENT_LABEL: Record<(typeof SENTIMENT_ORDER)[number], string> = {
  * alone: every segment is paired with its label and percentage, both in the
  * legend and directly on hover/focus.
  *
- * Not click-to-filter: the message list API has no `sentiment` query param
- * (only `score` and `choice` narrow by answer), so these segments stay
- * static rather than promising a filter that doesn't exist.
+ * `onSentimentClick` wires a segment to the `sentiment` message-list filter
+ * (lib/messageListQuery.ts) — present only where that filter actually
+ * applies (mirrors BarListChart's `onItemClick`); omit to render a plain,
+ * non-interactive bar.
  */
 export default function SentimentBar({
   title,
   totals,
   caption,
+  onSentimentClick,
 }: {
   title: string;
   totals: Record<(typeof SENTIMENT_ORDER)[number], number>;
   caption: string;
+  onSentimentClick?: (sentiment: (typeof SENTIMENT_ORDER)[number]) => void;
 }) {
   const total = SENTIMENT_ORDER.reduce((sum, k) => sum + (totals[k] ?? 0), 0);
 
@@ -62,6 +65,12 @@ export default function SentimentBar({
             color: SENTIMENT_COLORS[k],
             value: totals[k] ?? 0,
           }))}
+          onSegmentClick={
+            onSentimentClick
+              ? (seg) => onSentimentClick(seg.key as (typeof SENTIMENT_ORDER)[number])
+              : undefined
+          }
+          clickLabel={(seg) => `Filter messages by sentiment ${seg.key}`}
         />
       )}
       <SrOnlyTable

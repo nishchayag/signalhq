@@ -152,13 +152,20 @@ export default function AnalyticsPageClient() {
               emptyMessage="No enriched messages in this range yet"
             />
 
-            <SentimentBar title="Sentiment (this range)" totals={data.sentiment.totals} caption="Sentiment totals for the selected range" />
+            <SentimentBar
+              title="Sentiment (this range)"
+              totals={data.sentiment.totals}
+              caption="Sentiment totals for the selected range"
+              onSentimentClick={(sentiment) => router.push(`/dashboard?sentiment=${sentiment}`)}
+            />
 
             <div className="grid gap-6 sm:grid-cols-2">
               <BarListChart
                 title="Top tags"
                 caption="Top AI tags for this range"
                 items={data.tags.map((t) => ({ id: t.tag, label: t.tag, value: t.count }))}
+                onItemClick={(item) => router.push(`/dashboard?tag=${encodeURIComponent(item.id)}`)}
+                clickLabel={(item) => `Filter messages by tag ${item.label}`}
                 emptyMessage="No tagged messages in this range yet"
               />
               <BarListChart

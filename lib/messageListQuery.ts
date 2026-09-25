@@ -4,8 +4,12 @@ import { parseBeforeCursor, parseEscapedSearch } from "@/lib/pagination";
 import { isValidObjectId } from "@/lib/objectId";
 import { unreadClause } from "@/lib/readState";
 import { OPTION_ID_PATTERN, SCALES } from "@/lib/answers";
+import { AI_SENTIMENTS, AI_TAGS } from "@/models/message.model";
 
 const SCORE_MAX = Math.max(SCALES.rating.max, SCALES.nps.max);
+const MAX_TAG_LEN = 32;
+const AI_TAG_SET = new Set<string>(AI_TAGS);
+const AI_SENTIMENT_SET = new Set<string>(AI_SENTIMENTS);
 
 // The one place a message-list Mongo filter is built from query params, used
 // by getMessages, questions/[id] GET, messages/export and semantic search,
@@ -120,6 +124,37 @@ export function buildMessageListFilter({
   const choice = searchParams.get("choice");
   if (choice !== null) {
     and.push(OPTION_ID_PATTERN.test(choice) ? { "answer.choices": choice } : MATCH_NOTHING);
+  }
+
+  // AI enrichment filters (lib/aiEnrichment.ts), set from an analytics
+  // chart's click-to-filter (a tag bar or sentiment segment). Querying
+  // "ai.*" is fine even though `ai` is select: false — that only affects
+  // which fields a fetch returns, never what a filter can match on — and
+  // the result is never returned unless the route re-selects "+ai" and
+  // passes it through lib/messageView.ts#withAiView. Applies in every mode
+  // (page/export/semantic), same as score/choice above: it's a plain
+  // narrowing predicate, and the semantic path re-applies the full filter
+  // when it hydrates results (lib/semanticSearch.ts), so a tag/sentiment
+  // filter narrows the semantic candidate pool exactly like the regex path.
+  //
+  // tag=<AI_TAGS entry> — lowercased, length-bounded before the vocabulary
+  // check so a long/garbage value can't do unbounded string work; anything
+  // outside the fixed tag vocabulary is malformed ⇒ empty list.
+  const tag = searchParams.get("tag");
+  if (tag !== null) {
+    const normalized = tag.trim().toLowerCase();
+    and.push(
+      normalized.length > 0 && normalized.length <= MAX_TAG_LEN && AI_TAG_SET.has(normalized)
+        ? { "ai.tags": normalized }
+        : MATCH_NOTHING
+    );
+  }
+
+  // sentiment=positive|neutral|negative|mixed (AI_SENTIMENTS). Malformed ⇒
+  // empty list, same convention as tag/score/choice.
+  const sentiment = searchParams.get("sentiment");
+  if (sentiment !== null) {
+    and.push(AI_SENTIMENT_SET.has(sentiment) ? { "ai.sentiment": sentiment } : MATCH_NOTHING);
   }
 
   if (and.length > 0) {

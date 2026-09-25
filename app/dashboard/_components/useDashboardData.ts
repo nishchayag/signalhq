@@ -261,6 +261,12 @@ export function useDashboardData() {
   // new object on every refetch (window focus etc.), which used to refetch
   // everything and throw away loaded "Load more" pages and the search.
   const orgKey = session ? session.user?.activeOrgId ?? "none" : null;
+  // Analytics click-to-filter lands here as `/dashboard?tag=…` or
+  // `?sentiment=…` (see AnalyticsPageClient). Applied once, to the general
+  // list's filters, the first time an org resolves — never re-read after
+  // that, so switching orgs or filters later doesn't keep reapplying a
+  // stale URL.
+  const initialUrlFiltersAppliedRef = useRef(false);
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (orgKey) {
@@ -272,10 +278,27 @@ export function useDashboardData() {
       // A new org starts with fresh (unfiltered) triage lists too.
       triage.resetForNewOrg();
       fetchQuestions();
-      fetchGeneralMessages();
       fetchTeams();
       setAi(null);
       fetchAi();
+
+      let appliedFromUrl = false;
+      if (!initialUrlFiltersAppliedRef.current) {
+        initialUrlFiltersAppliedRef.current = true;
+        const params = new URLSearchParams(window.location.search);
+        const tag = params.get("tag");
+        const sentiment = params.get("sentiment");
+        if (tag || sentiment) {
+          appliedFromUrl = true;
+          // setGeneralFilters itself triggers the general-list refetch
+          // (onFiltersChange), so no separate fetchGeneralMessages() call.
+          triage.setGeneralFilters({
+            ...(tag ? { tag } : {}),
+            ...(sentiment ? { sentiment } : {}),
+          });
+        }
+      }
+      if (!appliedFromUrl) fetchGeneralMessages();
     }
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -41,8 +41,11 @@ export default function BarListChart({
   /** Present only when the target filter is actually supported by the
    * message list API — omit to render a plain, non-interactive chart. */
   onItemClick?: (item: BarListItem) => void;
-  /** Screen-reader hint appended to each bar's label, e.g. "filter messages". */
-  clickLabel?: string;
+  /** Screen-reader hint appended to each bar's label, e.g. "filter messages".
+   * A function receives the item and returns the full aria-label (e.g.
+   * "Filter messages by tag bug") when the wording needs the item's own
+   * value rather than a generic suffix. */
+  clickLabel?: string | ((item: BarListItem) => string);
   emptyMessage?: string;
 }) {
   const { ref, width } = useContainerWidth(360);
@@ -87,7 +90,13 @@ export default function BarListChart({
                     key={it.id}
                     tabIndex={clickable ? 0 : undefined}
                     role={clickable ? "button" : undefined}
-                    aria-label={clickable ? `${it.label}: ${it.value}. ${clickLabel ?? ""}`.trim() : undefined}
+                    aria-label={
+                      clickable
+                        ? typeof clickLabel === "function"
+                          ? clickLabel(it)
+                          : `${it.label}: ${it.value}. ${clickLabel ?? ""}`.trim()
+                        : undefined
+                    }
                     className={clickable ? "cursor-pointer" : undefined}
                     onPointerEnter={() => setActive(it.id)}
                     onPointerLeave={() => setActive((cur) => (cur === it.id ? null : cur))}
