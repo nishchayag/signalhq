@@ -587,13 +587,16 @@ export default function OrganizationPage() {
           </Button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b-2 border-ink">
+        {/* Tabs — this row doesn't wrap (there are up to 8 of them), so on
+            narrow viewports it scrolls horizontally within itself instead of
+            widening the whole page (which would otherwise push
+            document.documentElement.scrollWidth past the viewport). */}
+        <div className="flex gap-1 mb-6 overflow-x-auto border-b-2 border-ink">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-bold border-b-4 -mb-0.5 transition-colors ${
+              className={`flex shrink-0 items-center gap-2 px-4 py-2 text-sm font-bold border-b-4 -mb-0.5 transition-colors ${
                 tab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
