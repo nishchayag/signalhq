@@ -29,9 +29,13 @@ export const GET = withErrorHandling(async (request: NextRequest, { params }: Ct
   if (!authz.ok) return authz.response;
   const { question, role } = authz;
 
-  // role is null only for a legacy org-less question the caller owns.
+  // Multi-tenant backfill is complete (0 org-less questions in prod); treat one as not-found rather than relying on the invariant.
+  if (!question.organizationId || !role) {
+    return NextResponse.json({ success: false, message: "Question not found" }, { status: 404 });
+  }
+
   const internal = question.visibility === "internal";
-  if (role && (!can(role, "message:read") || (internal && !can(role, "question:viewAllReplies")))) {
+  if (!can(role, "message:read") || (internal && !can(role, "question:viewAllReplies"))) {
     return NextResponse.json({ success: false, message: "Insufficient permissions" }, { status: 403 });
   }
 

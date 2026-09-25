@@ -238,6 +238,38 @@ describe("GET /api/analytics/overview", () => {
     expect(wk.body.volume).toEqual([{ bucket: "2026-09-07", total: 1, question: 0, general: 1 }]);
   });
 
+  it("buckets a message across the America/New_York spring-forward on its local day", async () => {
+    const { org, owner } = await makeOrg();
+    // 2026-03-08 is the US spring-forward day (2am EST -> 3am EDT at 07:00Z).
+    await msg(org._id, owner, { createdAt: new Date("2026-03-08T12:00:00Z") });
+    as(owner);
+    const r = await overview("?from=2026-03-08&to=2026-03-08&tz=America/New_York&bucket=day");
+    expect(r.status).toBe(200);
+    expect(r.body.volume).toEqual([{ bucket: "2026-03-08", total: 1, question: 0, general: 1 }]);
+  });
+
+  it("buckets a message across the America/New_York fall-back into one 2026-10-26 week", async () => {
+    const { org, owner } = await makeOrg();
+    // 2026-11-01 is the US fall-back day; its Monday-start week is 2026-10-26.
+    await msg(org._id, owner, { createdAt: new Date("2026-11-01T12:00:00Z") });
+    as(owner);
+    const r = await overview("?from=2026-10-26&to=2026-11-01&tz=America/New_York&bucket=week");
+    expect(r.status).toBe(200);
+    // Exactly one zero-filled bucket, and it's the one Mongo grouped into:
+    // proves the JS-computed zero-fill keys agree with Mongo's $dateTrunc.
+    expect(r.body.volume).toEqual([{ bucket: "2026-10-26", total: 1, question: 0, general: 1 }]);
+  });
+
+  it("treats an explicit full-ISO 'to' as exclusive", async () => {
+    const { org, owner } = await makeOrg();
+    await msg(org._id, owner, { createdAt: new Date("2026-09-10T12:00:00.000Z") });
+    await msg(org._id, owner, { createdAt: new Date("2026-09-10T11:59:59.999Z") });
+    as(owner);
+    const r = await overview("?from=2026-09-01&to=2026-09-10T12:00:00.000Z");
+    expect(r.status).toBe(200);
+    expect(r.body.totals.messages).toBe(1);
+  });
+
   it("caps the range at 12 months", async () => {
     const { org, owner } = await makeOrg();
     await msg(org._id, owner, { createdAt: new Date("2025-06-15T12:00:00Z") });
@@ -313,6 +345,17 @@ describe("GET /api/analytics/questions/[questionId]", () => {
     expect(ok.body.totals.responses).toBe(1);
   });
 
+  it("404s an org-less question (backfill invariant violation)", async () => {
+    const owner = oid();
+    const q = await QuestionModel.create({
+      questionText: "Legacy?",
+      userId: owner,
+      slug: `legacy-${slugN++}`,
+    });
+    as(owner);
+    expect((await questionStats(String(q._id))).status).toBe(404);
+  });
+
   it("404s another team's question for a MEMBER", async () => {
     const { org, owner } = await makeOrg();
     const member = await addMember(org._id);
@@ -385,6 +428,27 @@ describe("GET /api/analytics/questions/[questionId]", () => {
       ],
     });
     expect(body.average).toBeNull();
+  });
+
+  it("counts a single-choice distribution correctly", async () => {
+    const { org, owner } = await makeOrg();
+    const q = await makeQuestion(org._id, owner, {
+      type: "single",
+      config: { options: [{ id: "a1", label: "Red" }, { id: "b2", label: "Blue" }] },
+    });
+    await msg(org._id, owner, { questionId: q._id, content: "", answer: { kind: "single", choices: ["a1"], labels: ["Red"] } });
+    await msg(org._id, owner, { questionId: q._id, content: "", answer: { kind: "single", choices: ["b2"], labels: ["Blue"] } });
+    await msg(org._id, owner, { questionId: q._id, content: "", answer: { kind: "single", choices: ["a1"], labels: ["Red"] } });
+    as(owner);
+    const { body } = await questionStats(String(q._id));
+    expect(body.distribution).toEqual({
+      kind: "choice",
+      respondents: 3,
+      counts: [
+        { optionId: "a1", label: "Red", count: 2 },
+        { optionId: "b2", label: "Blue", count: 1 },
+      ],
+    });
   });
 
   it("returns zeros for a question with no responses", async () => {
