@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import QuestionResponseForm from "@/components/QuestionResponseForm";
 import { generateMetadata as createMetadata } from "@/lib/metadata";
-import { getCanonicalQuestion } from "@/lib/publicLookups";
+import { getCanonicalQuestion, getPublicOrg } from "@/lib/publicLookups";
 
 interface PageProps {
   params: Promise<{ orgSlug: string; slug: string }>;
@@ -36,5 +36,14 @@ export default async function OrgQuestionPage({ params }: PageProps) {
   if (question.orgSlug !== orgSlug || question.slug !== slug) {
     permanentRedirect(question.path);
   }
-  return <QuestionResponseForm slug={question.slug} />;
+  // getPublicOrg is cache()'d per orgSlug — cheap even though getCanonicalQuestion
+  // already looked the org up once above (it doesn't return branding).
+  const organization = await getPublicOrg(question.orgSlug);
+  return (
+    <QuestionResponseForm
+      slug={question.slug}
+      orgName={organization?.name}
+      branding={organization?.effectiveBranding ?? null}
+    />
+  );
 }

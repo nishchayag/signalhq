@@ -7,8 +7,15 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
 import { deleteOrganizationsCascade, rehomeStrandedUsers } from "@/lib/orgCleanup";
 import { withErrorHandling } from "@/lib/apiHandler";
+import { brandingView } from "@/lib/branding";
+import { hasFeature } from "@/lib/plans";
 
-// GET /api/organizations/:orgId — details for a member.
+// GET /api/organizations/:orgId — details for a member. Branding settings
+// (accent/welcomeText/logoVersion) are included here rather than behind
+// their own GET route — they aren't secret to members, and the org settings
+// page already loads this on every visit. Never selects/returns logo bytes
+// (those live in a separate OrgAsset row); the settings UI previews the
+// logo via the public GET /api/o/:orgSlug/logo route instead.
 async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
@@ -18,7 +25,7 @@ async function handleGET(
   if (!auth.ok) return auth.response;
 
   const organization = await OrganizationModel.findById(orgId).select(
-    "name slug createdBy createdAt plan"
+    "name slug createdBy createdAt plan branding"
   );
   if (!organization) {
     return NextResponse.json(
@@ -37,6 +44,8 @@ async function handleGET(
       organization,
       role: auth.membership.role,
       memberCount,
+      branding: brandingView(organization),
+      brandingAllowed: hasFeature(organization.plan, "branding"),
     },
     { status: 200 }
   );

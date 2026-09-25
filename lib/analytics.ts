@@ -14,7 +14,9 @@ export type AnalyticsEvent =
   | "link_copied"
   | "feedback_sent"
   | "guard_used"
-  | "qr_downloaded";
+  | "qr_downloaded"
+  | "branding_saved"
+  | "logo_uploaded";
 
 /**
  * Fire a custom analytics event (Google Analytics + Microsoft Clarity, when

@@ -9,7 +9,9 @@ import { Loader2, Lock, Send } from "lucide-react";
 import ReplyReceiptCard from "@/components/ReplyReceiptCard";
 import AnonymityGuard from "@/components/AnonymityGuard";
 import AnswerFields from "@/components/AnswerFields";
+import PublicBrandHeader from "@/components/PublicBrandHeader";
 import { enterToSendHint } from "@/lib/enterToSend";
+import type { PublicBranding } from "@/lib/brandingUi";
 import {
   buildAnswerBody,
   canSubmitAnswer,
@@ -33,10 +35,25 @@ interface QuestionData {
 
 /**
  * Anonymous question-response form, keyed by the question's global slug.
- * Shared by the org-scoped route (/o/[orgSlug]/q/[slug]) and the legacy
- * fallback (/q/[slug]). Renders the type-specific fields via AnswerFields.
+ * Rendered from the org-scoped route (/o/[orgSlug]/q/[slug]); the legacy
+ * /q/[slug] route is a pure server redirect and never mounts this. Renders
+ * the type-specific fields via AnswerFields.
+ *
+ * `orgName`/`branding` are optional — the page passes them from
+ * lib/publicLookups.ts#getPublicOrg. `branding` is null unless the org's
+ * plan currently allows it (lib/branding.ts#getEffectiveBranding), in which
+ * case a compact branded strip renders above the "Anonymous Feedback"
+ * heading; omitted entirely otherwise, so the page looks exactly as before.
  */
-export default function QuestionResponseForm({ slug }: { slug: string }) {
+export default function QuestionResponseForm({
+  slug,
+  orgName,
+  branding,
+}: {
+  slug: string;
+  orgName?: string;
+  branding?: PublicBranding | null;
+}) {
   const [question, setQuestion] = useState<QuestionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -178,6 +195,9 @@ export default function QuestionResponseForm({ slug }: { slug: string }) {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-dot-grid py-12 px-4">
       <div className="max-w-2xl mx-auto">
+        {branding && orgName && (
+          <PublicBrandHeader orgName={orgName} branding={branding} compact />
+        )}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-black tracking-tight text-foreground mb-2">
             Anonymous Feedback

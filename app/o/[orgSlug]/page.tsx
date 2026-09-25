@@ -7,6 +7,7 @@ import { getPublicOrg } from "@/lib/publicLookups";
 import { questionState } from "@/lib/answers";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import OrgFeedbackForm from "@/components/OrgFeedbackForm";
+import PublicBrandHeader from "@/components/PublicBrandHeader";
 import { isGuardOffered } from "@/lib/aiQuota";
 
 interface PageProps {
@@ -55,17 +56,11 @@ export default async function OrgPublicPage({ params }: PageProps) {
   return (
     <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-dot-grid py-16 px-4">
       <div className="relative max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-on-brand text-xl font-black">
-            {organization.name.charAt(0).toUpperCase()}
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground mb-2">
-            {organization.name}
-          </h1>
-          <p className="text-muted-foreground">
-            Share anonymous feedback — your identity is never revealed
-          </p>
-        </div>
+        <PublicBrandHeader
+          orgName={organization.name}
+          branding={organization.effectiveBranding}
+          fallbackSubtitle="Share anonymous feedback — your identity is never revealed"
+        />
 
         <Card>
           <CardHeader>

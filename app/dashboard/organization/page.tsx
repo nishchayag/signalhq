@@ -18,6 +18,7 @@ import {
   Tag,
   Pencil,
   Share2,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
@@ -32,6 +33,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import ShareDialog from "@/components/ShareDialog";
+import BrandingSettings, {
+  type BrandingSettingsValue,
+} from "@/app/dashboard/_components/BrandingSettings";
 import { can } from "@/lib/permissions";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { apiError } from "@/lib/apiError";
@@ -41,7 +45,15 @@ import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
 import { LABEL_COLORS, LABEL_NAME_MAX, ORG_MAX_LABELS, type LabelColor } from "@/lib/triageConstants";
 import type { LabelView } from "@/lib/labels";
 
-type Tab = "members" | "invitations" | "teams" | "labels" | "settings" | "plan" | "activity";
+type Tab =
+  | "members"
+  | "invitations"
+  | "teams"
+  | "labels"
+  | "branding"
+  | "settings"
+  | "plan"
+  | "activity";
 
 const LABEL_COLOR_BG: Record<LabelColor, string> = {
   yellow: "bg-brand-yellow",
@@ -145,6 +157,12 @@ export default function OrganizationPage() {
   const [activityLoadingMore, setActivityLoadingMore] = useState(false);
   const [plan, setPlan] = useState<Plan>("FREE");
   const [orgName, setOrgName] = useState("");
+  const [branding, setBranding] = useState<BrandingSettingsValue>({
+    accent: "yellow",
+    welcomeText: "",
+    logoVersion: 0,
+  });
+  const [brandingAllowed, setBrandingAllowed] = useState(false);
   const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [shareOpen, setShareOpen] = useState(false);
@@ -187,6 +205,8 @@ export default function OrganizationPage() {
       if (org.data.success) {
         setPlan(org.data.organization.plan);
         setOrgName(org.data.organization.name);
+        if (org.data.branding) setBranding(org.data.branding);
+        setBrandingAllowed(!!org.data.brandingAllowed);
       }
       if (m.data.success) setMembers(m.data.members);
       if (t.data.success) setTeams(t.data.teams);
@@ -545,6 +565,7 @@ export default function OrganizationPage() {
     ...(can(role, "org:labels")
       ? [{ key: "labels" as Tab, label: "Labels", icon: <Tag className="h-4 w-4" /> }]
       : []),
+    { key: "branding", label: "Branding", icon: <Palette className="h-4 w-4" /> },
     { key: "plan", label: "Plan", icon: <CreditCard className="h-4 w-4" /> },
     ...(can(role, "org:viewActivity")
       ? [{ key: "activity" as Tab, label: "Activity", icon: <History className="h-4 w-4" /> }]
@@ -906,6 +927,18 @@ export default function OrganizationPage() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {tab === "branding" && (
+              <BrandingSettings
+                orgId={orgId}
+                orgSlug={orgSlug}
+                orgName={orgName}
+                role={role}
+                branding={branding}
+                brandingAllowed={brandingAllowed}
+                onBrandingChange={setBranding}
+              />
             )}
 
             {tab === "plan" && (
