@@ -10,6 +10,7 @@ import { messagesToCsv } from "@/lib/csv";
 import type { ThreadSource } from "@/lib/thread";
 import { loadAndAuthorize } from "@/lib/questionAccess";
 import { effectiveReadSince } from "@/lib/readState";
+import { questionType } from "@/lib/answers";
 
 // Hard cap so a single export can't pull in an unbounded number of documents.
 const MAX_ROWS = 10_000;
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
     let base: Record<string, unknown>;
     let viewer: MessageListViewer;
     let filenameHint: string;
+    let typed = false;
 
     if (questionId) {
       const authz = await loadAndAuthorize(questionId);
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest) {
         readSince: authz.membership ? effectiveReadSince(authz.membership) : null,
       };
       filenameHint = authz.question.slug;
+      typed = questionType(authz.question) !== "text";
     } else {
       const session = await getServerSession(authOptions);
       const ctx = await resolveActiveContext(session);
@@ -71,10 +74,10 @@ export async function GET(request: NextRequest) {
     const messages = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(MAX_ROWS)
-      .select("content createdAt authorType replies")
+      .select("content answer createdAt authorType replies")
       .lean<ThreadSource[]>();
 
-    const csv = messagesToCsv(messages);
+    const csv = messagesToCsv(messages, { typed });
     const filename = `messages-${filenameHint}-${new Date().toISOString().slice(0, 10)}.csv`;
 
     return new NextResponse(csv, {

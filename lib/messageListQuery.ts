@@ -3,6 +3,9 @@ import type { MembershipRole } from "@/models/membership.model";
 import { parseBeforeCursor, parseEscapedSearch } from "@/lib/pagination";
 import { isValidObjectId } from "@/lib/objectId";
 import { unreadClause } from "@/lib/readState";
+import { OPTION_ID_PATTERN, SCALES } from "@/lib/answers";
+
+const SCORE_MAX = Math.max(SCALES.rating.max, SCALES.nps.max);
 
 // The one place a message-list Mongo filter is built from query params, used
 // by getMessages, questions/[id] GET, messages/export and semantic search,
@@ -96,6 +99,27 @@ export function buildMessageListFilter({
   else if (assignee === "none") and.push({ assignedTo: null });
   else if (assignee !== null) {
     and.push(isValidObjectId(assignee) ? { assignedTo: oid(assignee) } : MATCH_NOTHING);
+  }
+
+  // Typed answers. score=N or score=N-M (inclusive; e.g. NPS detractors
+  // 0-6), integers 0..10. choice=<option id> — any message whose answer
+  // picked it. Malformed ⇒ empty list.
+  const score = searchParams.get("score");
+  if (score !== null) {
+    const m = /^(\d{1,2})(?:-(\d{1,2}))?$/.exec(score);
+    const lo = m ? Number(m[1]) : NaN;
+    const hi = m ? Number(m[2] ?? m[1]) : NaN;
+    and.push(
+      m && lo <= hi && hi <= SCORE_MAX
+        ? lo === hi
+          ? { "answer.score": lo }
+          : { "answer.score": { $gte: lo, $lte: hi } }
+        : MATCH_NOTHING
+    );
+  }
+  const choice = searchParams.get("choice");
+  if (choice !== null) {
+    and.push(OPTION_ID_PATTERN.test(choice) ? { "answer.choices": choice } : MATCH_NOTHING);
   }
 
   if (and.length > 0) {

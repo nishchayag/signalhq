@@ -1,10 +1,14 @@
 import type { ThreadEntryAuthorRole } from "@/models/message.model";
+import type { MessageAnswer } from "@/lib/answers";
 
 /** One turn of a message thread, oldest first. */
 export interface ThreadTurn {
   authorRole: ThreadEntryAuthorRole;
   content: string;
   createdAt: Date;
+  /** Turn 1 only: a typed question's structured answer (`content` is then
+   * the optional comment, possibly ""). Render with formatAnswer. */
+  answer?: MessageAnswer;
 }
 
 /** The fields threadOf reads — works on hydrated docs and lean objects. */
@@ -12,6 +16,7 @@ export interface ThreadSource {
   content: string;
   createdAt: Date | string;
   authorType?: string | null;
+  answer?: MessageAnswer | null;
   replies?: { authorRole: string; content: string; createdAt: Date | string }[] | null;
 }
 
@@ -25,6 +30,7 @@ export function threadOf(msg: ThreadSource): ThreadTurn[] {
     authorRole: msg.authorType === "member" ? "member" : "sender",
     content: msg.content,
     createdAt: new Date(msg.createdAt),
+    ...(msg.answer ? { answer: msg.answer } : {}),
   };
   const rest: ThreadTurn[] = (msg.replies ?? []).map((r) => ({
     authorRole: r.authorRole as ThreadEntryAuthorRole,

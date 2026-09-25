@@ -25,6 +25,11 @@ const MAX_TOTAL_CHARS = 30_000;
 const MIN_MESSAGES = 3;
 const MAX_QUOTE_CHARS = 280;
 
+// Insights summarize text: a typed answer with no comment (content "") has
+// nothing to say to the model, so it's out of the batch — and out of the
+// staleness count, so a rating-only response doesn't mark the insight stale.
+const HAS_COMMENT = { content: { $exists: true, $nin: ["", null] } };
+
 interface Scope {
   organizationId: string;
   scopeName: "general" | "question";
@@ -64,7 +69,7 @@ async function resolveGeneralScope(
       organizationId: String(ctx.organizationId),
       scopeName: "general",
       questionId: null,
-      filter: { organizationId: ctx.organizationId, questionId: null },
+      filter: { organizationId: ctx.organizationId, questionId: null, ...HAS_COMMENT },
       role: ctx.role,
     },
   };
@@ -88,8 +93,8 @@ async function resolveQuestionScope(
   }
   const filter =
     authz.question.visibility === "internal"
-      ? { questionId, authorType: "member" }
-      : { questionId, authorType: { $ne: "member" } };
+      ? { questionId, authorType: "member", ...HAS_COMMENT }
+      : { questionId, authorType: { $ne: "member" }, ...HAS_COMMENT };
   return {
     ok: true,
     scope: {

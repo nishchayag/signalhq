@@ -12,6 +12,7 @@ import { fenceUntrusted } from "@/lib/aiPrompt";
 import { threadOf } from "@/lib/thread";
 import { aiObject, isAiEnabled, logAiError } from "@/lib/ai";
 import { consumeQuota, refundQuota, checkGlobalAiCap, getOrgPlan } from "@/lib/aiQuota";
+import { formatAnswer } from "@/lib/answers";
 
 export const maxDuration = 30;
 
@@ -109,7 +110,15 @@ export async function POST(
 
     const promptParts = [
       `Organization: ${fenceUntrusted([org?.name ?? "the organization"], "org")}`,
-      `Feedback message:\n${fenceUntrusted([message.content], "feedback")}`,
+      // A typed answer: its formatted value, plus the comment if there is one.
+      `Feedback message:\n${fenceUntrusted(
+        [
+          [message.answer ? `Answer: ${formatAnswer(message.answer)}` : null, message.content || null]
+            .filter(Boolean)
+            .join("\n"),
+        ],
+        "feedback"
+      )}`,
       question ? `The question it answers:\n${fenceUntrusted([question.questionText], "question")}` : null,
       existingReplies.length
         ? `The conversation so far, oldest first (don't repeat what the organization already said — reply to the latest turn):\n${fenceUntrusted(existingReplies, "existing-reply")}`

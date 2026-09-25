@@ -4,7 +4,9 @@ import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
 import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
-import { questionResponseSchema } from "@/schemas/questionSchema";
+import { buildAnswerSchema, questionResponseSchema } from "@/schemas/questionSchema";
+import { publicQuestionConfig, questionState } from "@/lib/answers";
+import { QUESTION_CLOSED, withResponseSlot } from "@/lib/answerClaim";
 import { notifyMessageEvent } from "@/lib/notifications";
 import { canAccessQuestion } from "@/lib/questionAccess";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -27,7 +29,7 @@ export async function GET(
   try {
     const { questionId } = await params;
     const question = await QuestionModel.findById(questionId).select(
-      "organizationId teamId visibility questionText"
+      "organizationId teamId visibility questionText type config closesAt maxResponses responseCount"
     );
     if (!question || question.visibility !== "internal") {
       return NextResponse.json(
@@ -60,7 +62,17 @@ export async function GET(
     return NextResponse.json(
       {
         success: true,
-        question: { _id: question._id, questionText: question.questionText },
+        // config/closed: same shapes as the public submit GET, so the
+        // member's first answer uses the same typed form.
+        question: {
+          _id: question._id,
+          questionText: question.questionText,
+          config: publicQuestionConfig(question),
+          closed: (() => {
+            const st = questionState(question);
+            return st.closed ? { reason: st.reason } : null;
+          })(),
+        },
         // Always the caller's own thread: no "+ai", and memberThread strips
         // it regardless.
         thread: withAiViewOne(thread, auth.membership.role, { memberThread: true }),
@@ -134,15 +146,15 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
-    const result = questionResponseSchema.safeParse(body);
-    if (!result.success) {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
-        { success: false, message: "Invalid input", errors: result.error.format() },
+        { success: false, message: "Invalid request body" },
         { status: 400 }
       );
     }
-    const { content } = result.data;
 
     let message = await MessageModel.findOne({
       questionId: question._id,
@@ -151,6 +163,17 @@ export async function POST(
     });
 
     if (message) {
+      // A follow-up is always free text (the typed answer was turn 1), and
+      // isn't a new response: no cap claim, and a closed question's
+      // existing threads can still continue.
+      const result = questionResponseSchema.safeParse(body);
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, message: "Invalid input", errors: result.error.format() },
+          { status: 400 }
+        );
+      }
+      const { content } = result.data;
       // A follow-up is new inbound activity: it reopens the thread for
       // everyone (clears readBy and any archive) — see lib/readState.ts.
       const now = new Date();
@@ -163,27 +186,44 @@ export async function POST(
         }
       );
     } else {
-      const aiOn = isAiEnabled();
+      // A new thread is a new response: typed per the question, and it
+      // takes a slot under the close date / cap.
+      if (questionState(question).closed) {
+        return NextResponse.json(QUESTION_CLOSED, { status: 410 });
+      }
+      const result = buildAnswerSchema(question).safeParse(body);
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, message: "Invalid input", errors: result.error.format() },
+          { status: 400 }
+        );
+      }
+      const { content, answer } = result.data;
+      // No comment ⇒ nothing to enrich, and no `ai` field.
+      const enrich = isAiEnabled() && content.length > 0;
       const now = new Date();
-      message = await MessageModel.create({
-        content,
-        createdAt: now,
-        lastInboundAt: now,
-        createdFor: question.userId,
-        questionId: question._id,
-        organizationId: question.organizationId,
-        teamId: question.teamId,
-        authorType: "member",
-        authorUserId: auth.userId,
-        replies: [],
-        ...(aiOn && { ai: { status: "pending", attempts: 0 } }),
-      });
+      const created = await withResponseSlot(question, () =>
+        MessageModel.create({
+          content,
+          ...(answer && { answer }),
+          createdAt: now,
+          lastInboundAt: now,
+          createdFor: question.userId,
+          questionId: question._id,
+          organizationId: question.organizationId,
+          teamId: question.teamId,
+          authorType: "member",
+          authorUserId: auth.userId,
+          replies: [],
+          ...(enrich && { ai: { status: "pending", attempts: 0 } }),
+        })
+      );
+      if (!created) {
+        return NextResponse.json(QUESTION_CLOSED, { status: 410 });
+      }
+      message = created;
       // New threads only; follow-ups aren't enriched. Never awaited.
-      const created = message;
-      if (aiOn) runAfter(() => enrichMessage(created._id));
-      await QuestionModel.findByIdAndUpdate(question._id, {
-        $inc: { responseCount: 1 },
-      });
+      if (enrich) runAfter(() => enrichMessage(created._id));
       // The answering member is the author: never email them about it.
       // Follow-ups on an existing thread (above) don't notify, as before.
       runAfter(() =>
