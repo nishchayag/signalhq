@@ -13,16 +13,24 @@ export const getPublicOrg = cache(async (orgSlug: string) => {
 });
 
 /**
- * Just enough of a question for a share preview. Internal questions return
- * `internal: true` with no text — their wording is for members only and
- * must never appear in a public page title or link unfurl.
+ * A public question's canonical location plus just enough for a share
+ * preview. The slug is globally unique, so the question — not the URL's org
+ * segment — decides which org it belongs to; pages redirect to
+ * `/o/${orgSlug}/q/${slug}` when the URL disagrees. Returns null when the
+ * question doesn't exist or has no (existing) org, so callers 404.
+ *
+ * Internal questions return `internal: true` with no text — their wording is
+ * for members only and must never appear in a public page title or unfurl.
  */
-export const getQuestionPreview = cache(async (slug: string) => {
+export const getCanonicalQuestion = cache(async (slug: string) => {
   await connectDB();
   const q = await QuestionModel.findOne({ slug: slug.toLowerCase() })
-    .select("questionText visibility")
+    .select("slug questionText visibility organizationId")
     .lean();
-  if (!q) return null;
-  if (q.visibility === "internal") return { internal: true as const };
-  return { internal: false as const, questionText: q.questionText };
+  if (!q?.organizationId) return null;
+  const org = await OrganizationModel.findById(q.organizationId).select("slug").lean();
+  if (!org) return null;
+  const location = { slug: q.slug, orgSlug: org.slug, path: `/o/${org.slug}/q/${q.slug}` };
+  if (q.visibility === "internal") return { ...location, internal: true as const };
+  return { ...location, internal: false as const, questionText: q.questionText };
 });
