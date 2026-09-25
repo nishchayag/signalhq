@@ -23,6 +23,7 @@ import SemanticSearchToggle, {
   semanticSearchOffered,
 } from "@/components/SemanticSearchToggle";
 import InsightsPanel from "@/components/InsightsPanel";
+import QuestionResults from "@/components/charts/QuestionResults";
 import Loader from "@/components/Loader";
 import AnswerFields from "@/components/AnswerFields";
 import { enterToSendHint } from "@/lib/enterToSend";
@@ -60,6 +61,8 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
           </div>
         )}
       </div>
+
+      <QuestionResults key={question._id} d={d} question={question} />
 
       <InsightsPanel key={question._id} questionId={question._id} ai={d.ai} refreshAi={d.refreshAi} />
 

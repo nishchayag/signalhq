@@ -13,6 +13,11 @@ export interface TriageFilters {
   unread: boolean;
   label: string; // "" = any label
   assignee: AssigneeFilter; // "" = any assignee
+  // Typed-answer filters (lib/messageListQuery.ts already supports both
+  // server-side) — set from an analytics chart's click-to-filter (a score
+  // bar or a choice bar). "" = no answer filter.
+  score: string; // "N" or "N-M", e.g. NPS detractors "0-6"
+  choice: string; // an option id
 }
 
 export const DEFAULT_TRIAGE_FILTERS: TriageFilters = {
@@ -20,6 +25,8 @@ export const DEFAULT_TRIAGE_FILTERS: TriageFilters = {
   unread: false,
   label: "",
   assignee: "",
+  score: "",
+  choice: "",
 };
 
 /** True if `filters` differs from the all-open, unfiltered default. */
@@ -28,7 +35,9 @@ export function isFilterActive(filters: TriageFilters): boolean {
     filters.status !== DEFAULT_TRIAGE_FILTERS.status ||
     filters.unread !== DEFAULT_TRIAGE_FILTERS.unread ||
     filters.label !== "" ||
-    filters.assignee !== ""
+    filters.assignee !== "" ||
+    filters.score !== "" ||
+    filters.choice !== ""
   );
 }
 
@@ -45,5 +54,7 @@ export function triageFiltersToParams(
   if (filters.unread) params.unread = "1";
   if (filters.label) params.label = filters.label;
   if (filters.assignee) params.assignee = filters.assignee;
+  if (filters.score) params.score = filters.score;
+  if (filters.choice) params.choice = filters.choice;
   return params;
 }

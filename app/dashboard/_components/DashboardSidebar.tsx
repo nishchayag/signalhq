@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { HelpCircle, MessageSquare, Plus, Settings, User, UserCheck } from "lucide-react";
+import { BarChart2, HelpCircle, MessageSquare, Plus, Settings, User, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrgSwitcher from "@/components/OrgSwitcher";
 import { questionState } from "@/lib/answers";
@@ -29,6 +29,13 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
       {/* Organization switcher + management */}
       <div className="space-y-2 border-b-2 border-ink p-4">
         <OrgSwitcher />
+        <Link
+          href="/dashboard/analytics"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <BarChart2 className="h-4 w-4" />
+          Analytics
+        </Link>
         <Link
           href="/dashboard/organization"
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"

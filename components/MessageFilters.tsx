@@ -1,5 +1,5 @@
 "use client";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import type { LabelView } from "@/lib/labels";
 import type { OrgMemberOption } from "@/app/dashboard/_components/useMessageTriage";
 import type { TriageFilters } from "@/lib/triageFilters";
@@ -100,6 +100,17 @@ export default function MessageFilters({
             </option>
           ))}
         </select>
+      )}
+
+      {(filters.score || filters.choice) && (
+        <button
+          type="button"
+          onClick={() => onChange({ score: "", choice: "" })}
+          className="pop flex h-9 items-center gap-1.5 rounded-lg border-2 border-ink bg-brand-blue/30 px-3 text-sm font-bold text-foreground"
+        >
+          Answer filter: {filters.score ? `score ${filters.score}` : "choice"}
+          <X className="h-3.5 w-3.5" />
+        </button>
       )}
 
       <button

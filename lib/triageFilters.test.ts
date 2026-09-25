@@ -44,12 +44,23 @@ describe("triageFiltersToParams", () => {
       unread: true,
       label: "l1",
       assignee: "none",
+      score: "",
+      choice: "",
     };
     expect(triageFiltersToParams(filters)).toEqual({
       status: "all",
       unread: "1",
       label: "l1",
       assignee: "none",
+    });
+  });
+
+  it("passes score and choice through unchanged", () => {
+    expect(triageFiltersToParams({ ...DEFAULT_TRIAGE_FILTERS, score: "9-10" })).toEqual({
+      score: "9-10",
+    });
+    expect(triageFiltersToParams({ ...DEFAULT_TRIAGE_FILTERS, choice: "opt1" })).toEqual({
+      choice: "opt1",
     });
   });
 });
@@ -64,5 +75,7 @@ describe("isFilterActive", () => {
     expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, unread: true })).toBe(true);
     expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, label: "x" })).toBe(true);
     expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, assignee: "me" })).toBe(true);
+    expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, score: "4" })).toBe(true);
+    expect(isFilterActive({ ...DEFAULT_TRIAGE_FILTERS, choice: "opt1" })).toBe(true);
   });
 });
