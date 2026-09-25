@@ -15,6 +15,7 @@ import { useMessageTriage } from "./useMessageTriage";
 import type { PatchMessageRequest } from "@/schemas/triageSchema";
 import { publicQuestionConfig, type MessageAnswer } from "@/lib/answers";
 import { buildAnswerBody, canSubmitAnswer, emptyAnswerValues, type AnswerFormValues } from "@/lib/answerForm";
+import { resolveUrlFilters, type ParsedUrlFilters } from "@/lib/dashboardUrlFilters";
 
 export interface AiStatus {
   enabled: boolean;
@@ -262,11 +263,16 @@ export function useDashboardData() {
   // everything and throw away loaded "Load more" pages and the search.
   const orgKey = session ? session.user?.activeOrgId ?? "none" : null;
   // Analytics click-to-filter lands here as `/dashboard?tag=…` or
-  // `?sentiment=…` (see AnalyticsPageClient). Applied once, to the general
-  // list's filters, the first time an org resolves — never re-read after
-  // that, so switching orgs or filters later doesn't keep reapplying a
-  // stale URL.
-  const initialUrlFiltersAppliedRef = useRef(false);
+  // `?sentiment=…` (see AnalyticsPageClient). Parsed once, out of the URL,
+  // and remembered against the org it belongs to (see
+  // lib/dashboardUrlFilters.ts) — re-applied every time this effect runs for
+  // that same org, not just the first time, so React Strict Mode's dev
+  // double-invoke (resetForNewOrg, then skip-and-fetch-unfiltered on the
+  // second run) can't wipe it. Switching to a different org still ignores it.
+  const urlFiltersRef = useRef<{ parsed: ParsedUrlFilters | null; hasParsed: boolean }>({
+    parsed: null,
+    hasParsed: false,
+  });
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (orgKey) {
@@ -282,23 +288,23 @@ export function useDashboardData() {
       setAi(null);
       fetchAi();
 
-      let appliedFromUrl = false;
-      if (!initialUrlFiltersAppliedRef.current) {
-        initialUrlFiltersAppliedRef.current = true;
-        const params = new URLSearchParams(window.location.search);
-        const tag = params.get("tag");
-        const sentiment = params.get("sentiment");
-        if (tag || sentiment) {
-          appliedFromUrl = true;
-          // setGeneralFilters itself triggers the general-list refetch
-          // (onFiltersChange), so no separate fetchGeneralMessages() call.
-          triage.setGeneralFilters({
-            ...(tag ? { tag } : {}),
-            ...(sentiment ? { sentiment } : {}),
-          });
-        }
+      const { parsed, apply } = resolveUrlFilters(
+        urlFiltersRef.current.parsed,
+        urlFiltersRef.current.hasParsed,
+        orgKey,
+        window.location.search
+      );
+      urlFiltersRef.current = { parsed, hasParsed: true };
+      if (apply) {
+        // setGeneralFilters itself triggers the general-list refetch
+        // (onFiltersChange), so no separate fetchGeneralMessages() call.
+        triage.setGeneralFilters({
+          ...(apply.tag ? { tag: apply.tag } : {}),
+          ...(apply.sentiment ? { sentiment: apply.sentiment } : {}),
+        });
+      } else {
+        fetchGeneralMessages();
       }
-      if (!appliedFromUrl) fetchGeneralMessages();
     }
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
