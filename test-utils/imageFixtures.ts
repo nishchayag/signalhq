@@ -88,6 +88,43 @@ function uint32le(n: number): Buffer {
   return b;
 }
 
+/**
+ * A structurally valid PNG carrying a tEXt chunk whose payload is `text`
+ * encoded as UTF-16 (LE or BE) rather than the tEXt spec's Latin-1 — used to
+ * test that the forbidden-markup scan catches markup smuggled past a
+ * latin1-only byte scan by way of UTF-16 encoding.
+ */
+export function pngWithUtf16TextChunk(text: string, endianness: "LE" | "BE" = "LE"): Buffer {
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdrData = Buffer.alloc(13);
+  ihdrData.writeUInt32BE(1, 0); // width
+  ihdrData.writeUInt32BE(1, 4); // height
+  ihdrData[8] = 8; // bit depth
+  ihdrData[9] = 6; // color type: RGBA
+  ihdrData[10] = 0; // compression
+  ihdrData[11] = 0; // filter
+  ihdrData[12] = 0; // interlace
+  const ihdr = pngChunk("IHDR", ihdrData);
+  const scanline = Buffer.from([0, 255, 0, 0, 255]); // filter byte + one red pixel
+  const idat = pngChunk("IDAT", deflateSync(scanline));
+
+  const le = Buffer.from(text, "utf16le");
+  const encoded = endianness === "LE" ? le : swapEndian16(le);
+  const textChunk = pngChunk("tEXt", encoded);
+  const iend = pngChunk("IEND", Buffer.alloc(0));
+  return Buffer.concat([signature, ihdr, idat, textChunk, iend]);
+}
+
+function swapEndian16(buf: Buffer): Buffer {
+  const out = Buffer.from(buf);
+  for (let i = 0; i + 1 < out.length; i += 2) {
+    const tmp = out[i];
+    out[i] = out[i + 1];
+    out[i + 1] = tmp;
+  }
+  return out;
+}
+
 export function disguisedSvg(): Buffer {
   return Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', "utf8");
 }

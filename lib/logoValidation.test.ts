@@ -4,6 +4,7 @@ import {
   disguisedSvg,
   jpegWithTrailingData,
   pngWithTrailingHtml,
+  pngWithUtf16TextChunk,
   truncated,
   validJpeg,
   validPng,
@@ -62,6 +63,16 @@ describe("sniffLogoBytes", () => {
     expect(sniffLogoBytes(Buffer.from("<!doctype html><html><body>hi</body></html>", "utf8")).ok).toBe(
       false
     );
+  });
+
+  it("rejects a valid PNG carrying a UTF-16LE <script> payload in a tEXt chunk", () => {
+    const buf = pngWithUtf16TextChunk("<script>alert(1)</script>", "LE");
+    expect(sniffLogoBytes(buf).ok).toBe(false);
+  });
+
+  it("rejects a valid PNG carrying a UTF-16BE <svg xmlns=...> payload in a tEXt chunk", () => {
+    const buf = pngWithUtf16TextChunk('<svg xmlns="http://www.w3.org/2000/svg">', "BE");
+    expect(sniffLogoBytes(buf).ok).toBe(false);
   });
 
   it("a WebP whose declared RIFF size doesn't match the actual length is rejected", () => {

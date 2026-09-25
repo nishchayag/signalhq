@@ -31,7 +31,15 @@ const FORBIDDEN_MARKUP = [
 
 function containsForbiddenMarkup(buf: Buffer): boolean {
   const text = buf.toString("latin1");
-  return FORBIDDEN_MARKUP.some((re) => re.test(text));
+  if (FORBIDDEN_MARKUP.some((re) => re.test(text))) return true;
+  // ASCII markup encoded as UTF-16 (either endianness) inside an ancillary
+  // chunk reads as plain text interleaved with NUL bytes under latin1, so
+  // the scan above never matches it. Stripping every NUL byte collapses
+  // both UTF-16LE and UTF-16BE encodings of ASCII text down to the same
+  // latin1 string, without needing to detect or decode the specific
+  // variant.
+  const stripped = Buffer.from(buf.filter((byte) => byte !== 0)).toString("latin1");
+  return FORBIDDEN_MARKUP.some((re) => re.test(stripped));
 }
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
