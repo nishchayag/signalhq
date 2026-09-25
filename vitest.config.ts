@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", ".next/**"],
+    exclude: ["node_modules/**", ".next/**", ".claude/**"],
     setupFiles: ["./vitest.setup.ts"],
     // Real Mongo ops under mongodb-memory-server (plus a first-run mongod
     // binary download) can exceed the defaults on a cold machine.
