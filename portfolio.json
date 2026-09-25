@@ -1,0 +1,18 @@
+{
+  "title": "SignalHQ",
+  "summary": "Anonymous feedback for teams. Organisations, teams and questions get shareable links, so people can say what they really think without signing up.",
+  "stack": ["Next.js", "TypeScript", "MongoDB", "Mongoose", "NextAuth", "Resend", "Mistral AI", "Zod"],
+  "highlights": [
+    "Multi-tenant model: organisations, teams and questions with full CRUD management and email invitations",
+    "Public no-signup pages for anonymous submissions, with independent feedback threads per team",
+    "AI features on Mistral: insight summaries, suggested messages and automated moderation"
+  ],
+  "details": [
+    { "label": "Multi-tenant by design", "body": "Users create organisations, invite teammates by email and organise feedback into teams and questions, each with its own shareable public link." },
+    { "label": "Anonymous, but safe", "body": "Responders never need an account. Submissions pass a profanity filter and an AI moderation model before they reach the team, and API routes are rate-limited." },
+    { "label": "AI where it helps", "body": "One isolated AI module on Mistral powers insight summaries, suggested messages and moderation, with the whole feature switchable off when no key is configured." },
+    { "label": "Keeps teams in the loop", "body": "Email verification, password resets and notifications run on Resend with React Email templates, including a daily digest sent by a scheduled job." }
+  ],
+  "demoUrl": "https://signal.nishchayag.com",
+  "kind": "Product"
+}
