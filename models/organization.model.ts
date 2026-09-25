@@ -5,8 +5,14 @@ import {
   ORG_MAX_LABELS,
   type LabelColor,
 } from "@/lib/triageConstants";
+import {
+  BRANDING_ACCENTS,
+  WELCOME_TEXT_MAX,
+  type BrandingAccent,
+} from "@/lib/brandingConstants";
 
 export { LABEL_COLORS, LABEL_NAME_MAX, ORG_MAX_LABELS, type LabelColor };
+export { BRANDING_ACCENTS, type BrandingAccent };
 
 export type OrganizationPlan = "FREE" | "PRO" | "ENTERPRISE";
 
@@ -29,6 +35,20 @@ export interface IOrganization extends Document {
   // Triage labels (Message.labels holds their _ids). Small and bounded, so
   // fine on the doc resolveActiveContext loads on every dashboard call.
   labels?: IOrgLabel[];
+  // Public-page branding (Phase 2). Small (a palette key + short text + a
+  // counter) — logo BYTES never live here, they're a separate OrgAsset row
+  // keyed by organizationId, so resolveActiveContext loading this doc on
+  // every dashboard call never pulls image bytes along with it. Absent
+  // until the org first sets branding or uploads a logo; every field reads
+  // correctly when missing (lib/branding.ts#brandingView supplies defaults).
+  // Gated at READ time by PLAN_FEATURES.branding (lib/plans.ts), not here —
+  // a downgrade keeps this data but lib/branding.ts#getEffectiveBranding
+  // stops surfacing it publicly.
+  branding?: {
+    accent?: BrandingAccent;
+    welcomeText?: string;
+    logoVersion?: number;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,6 +114,21 @@ const OrganizationSchema: Schema<IOrganization> = new Schema(
           message: "Label names must be unique",
         },
       ],
+    },
+    // Sub-schema (not a nested object) so `branding` stays undefined on
+    // orgs that never touch it, instead of defaulting to `{}` — mirrors
+    // Message.ai in models/message.model.ts.
+    branding: {
+      type: new Schema(
+        {
+          accent: { type: String, enum: BRANDING_ACCENTS },
+          welcomeText: { type: String, trim: true, maxlength: WELCOME_TEXT_MAX },
+          logoVersion: { type: Number, default: 0 },
+        },
+        { _id: false }
+      ),
+      required: false,
+      default: undefined,
     },
   },
   {

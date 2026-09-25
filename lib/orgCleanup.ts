@@ -8,6 +8,7 @@ import TeamModel from "@/models/team.model";
 import InvitationModel from "@/models/invitation.model";
 import AiUsageModel from "@/models/aiUsage.model";
 import AiInsightModel from "@/models/aiInsight.model";
+import OrgAssetModel from "@/models/orgAsset.model";
 import { createPersonalOrganization } from "@/lib/orgContext";
 
 // Deliberately does NOT import lib/mailService: `new Resend()` throws at
@@ -51,6 +52,7 @@ export async function deleteOrganizationsCascade(orgIds: Id[]): Promise<void> {
     MembershipModel.deleteMany(filter),
     AiUsageModel.deleteMany(filter),
     AiInsightModel.deleteMany(filter),
+    OrgAssetModel.deleteMany(filter),
   ]);
   await OrganizationModel.deleteMany({ _id: { $in: orgIds } });
 }

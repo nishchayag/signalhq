@@ -6,6 +6,7 @@ import MembershipModel from "@/models/membership.model";
 import OrganizationModel from "@/models/organization.model";
 import UserModel from "@/models/user.model";
 import AiUsageModel from "@/models/aiUsage.model";
+import OrgAssetModel from "@/models/orgAsset.model";
 
 beforeAll(startTestDB);
 afterAll(stopTestDB);
@@ -47,6 +48,17 @@ describe("query indexes", () => {
 
   it("User no longer defines the dead messages array", () => {
     expect(UserModel.schema.path("messages")).toBeUndefined();
+  });
+
+  it("OrgAsset has a unique (organizationId, kind) index and bytes is select:false", async () => {
+    const indexes = await keysOf(OrgAssetModel);
+    expect(indexes).toContain(JSON.stringify({ organizationId: 1, kind: 1 }));
+    const raw = await OrgAssetModel.collection.indexes();
+    const unique = raw.find(
+      (i) => JSON.stringify(i.key) === JSON.stringify({ organizationId: 1, kind: 1 })
+    );
+    expect(unique?.unique).toBe(true);
+    expect(OrgAssetModel.schema.path("bytes")?.options?.select).toBe(false);
   });
 });
 

@@ -14,6 +14,7 @@ import MessageModel from "@/models/message.model";
 import TeamModel from "@/models/team.model";
 import InvitationModel from "@/models/invitation.model";
 import AiUsageModel from "@/models/aiUsage.model";
+import OrgAssetModel from "@/models/orgAsset.model";
 
 beforeAll(startTestDB);
 afterEach(clearTestDB);
@@ -65,12 +66,20 @@ describe("deleteOrganizationsCascade", () => {
         count: 3,
         expiresAt: new Date(Date.now() + 1e9),
       });
+      await OrgAssetModel.create({
+        organizationId: org._id,
+        kind: "logo",
+        contentType: "image/png",
+        bytes: Buffer.from([1, 2, 3]),
+        size: 3,
+        sha256: "x".repeat(64),
+      });
     }
 
     await deleteOrganizationsCascade([doomed._id]);
 
     expect(await OrganizationModel.exists({ _id: doomed._id })).toBeNull();
-    for (const Model of [MessageModel, QuestionModel, TeamModel, InvitationModel, MembershipModel, AiUsageModel]) {
+    for (const Model of [MessageModel, QuestionModel, TeamModel, InvitationModel, MembershipModel, AiUsageModel, OrgAssetModel]) {
       expect(await (Model as typeof MessageModel).countDocuments({ organizationId: doomed._id })).toBe(0);
       expect(await (Model as typeof MessageModel).countDocuments({ organizationId: kept._id })).toBe(1);
     }

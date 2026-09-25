@@ -80,3 +80,22 @@ export function teamLimitReached(
   const limit = PLAN_LIMITS[plan].maxTeams;
   return limit !== null && currentTeamCount >= limit;
 }
+
+/** Boolean (non-metered) feature gates per tier — separate from PLAN_LIMITS'
+ * numeric quotas. `branding` (custom accent/welcome text/logo on public
+ * pages) is PRO and up; checked at read time (not just at write time), so a
+ * downgrade keeps the stored data but stops rendering/serving it — no
+ * destructive migration on downgrade.
+ */
+export type PlanFeature = "branding";
+
+export const PLAN_FEATURES: Record<Plan, Record<PlanFeature, boolean>> = {
+  FREE: { branding: false },
+  PRO: { branding: true },
+  ENTERPRISE: { branding: true },
+};
+
+/** Does `plan` grant `feature`? */
+export function hasFeature(plan: Plan, feature: PlanFeature): boolean {
+  return PLAN_FEATURES[plan]?.[feature] ?? false;
+}
