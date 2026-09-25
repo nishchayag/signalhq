@@ -1,13 +1,16 @@
 "use client";
-import { Copy, Download, ExternalLink, MessageSquare, Search } from "lucide-react";
+import { useState } from "react";
+import { Download, ExternalLink, MessageSquare, Search, Share2 } from "lucide-react";
 import OnboardingChecklist, { useOnboardingFlags } from "./OnboardingChecklist";
 import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
+import { buildPublicUrl } from "@/lib/publicUrl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import MessageCard from "@/components/MessageCard";
 import MessageFilters from "@/components/MessageFilters";
+import ShareDialog from "@/components/ShareDialog";
 import SemanticSearchToggle, {
   SemanticSearchNotes,
   semanticSearchOffered,
@@ -21,11 +24,17 @@ import type { DashboardData } from "./useDashboardData";
 /** Org feedback link card + the org's general (non-question) messages. */
 export default function GeneralMessagesView({ d }: { d: DashboardData }) {
   const { markCopied } = useOnboardingFlags(d.orgId);
+  const [shareOpen, setShareOpen] = useState(false);
+  const orgUrl = buildPublicUrl(`/o/${d.orgSlug}`);
   const copyOrgLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/o/${d.orgSlug}`);
+    navigator.clipboard.writeText(orgUrl);
     markCopied();
     toast.success("Link copied to clipboard!");
     trackEvent("link_copied", "org");
+  };
+  const openShare = () => {
+    markCopied();
+    setShareOpen(true);
   };
   return (
     <div>
@@ -47,10 +56,10 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={copyOrgLink}
+                onClick={openShare}
               >
-                <Copy className="mr-2 h-4 w-4" />
-                Copy link
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
               </Button>
               <Button variant="outline" size="sm" onClick={() => window.open(`/o/${d.orgSlug}`, "_blank")}>
                 <ExternalLink className="mr-2 h-4 w-4" />
@@ -118,9 +127,9 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
             title="No messages yet"
             description="Share your link to start receiving feedback"
             action={
-              <Button variant="outline" size="sm" onClick={copyOrgLink}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy your feedback link
+              <Button variant="outline" size="sm" onClick={openShare}>
+                <Share2 className="mr-2 h-4 w-4" />
+                Share your feedback link
               </Button>
             }
           />
@@ -130,6 +139,16 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
           <LoadMoreButton onClick={d.loadMoreGeneralMessages} loading={d.generalLoadingMore} />
         )}
       </div>
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        url={orgUrl}
+        title="Share your feedback link"
+        description="Share this link or QR code to collect anonymous feedback."
+        filenameBase={`${d.orgSlug}-feedback`}
+        copyEventLabel="org"
+      />
     </div>
   );
 }

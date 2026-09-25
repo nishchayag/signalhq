@@ -482,13 +482,6 @@ export function useDashboardData() {
     }
   };
 
-  const copyQuestionLink = (slug: string) => {
-    const path = orgSlug ? `/o/${orgSlug}/q/${slug}` : `/q/${slug}`;
-    navigator.clipboard.writeText(`${window.location.origin}${path}`);
-    toast.success("Question link copied to clipboard!");
-    trackEvent("link_copied", "question");
-  };
-
   const handleDeleteMessage = (messageId: string) => {
     const drop = (msgs: MessageView[]) => msgs.filter((msg) => msg._id !== messageId);
     if (view === "general") setGeneralMessages(drop);
@@ -717,7 +710,6 @@ export function useDashboardData() {
     exportGeneralMessagesCsv,
     exportQuestionMessagesCsv,
     handleSubmitAnswer,
-    copyQuestionLink,
     handleDeleteMessage,
     handleQuestionCreated,
     handleToggleActive,

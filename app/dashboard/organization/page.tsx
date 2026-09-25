@@ -11,13 +11,13 @@ import {
   Settings,
   Trash2,
   Loader2,
-  Copy,
   LogOut,
   CreditCard,
   Check,
   History,
   Tag,
   Pencil,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
@@ -31,9 +31,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import ShareDialog from "@/components/ShareDialog";
 import { can } from "@/lib/permissions";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { apiError } from "@/lib/apiError";
+import { buildPublicUrl } from "@/lib/publicUrl";
 import type { MembershipRole } from "@/models/membership.model";
 import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
 import { LABEL_COLORS, LABEL_NAME_MAX, ORG_MAX_LABELS, type LabelColor } from "@/lib/triageConstants";
@@ -145,6 +147,7 @@ export default function OrganizationPage() {
   const [orgName, setOrgName] = useState("");
   const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState("");
@@ -1039,16 +1042,11 @@ export default function OrganizationPage() {
                       <Input readOnly value={`/o/${orgSlug}`} />
                       <Button
                         variant="outline"
-                        aria-label="Copy feedback link"
-                        title="Copy feedback link"
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${window.location.origin}/o/${orgSlug}`
-                          );
-                          toast.success("Link copied");
-                        }}
+                        aria-label="Share feedback link"
+                        title="Share feedback link"
+                        onClick={() => setShareOpen(true)}
                       >
-                        <Copy className="h-4 w-4" />
+                        <Share2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </CardContent>
@@ -1167,6 +1165,16 @@ export default function OrganizationPage() {
           }}
         />
       )}
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        url={buildPublicUrl(`/o/${orgSlug}`)}
+        title="Share your feedback link"
+        description="Share this link or QR code to collect anonymous feedback."
+        filenameBase={`${orgSlug}-feedback`}
+        copyEventLabel="org"
+      />
     </div>
   );
 }

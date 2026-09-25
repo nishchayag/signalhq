@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import {
-  Copy,
   Download,
   Pencil,
   ExternalLink,
@@ -11,6 +11,7 @@ import {
   PowerOff,
   RefreshCw,
   Search,
+  Share2,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import MessageCard from "@/components/MessageCard";
 import MessageFilters from "@/components/MessageFilters";
+import ShareDialog from "@/components/ShareDialog";
 import SemanticSearchToggle, {
   SemanticSearchNotes,
   semanticSearchOffered,
@@ -29,6 +31,7 @@ import AnswerFields from "@/components/AnswerFields";
 import { enterToSendHint } from "@/lib/enterToSend";
 import { canSubmitAnswer, closedMessage } from "@/lib/answerForm";
 import { formatAnswer, publicQuestionConfig, questionState } from "@/lib/answers";
+import { buildPublicUrl } from "@/lib/publicUrl";
 import type { IQuestion } from "@/models/question.model";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -37,7 +40,9 @@ import type { DashboardData, ThreadSummary } from "./useDashboardData";
 
 /** The selected question: header (links/export), then its responses. */
 export default function QuestionView({ d, question }: { d: DashboardData; question: IQuestion }) {
+  const [shareOpen, setShareOpen] = useState(false);
   const publicPath = d.orgSlug ? `/o/${d.orgSlug}/q/${question.slug}` : `/q/${question.slug}`;
+  const publicUrl = buildPublicUrl(publicPath);
   return (
     <div>
       <div className="mb-6">
@@ -46,9 +51,9 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
         <QuestionActions d={d} question={question} />
         {question.visibility !== "internal" && (
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button variant="outline" size="sm" onClick={() => d.copyQuestionLink(question.slug)}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy link
+            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+              <Share2 className="mr-2 h-4 w-4" />
+              Share
             </Button>
             <Button variant="outline" size="sm" onClick={() => window.open(publicPath, "_blank")}>
               <ExternalLink className="mr-2 h-4 w-4" />
@@ -69,7 +74,19 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
       {question.visibility === "internal" ? (
         <InternalQuestionView d={d} question={question} />
       ) : (
-        <PublicQuestionView d={d} question={question} />
+        <PublicQuestionView d={d} question={question} onShare={() => setShareOpen(true)} />
+      )}
+
+      {question.visibility !== "internal" && (
+        <ShareDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          url={publicUrl}
+          title="Share this question"
+          description="Share this link or QR code to collect anonymous responses."
+          filenameBase={`${d.orgSlug ?? "signalhq"}-${question.slug}`}
+          copyEventLabel="question"
+        />
       )}
     </div>
   );
@@ -255,7 +272,15 @@ function InternalQuestionView({ d, question }: { d: DashboardData; question: IQu
 }
 
 /** Public question: searchable, paginated anonymous responses. */
-function PublicQuestionView({ d, question }: { d: DashboardData; question: IQuestion }) {
+function PublicQuestionView({
+  d,
+  question,
+  onShare,
+}: {
+  d: DashboardData;
+  question: IQuestion;
+  onShare: () => void;
+}) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -313,9 +338,9 @@ function PublicQuestionView({ d, question }: { d: DashboardData; question: IQues
               description={d.messagesSearch ? undefined : "Share your question link to start collecting responses"}
               action={
                 d.messagesSearch ? undefined : (
-                  <Button variant="outline" size="sm" onClick={() => d.copyQuestionLink(question.slug)}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy question link
+                  <Button variant="outline" size="sm" onClick={onShare}>
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share question link
                   </Button>
                 )
               }

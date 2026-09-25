@@ -3,6 +3,7 @@ import React from "react";
 import { toast } from "sonner";
 import { Copy, BookmarkCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { buildPublicUrl } from "@/lib/publicUrl";
 
 // Shown right after an anonymous submission succeeds. The replyToken is the
 // sender's only way to check for a reply later — no account, no email.
@@ -11,10 +12,7 @@ export default function ReplyReceiptCard({
 }: {
   replyToken: string;
 }) {
-  const link =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/r/${replyToken}`
-      : `/r/${replyToken}`;
+  const link = buildPublicUrl(`/r/${replyToken}`);
 
   const copyLink = () => {
     navigator.clipboard.writeText(link);
