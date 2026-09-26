@@ -230,54 +230,66 @@ export async function PUT(
           { status: 403 }
         );
       }
-      const plan = current.organizationId ? await getOrgPlan(current.organizationId) : "FREE";
-      if (!hasFeature(plan, "pulse")) return pulsePlanGate();
+      if (pulseInput === null) {
+        // Removing a pulse isn't "using" the recurring-pulse feature, so
+        // (unlike creating/editing one) it's never plan-gated, and — unlike a
+        // cadence/anchor/timezone change — it's allowed at any time, even
+        // after responses exist: past Message.round stamps just stay as
+        // historical data. It's still not `pulseStructural` (no lock check),
+        // so it can't get caught by the responses-exist guard below.
+        // Re-adding a pulse afterwards is a brand new one (`current.pulse` is
+        // gone), so it hits the usual !currentPulse ⇒ PULSE_LOCKED path.
+        $unset.pulse = "";
+      } else {
+        const plan = current.organizationId ? await getOrgPlan(current.organizationId) : "FREE";
+        if (!hasFeature(plan, "pulse")) return pulsePlanGate();
 
-      const currentPulse = current.pulse as QuestionPulseLike | undefined;
-      const merged = mergePulseInput(pulseInput, currentPulse);
-      if (!merged) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "A recurring schedule needs a cadence, start date and time zone",
-          },
-          { status: 400 }
-        );
-      }
-      const tz = resolveTimeZone(merged.timeZone);
-      if (!tz) {
-        return NextResponse.json(
-          { success: false, message: "Invalid time zone" },
-          { status: 400 }
-        );
-      }
-      // Only re-check "today or later" when the anchor is actually changing —
-      // an untouched past anchor on an already-running pulse is fine.
-      const anchorChanged = pulseInput.anchorDate !== undefined;
-      if (anchorChanged && merged.anchorDate < localYmd(new Date(), tz)) {
-        return NextResponse.json(
-          { success: false, message: "Start date must be today or later" },
-          { status: 400 }
-        );
-      }
-      pulseSet = { cadence: merged.cadence, anchorDate: merged.anchorDate, timeZone: tz, remind: merged.remind };
-      pulseStructural =
-        !currentPulse ||
-        (pulseInput.cadence !== undefined && pulseInput.cadence !== currentPulse.cadence) ||
-        (pulseInput.anchorDate !== undefined && pulseInput.anchorDate !== currentPulse.anchorDate) ||
-        (pulseInput.timeZone !== undefined && tz !== currentPulse.timeZone);
-      // Dot-notation sets (not a whole-subdocument replace) so an edit that
-      // only touches `remind` doesn't clobber lastRemindedRound/lastRemindedAt.
-      // A genuinely new schedule (new pulse, or the cadence/anchor/zone
-      // itself changing) resets the reminder claim — the old round numbers
-      // no longer mean anything against the new schedule.
-      $set["pulse.cadence"] = pulseSet.cadence;
-      $set["pulse.anchorDate"] = pulseSet.anchorDate;
-      $set["pulse.timeZone"] = pulseSet.timeZone;
-      $set["pulse.remind"] = pulseSet.remind;
-      if (pulseStructural) {
-        $set["pulse.lastRemindedRound"] = -1;
-        $unset["pulse.lastRemindedAt"] = "";
+        const currentPulse = current.pulse as QuestionPulseLike | undefined;
+        const merged = mergePulseInput(pulseInput, currentPulse);
+        if (!merged) {
+          return NextResponse.json(
+            {
+              success: false,
+              message: "A recurring schedule needs a cadence, start date and time zone",
+            },
+            { status: 400 }
+          );
+        }
+        const tz = resolveTimeZone(merged.timeZone);
+        if (!tz) {
+          return NextResponse.json(
+            { success: false, message: "Invalid time zone" },
+            { status: 400 }
+          );
+        }
+        // Only re-check "today or later" when the anchor is actually changing —
+        // an untouched past anchor on an already-running pulse is fine.
+        const anchorChanged = pulseInput.anchorDate !== undefined;
+        if (anchorChanged && merged.anchorDate < localYmd(new Date(), tz)) {
+          return NextResponse.json(
+            { success: false, message: "Start date must be today or later" },
+            { status: 400 }
+          );
+        }
+        pulseSet = { cadence: merged.cadence, anchorDate: merged.anchorDate, timeZone: tz, remind: merged.remind };
+        pulseStructural =
+          !currentPulse ||
+          (pulseInput.cadence !== undefined && pulseInput.cadence !== currentPulse.cadence) ||
+          (pulseInput.anchorDate !== undefined && pulseInput.anchorDate !== currentPulse.anchorDate) ||
+          (pulseInput.timeZone !== undefined && tz !== currentPulse.timeZone);
+        // Dot-notation sets (not a whole-subdocument replace) so an edit that
+        // only touches `remind` doesn't clobber lastRemindedRound/lastRemindedAt.
+        // A genuinely new schedule (new pulse, or the cadence/anchor/zone
+        // itself changing) resets the reminder claim — the old round numbers
+        // no longer mean anything against the new schedule.
+        $set["pulse.cadence"] = pulseSet.cadence;
+        $set["pulse.anchorDate"] = pulseSet.anchorDate;
+        $set["pulse.timeZone"] = pulseSet.timeZone;
+        $set["pulse.remind"] = pulseSet.remind;
+        if (pulseStructural) {
+          $set["pulse.lastRemindedRound"] = -1;
+          $unset["pulse.lastRemindedAt"] = "";
+        }
       }
     }
 
@@ -330,18 +342,51 @@ export async function PUT(
     const update: Record<string, unknown> = {};
     if (Object.keys($set).length > 0) update.$set = $set;
     if (Object.keys($unset).length > 0) update.$unset = $unset;
-    const question = await QuestionModel.findOneAndUpdate(
-      structural
-        ? { _id: questionId, responseCount: { $in: [0, null] } }
-        : { _id: questionId },
-      update,
-      { new: true, runValidators: true }
-    );
+
+    // The pulse⟂maxResponses exclusivity is otherwise only checked against
+    // the in-memory `current` read above, which two concurrent PUTs (one
+    // setting pulse, the other maxResponses) can each pass before either
+    // writes — baking it into the filter makes the DB itself the single
+    // arbiter. Skipped when this same update is the one clearing the other
+    // field, since then whatever it currently is doesn't matter.
+    const guardClauses: Record<string, unknown>[] = [];
+    if (structural) {
+      guardClauses.push({ responseCount: { $in: [0, null] } });
+    }
+    if (nextHasPulse && !("maxResponses" in $unset)) {
+      guardClauses.push({ $or: [{ maxResponses: null }, { maxResponses: { $exists: false } }] });
+    }
+    if (nextMaxResponses != null && !("pulse" in $unset)) {
+      guardClauses.push({ pulse: { $exists: false } });
+    }
+    const findFilter =
+      guardClauses.length > 0 ? { _id: questionId, $and: guardClauses } : { _id: questionId };
+
+    const question = await QuestionModel.findOneAndUpdate(findFilter, update, {
+      new: true,
+      runValidators: true,
+    });
     if (!question) {
-      if (structural) return lockedResponse();
+      // Filter miss: figure out which guard actually failed so the error
+      // matches (a concurrent structural lock vs. the exclusivity race).
+      const reread = await QuestionModel.findById(questionId)
+        .select("responseCount")
+        .lean<{ responseCount?: number } | null>();
+      if (!reread) {
+        return NextResponse.json(
+          { success: false, message: "Question not found" },
+          { status: 404 }
+        );
+      }
+      if (structural && (reread.responseCount ?? 0) > 0) return lockedResponse();
       return NextResponse.json(
-        { success: false, message: "Question not found" },
-        { status: 404 }
+        {
+          success: false,
+          code: "QUESTION_CONFLICT",
+          message:
+            "This question's recurring schedule and response cap can't both be set, and it changed since you loaded it. Reload and try again.",
+        },
+        { status: 409 }
       );
     }
 

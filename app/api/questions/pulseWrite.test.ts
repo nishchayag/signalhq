@@ -247,6 +247,98 @@ describe("update: permission, plan gate and validation", () => {
   });
 });
 
+describe("update: atomic pulse ⟂ maxResponses exclusivity", () => {
+  it("racing PUT {pulse} and PUT {maxResponses} on a fresh question: exactly one wins", async () => {
+    const { json } = await create({});
+    const id = json.question._id;
+
+    const [a, b] = await Promise.all([
+      put(id, { pulse: validPulse() }),
+      put(id, { maxResponses: 10 }),
+    ]);
+
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    const conflict = a.status === 409 ? a : b;
+    expect(conflict.json.code).toBe("QUESTION_CONFLICT");
+
+    const stored = await QuestionModel.findById(id).lean();
+    const hasPulse = Boolean(stored?.pulse);
+    const hasCap = stored?.maxResponses != null;
+    // Never both, and — since exactly one request won — never neither.
+    expect(hasPulse && hasCap).toBe(false);
+    expect(hasPulse || hasCap).toBe(true);
+  });
+});
+
+describe("update: removing a pulse (pulse: null)", () => {
+  it("removes the pulse via $unset, no plan gate, even on a FREE org", async () => {
+    const { json } = await create({ pulse: validPulse() });
+    const id = json.question._id;
+    await setOrgPlan("FREE");
+
+    const res = await put(id, { pulse: null });
+    expect(res.status).toBe(200);
+    expect(res.json.question.pulse).toBeFalsy();
+    const stored = await QuestionModel.findById(id).lean();
+    expect(stored?.pulse).toBeUndefined();
+  });
+
+  it("allowed even after the question already has responses (not structurally locked)", async () => {
+    const { json } = await create({ pulse: validPulse() });
+    const id = json.question._id;
+    await QuestionModel.updateOne({ _id: id }, { $inc: { responseCount: 1 } });
+
+    const res = await put(id, { pulse: null });
+    expect(res.status).toBe(200);
+    const stored = await QuestionModel.findById(id).lean();
+    expect(stored?.pulse).toBeUndefined();
+    expect(stored?.responseCount).toBe(1);
+  });
+
+  it("past Message.round stamps are untouched by removal", async () => {
+    const { json } = await create({ pulse: validPulse() });
+    const id = json.question._id;
+    await MessageModel.create({
+      content: "Thanks",
+      createdFor: owner,
+      questionId: id,
+      organizationId: orgId,
+      round: 0,
+    });
+    await put(id, { pulse: null });
+    const stored = await MessageModel.findOne({ questionId: id }).lean<{ round?: number }>();
+    expect(stored?.round).toBe(0);
+  });
+
+  it("re-adding a pulse after removal + responses exist: 409 PULSE_LOCKED", async () => {
+    const { json } = await create({ pulse: validPulse() });
+    const id = json.question._id;
+    await QuestionModel.updateOne({ _id: id }, { $inc: { responseCount: 1 } });
+    await put(id, { pulse: null });
+
+    const res = await put(id, { pulse: validPulse() });
+    expect(res.status).toBe(409);
+    expect(res.json.code).toBe("PULSE_LOCKED");
+  });
+
+  it("MEMBER can't remove a pulse (no question:pulse permission)", async () => {
+    const { json } = await create({ pulse: validPulse() });
+    const member = new mongoose.Types.ObjectId();
+    await MembershipModel.create({ organizationId: orgId, userId: member, role: "MEMBER" });
+    getServerSession.mockResolvedValue({ user: { _id: String(member), activeOrgId: String(orgId) } });
+    const res = await put(json.question._id, { pulse: null });
+    expect(res.status).toBe(403);
+  });
+
+  it("removing a pulse that doesn't exist is a no-op 200", async () => {
+    const { json } = await create({});
+    const res = await put(json.question._id, { pulse: null });
+    expect(res.status).toBe(200);
+    expect(res.json.question.pulse).toBeFalsy();
+  });
+});
+
 describe("PATCH isActive: plan-gated reactivation", () => {
   it("deactivating a pulse question always works, regardless of plan", async () => {
     const { json } = await create({ pulse: validPulse() });

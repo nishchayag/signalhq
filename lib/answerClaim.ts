@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import QuestionModel from "@/models/question.model";
 import { questionType, type QuestionType } from "@/lib/answers";
+import { roundAt, type QuestionPulseLike } from "@/lib/pulse";
 
 // Atomic response-slot claim for the submit routes. No transactions (the
 // test DB is a standalone mongod, and the claim must be safe there too): one
@@ -10,15 +11,22 @@ import { questionType, type QuestionType } from "@/lib/answers";
 /**
  * Take one response slot on a question, or return false when it's closed
  * (past `closesAt`, or `responseCount` already at `maxResponses`), inactive,
- * or its type changed since the caller parsed the body against it.
+ * its type changed since the caller parsed the body against it, or (for a
+ * pulse question) `pulseOpen` is false — its first round hasn't started yet.
  * Parallel callers can't overshoot the cap: the check and the increment are
  * one document update.
  */
 export async function claimResponseSlot(
   questionId: string | mongoose.Types.ObjectId,
   expectedType: QuestionType,
-  now: Date = new Date()
+  now: Date = new Date(),
+  pulseOpen: boolean = true
 ): Promise<boolean> {
+  // A scheduled (not-yet-opened) pulse question refuses every claim, same as
+  // any other closed reason — checked here, not just by the caller's own
+  // read of `questionState`, so this is the single place a submission can
+  // actually take a slot, whatever route calls it.
+  if (!pulseOpen) return false;
   const claimed = await QuestionModel.findOneAndUpdate(
     {
       _id: questionId,
@@ -57,16 +65,18 @@ export async function releaseResponseSlot(
  * claim → save → (release on failure). Returns null when the question is
  * closed; rethrows the save's error after releasing. `now` is shared with
  * the caller's own use of the same instant (e.g. a pulse question's
- * `Message.round` stamp), so the close/cap check and the round it's stamped
- * against can never disagree about what time it is.
+ * `Message.round` stamp, and here `pulseOpen` itself), so the close/cap
+ * check and the round it's stamped against can never disagree about what
+ * time it is.
  */
 export async function withResponseSlot<T>(
-  question: { _id: unknown; type?: QuestionType | null },
+  question: { _id: unknown; type?: QuestionType | null; pulse?: QuestionPulseLike | null },
   save: () => Promise<T>,
   now: Date = new Date()
 ): Promise<T | null> {
   const id = question._id as mongoose.Types.ObjectId;
-  if (!(await claimResponseSlot(id, questionType(question), now))) return null;
+  const pulseOpen = !question.pulse || roundAt(question.pulse, now).index >= 0;
+  if (!(await claimResponseSlot(id, questionType(question), now, pulseOpen))) return null;
   try {
     return await save();
   } catch (err) {

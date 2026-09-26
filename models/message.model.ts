@@ -168,6 +168,10 @@ const messageSchema: Schema<IMessage> = new Schema({
   round: {
     type: Number,
     required: false,
+    // A response is only ever stamped with a round once its pulse has opened
+    // (lib/answerClaim.ts#withResponseSlot refuses the claim before round 0),
+    // so a negative value here would only ever mean a bug, not real data.
+    min: 0,
   },
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,

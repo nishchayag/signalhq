@@ -243,7 +243,9 @@ export const updateQuestionSchema = z.object({
   config: questionConfigInputSchema.optional(),
   closesAt: closesAtSchema.optional(),
   maxResponses: maxResponsesSchema.optional(),
-  pulse: pulseUpdateInputSchema.optional(),
+  // null removes an existing pulse (allowed any time, no plan gate — see the
+  // PUT route); omitted leaves it untouched; an object edits/creates one.
+  pulse: pulseUpdateInputSchema.nullable().optional(),
 });
 
 export const questionResponseSchema = z.object({

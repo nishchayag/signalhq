@@ -59,9 +59,15 @@ function tzOffsetMs(instant: number, tz: string): number {
 /**
  * The instant local midnight of `ymd` occurs in `tz`. When `tz` skips
  * midnight on that date entirely (a DST spring-forward that lands exactly on
- * 00:00, e.g. America/Santiago), this resolves to the first instant that
- * *is* on `ymd`'s calendar day in `tz` — never an instant on the previous
- * day.
+ * 00:00, e.g. America/Santiago), there is no instant that reads as `ymd`'s
+ * 00:00 in `tz`, so this resolves to whichever side of the gap the
+ * `guess - offset` arithmetic lands on — which can be the *previous*
+ * calendar day's 23:00, not `ymd`'s. Measured: for America/Santiago on
+ * 2026-09-06 (that DST transition), `zonedMidnight("2026-09-06", ...)`
+ * returns an instant that's 2026-09-05T23:00 local. Callers needing the
+ * result to land on `ymd`'s calendar day specifically (rather than just "a
+ * consistent, monotonic boundary") must not rely on this function on such a
+ * date.
  */
 export function zonedMidnight(ymd: string, tz: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
