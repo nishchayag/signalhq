@@ -14,7 +14,7 @@ import { formatAnswer } from "@/lib/answers";
 import { buildPublicUrl } from "@/lib/publicUrl";
 import { logActivity } from "@/lib/auditLog";
 import { openSecret, openTargetUrl } from "@/lib/integrations";
-import { postJson, type Transport } from "@/lib/safeHttp";
+import { postJson, UrlNotAllowedError, type Transport } from "@/lib/safeHttp";
 
 // Delivers message events to an org's Slack/webhook integrations. Kept
 // separate from lib/notifications.ts on purpose: some tests mock
@@ -242,7 +242,8 @@ async function deliverWithRetry(
       }
       return res;
     } catch (err) {
-      if (attempt === 1) {
+      // A blocked URL fails the same way every time, so don't retry it.
+      if (attempt === 1 && !(err instanceof UrlNotAllowedError)) {
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
         continue;
       }
