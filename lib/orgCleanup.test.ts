@@ -15,6 +15,7 @@ import TeamModel from "@/models/team.model";
 import InvitationModel from "@/models/invitation.model";
 import AiUsageModel from "@/models/aiUsage.model";
 import OrgAssetModel from "@/models/orgAsset.model";
+import IntegrationModel from "@/models/integration.model";
 
 beforeAll(startTestDB);
 afterEach(clearTestDB);
@@ -74,12 +75,29 @@ describe("deleteOrganizationsCascade", () => {
         size: 3,
         sha256: "x".repeat(64),
       });
+      await IntegrationModel.create({
+        organizationId: org._id,
+        kind: "webhook",
+        name: "Test hook",
+        targetHost: "example.com",
+        targetUrlEnc: "sealed",
+        createdBy: owner._id,
+      });
     }
 
     await deleteOrganizationsCascade([doomed._id]);
 
     expect(await OrganizationModel.exists({ _id: doomed._id })).toBeNull();
-    for (const Model of [MessageModel, QuestionModel, TeamModel, InvitationModel, MembershipModel, AiUsageModel, OrgAssetModel]) {
+    for (const Model of [
+      MessageModel,
+      QuestionModel,
+      TeamModel,
+      InvitationModel,
+      MembershipModel,
+      AiUsageModel,
+      OrgAssetModel,
+      IntegrationModel,
+    ]) {
       expect(await (Model as typeof MessageModel).countDocuments({ organizationId: doomed._id })).toBe(0);
       expect(await (Model as typeof MessageModel).countDocuments({ organizationId: kept._id })).toBe(1);
     }

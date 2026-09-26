@@ -54,6 +54,12 @@ import type { MembershipRole } from "@/models/membership.model";
  * `org:labels` (creating/renaming/recolouring/deleting the org's triage
  * labels) and `org:branding` (logo, accent, welcome text on public pages)
  * are OWNER/ADMIN only — org-wide configuration, like team management.
+ *
+ * `org:integrations` (creating/editing/deleting Slack and webhook
+ * integrations, rotating a webhook's signing secret, test-sending) is
+ * OWNER/ADMIN only — like org:branding/org:labels, org-wide configuration,
+ * and one that can broadcast feedback content to a channel or endpoint
+ * outside the app.
  */
 export type Permission =
   | "org:rename"
@@ -63,6 +69,7 @@ export type Permission =
   | "org:viewActivity"
   | "org:labels"
   | "org:branding"
+  | "org:integrations"
   | "member:invite"
   | "member:remove"
   | "member:role"
@@ -90,6 +97,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "org:viewActivity",
     "org:labels",
     "org:branding",
+    "org:integrations",
     "member:invite",
     "member:remove",
     "member:role",
@@ -112,6 +120,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "org:viewActivity",
     "org:labels",
     "org:branding",
+    "org:integrations",
     "member:invite",
     "member:remove",
     "member:role",

@@ -18,12 +18,20 @@ export type AuditAction =
   | "label.deleted"
   | "branding.updated"
   | "branding.logo_uploaded"
-  | "branding.logo_removed";
+  | "branding.logo_removed"
+  | "integration.created"
+  | "integration.updated"
+  | "integration.deleted"
+  | "integration.secret_rotated"
+  | "integration.auto_disabled";
 
 export interface IAuditLog extends Document {
   _id: string;
   organizationId: mongoose.Types.ObjectId;
-  actorUserId: mongoose.Types.ObjectId;
+  // Absent for system-generated entries (e.g. an integration auto-disabled
+  // after repeated delivery failures, with no human actor) — the activity
+  // UI renders these as "System".
+  actorUserId?: mongoose.Types.ObjectId;
   action: AuditAction;
   // Free-form context specific to `action` (e.g. { from: "MEMBER", to: "ADMIN",
   // targetUserId }) — not strongly typed since every action shape differs.
@@ -41,7 +49,7 @@ const AuditLogSchema: Schema<IAuditLog> = new Schema(
     actorUserId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
     },
     action: {
       type: String,

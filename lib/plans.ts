@@ -56,6 +56,7 @@ export const PLAN_DISPLAY: Record<
     features: [
       "Up to 10 teams",
       "10x higher AI limits",
+      "Slack & webhook integrations",
       "Priority support",
       "Everything in Free",
     ],
@@ -82,17 +83,22 @@ export function teamLimitReached(
 }
 
 /** Boolean (non-metered) feature gates per tier — separate from PLAN_LIMITS'
- * numeric quotas. `branding` (custom accent/welcome text/logo on public
- * pages) is PRO and up; checked at read time (not just at write time), so a
- * downgrade keeps the stored data but stops rendering/serving it — no
- * destructive migration on downgrade.
+ * numeric quotas. Every gate is checked at read or dispatch time (not just
+ * at write time), so a downgrade keeps the stored data/config but stops
+ * rendering/serving/delivering it — no destructive migration on downgrade.
+ *  - `branding`: custom accent/welcome text/logo on public pages.
+ *  - `integrations`: Slack and signed-webhook message delivery (Phase 4a).
+ *  - `pulse`: recurring question rounds (Phase 4b; not yet built — reserved
+ *    so the gating matrix below is already correct once it lands).
+ *  - `embedNoBadge`: hides the "Powered by SignalHQ" badge on the embed
+ *    widget (Phase 4c; not yet built — same reservation as `pulse`).
  */
-export type PlanFeature = "branding";
+export type PlanFeature = "branding" | "integrations" | "pulse" | "embedNoBadge";
 
 export const PLAN_FEATURES: Record<Plan, Record<PlanFeature, boolean>> = {
-  FREE: { branding: false },
-  PRO: { branding: true },
-  ENTERPRISE: { branding: true },
+  FREE: { branding: false, integrations: false, pulse: false, embedNoBadge: false },
+  PRO: { branding: true, integrations: true, pulse: true, embedNoBadge: true },
+  ENTERPRISE: { branding: true, integrations: true, pulse: true, embedNoBadge: true },
 };
 
 /** Does `plan` grant `feature`? */

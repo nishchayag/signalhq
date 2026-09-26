@@ -86,6 +86,14 @@ const ACTIVITY_LABELS: Record<string, string> = {
   "label.created": "created a label",
   "label.updated": "updated a label",
   "label.deleted": "deleted a label",
+  "branding.updated": "updated branding",
+  "branding.logo_uploaded": "uploaded a logo",
+  "branding.logo_removed": "removed the logo",
+  "integration.created": "added an integration",
+  "integration.updated": "updated an integration",
+  "integration.deleted": "removed an integration",
+  "integration.secret_rotated": "rotated an integration's signing secret",
+  "integration.auto_disabled": "disabled an integration after repeated failures",
 };
 
 function describeActivity(entry: ActivityEntry): string {
@@ -106,7 +114,17 @@ function describeActivity(entry: ActivityEntry): string {
     case "team.deleted":
     case "label.created":
     case "label.deleted":
+    case "integration.created":
+    case "integration.deleted":
+    case "integration.secret_rotated":
+    case "integration.auto_disabled":
       return `${ACTIVITY_LABELS[entry.action]}: "${meta.name}"`;
+    case "integration.updated": {
+      const fields = Array.isArray(meta.changedFields) ? (meta.changedFields as string[]) : [];
+      return fields.length > 0
+        ? `Updated an integration ("${meta.name}"): ${fields.join(", ")}`
+        : `${ACTIVITY_LABELS[entry.action]}: "${meta.name}"`;
+    }
     case "label.updated":
       return meta.from
         ? `Renamed a label from "${meta.from}" to "${meta.name}"`
@@ -1044,7 +1062,7 @@ export default function OrganizationPage() {
                     <CardContent className="p-3">
                       <p className="text-sm">
                         <span className="font-medium">
-                          {entry.actor?.name || "Someone"}
+                          {entry.actor?.name || "System"}
                         </span>{" "}
                         {describeActivity(entry)}
                       </p>
