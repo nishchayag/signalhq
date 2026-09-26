@@ -93,6 +93,14 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
             sender. See Section 5 for the provider and how each feature
             handles data.
           </li>
+          <li>
+            Optional integrations: an organization&apos;s admins may connect
+            Slack or a webhook so feedback also reaches tools they already
+            use. When configured, we forward only the message content, the
+            answer, the question, and the AI sentiment/tags — never the
+            sender&apos;s identity, which we don&apos;t collect in the
+            first place.
+          </li>
         </ul>
         <p className="mt-3">We do not sell personal data.</p>
       </>

@@ -19,6 +19,7 @@ import {
   Pencil,
   Share2,
   Palette,
+  Webhook,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
@@ -36,6 +37,7 @@ import ShareDialog from "@/components/ShareDialog";
 import BrandingSettings, {
   type BrandingSettingsValue,
 } from "@/app/dashboard/_components/BrandingSettings";
+import IntegrationsSettings from "@/app/dashboard/_components/IntegrationsSettings";
 import { can } from "@/lib/permissions";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { apiError } from "@/lib/apiError";
@@ -51,6 +53,7 @@ type Tab =
   | "teams"
   | "labels"
   | "branding"
+  | "integrations"
   | "settings"
   | "plan"
   | "activity";
@@ -586,6 +589,7 @@ export default function OrganizationPage() {
       ? [{ key: "labels" as Tab, label: "Labels", icon: <Tag className="h-4 w-4" /> }]
       : []),
     { key: "branding", label: "Branding", icon: <Palette className="h-4 w-4" /> },
+    { key: "integrations", label: "Integrations", icon: <Webhook className="h-4 w-4" /> },
     { key: "plan", label: "Plan", icon: <CreditCard className="h-4 w-4" /> },
     ...(can(role, "org:viewActivity")
       ? [{ key: "activity" as Tab, label: "Activity", icon: <History className="h-4 w-4" /> }]
@@ -965,6 +969,8 @@ export default function OrganizationPage() {
                 onHasLogoChange={setHasLogo}
               />
             )}
+
+            {tab === "integrations" && <IntegrationsSettings orgId={orgId} />}
 
             {tab === "plan" && (
               <div className="space-y-6">

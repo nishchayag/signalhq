@@ -16,7 +16,9 @@ export type AnalyticsEvent =
   | "guard_used"
   | "qr_downloaded"
   | "branding_saved"
-  | "logo_uploaded";
+  | "logo_uploaded"
+  | "integration_created"
+  | "integration_tested";
 
 /**
  * Fire a custom analytics event (Google Analytics + Microsoft Clarity, when
