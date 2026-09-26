@@ -2,11 +2,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 
-const { sendNotificationEmail } = vi.hoisted(() => ({
+const { sendNotificationEmail, sendPulseReminderBatch } = vi.hoisted(() => ({
   sendNotificationEmail: vi.fn(async () => true),
+  sendPulseReminderBatch: vi.fn(async () => true),
 }));
 vi.mock("@/lib/mailService", () => ({
   sendNotificationEmail,
+  sendPulseReminderBatch,
   sendEmail: vi.fn(async () => true),
   sendInvitationEmail: vi.fn(async () => true),
 }));
@@ -29,6 +31,15 @@ vi.mock("@/lib/notifications", async () => {
   return { ...actual, flushDailyDigests: flushSpy };
 });
 
+// Pass-through spy to check the pulse reminders step's deadline, and so one
+// test can make it blow up.
+const { pulseSpy } = vi.hoisted(() => ({ pulseSpy: vi.fn() }));
+vi.mock("@/lib/pulseReminders", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/pulseReminders")>("@/lib/pulseReminders");
+  pulseSpy.mockImplementation(actual.sendPulseReminders);
+  return { ...actual, sendPulseReminders: pulseSpy };
+});
+
 import { startTestDB, clearTestDB, stopTestDB } from "@/test-utils/db";
 import { GET as cron } from "@/app/api/cron/notifications/route";
 import { flushDailyDigests } from "@/lib/notifications";
@@ -38,12 +49,14 @@ import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
 import InvitationModel from "@/models/invitation.model";
 import MessageModel from "@/models/message.model";
+import QuestionModel from "@/models/question.model";
 
 beforeAll(startTestDB);
 afterEach(async () => {
   await clearTestDB();
   sendNotificationEmail.mockReset();
   sendNotificationEmail.mockResolvedValue(true);
+  sendPulseReminderBatch.mockClear();
   delete process.env.CRON_SECRET;
 });
 afterAll(stopTestDB);
@@ -160,6 +173,66 @@ describe("cleanup sweeps", () => {
     expect((await InvitationModel.findOne({ token: "t1" }))?.status).toBe("EXPIRED");
     expect((await InvitationModel.findOne({ token: "t2" }))?.status).toBe("PENDING");
     expect((await InvitationModel.findOne({ token: "t3" }))?.status).toBe("ACCEPTED");
+  });
+});
+
+describe("cron pulse reminders step", () => {
+  it("runs first, with a 12s deadline", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    const before = Date.now();
+    expect((await call("Bearer s3cret")).status).toBe(200);
+    const { deadline } = pulseSpy.mock.calls.at(-1)![0] as { deadline: number };
+    expect(deadline).toBeGreaterThanOrEqual(before + 12_000);
+    expect(deadline).toBeLessThanOrEqual(Date.now() + 12_000);
+  });
+
+  it("sends a reminder for a due round and claims it", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    const owner = await makeUser({ isVerified: true });
+    const org = await OrganizationModel.create({
+      name: "Acme",
+      slug: "acme-pulse",
+      createdBy: owner._id,
+      plan: "PRO",
+    });
+    await MembershipModel.create({ organizationId: org._id, userId: owner._id, role: "OWNER" });
+    const anchor = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+    await QuestionModel.create({
+      questionText: "How's the new office working out?",
+      userId: owner._id,
+      organizationId: org._id,
+      slug: "pulse-q",
+      pulse: {
+        cadence: "weekly",
+        anchorDate: anchor,
+        timeZone: "UTC",
+        remind: true,
+        lastRemindedRound: -1,
+      },
+    });
+
+    const res = await call("Bearer s3cret");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.pulseReminders).toMatchObject({ candidates: 1, sent: 1, restored: 0 });
+    expect(sendPulseReminderBatch).toHaveBeenCalledTimes(1);
+    expect(sendPulseReminderBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ recipients: [owner.email] })
+    );
+    const stored = await QuestionModel.findOne({ slug: "pulse-q" }).lean();
+    expect(stored?.pulse?.lastRemindedRound).toBe(0);
+  });
+
+  it("a failing pulse step doesn't fail the cron or skip the other steps", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    pulseSpy.mockRejectedValueOnce(new Error("boom"));
+    const res = await call("Bearer s3cret");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ success: true, pulseReminders: { error: true } });
+    expect(body.digests).not.toHaveProperty("error");
+    spy.mockRestore();
   });
 });
 

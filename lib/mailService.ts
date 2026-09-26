@@ -6,6 +6,7 @@ import VerificationEmail from "@/emailTemplates/verifyEmailTemplate";
 import ResetPasswordOtpEmail from "@/emailTemplates/resetPasswordTemplate";
 import InvitationEmail from "@/emailTemplates/invitationTemplate";
 import NewMessageEmail, { type DigestAiSummary } from "@/emailTemplates/newMessageEmail";
+import PulseReminderEmail from "@/emailTemplates/pulseReminderEmail";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM = process.env.RESEND_FROM_EMAIL as string;
@@ -163,6 +164,59 @@ export const sendNotificationEmail = async ({
     return true;
   } catch (error) {
     console.error("Error sending notification email:", error);
+    return false;
+  }
+};
+
+/**
+ * One round-open reminder batch for a recurring (pulse) question
+ * (lib/pulseReminders.ts) — up to 100 recipients, one identical email per
+ * recipient (`to` is always a single address, never several), sent in one
+ * `resend.batch.send` call. `idempotencyKey` is per-chunk
+ * (`pulse:${questionId}:${round}:${chunkIndex}`), so a retried cron run
+ * can't double-send that chunk. Returns true only when Resend accepts the
+ * whole batch.
+ */
+export const sendPulseReminderBatch = async ({
+  recipients,
+  orgName,
+  questionText,
+  publicUrl,
+  settingsUrl,
+  idempotencyKey,
+}: {
+  recipients: string[];
+  orgName: string;
+  questionText: string;
+  // Absolute /o/{orgSlug}/q/{slug} link — identical for every recipient.
+  publicUrl: string;
+  settingsUrl: string;
+  idempotencyKey: string;
+}): Promise<boolean> => {
+  if (recipients.length === 0) return true;
+  try {
+    const element = PulseReminderEmail({ orgName, questionText, publicUrl, settingsUrl });
+    const text = await render(element, { plainText: true });
+    const subject = `New round open: ${sanitizeSubjectPart(orgName)} on SignalHQ`;
+
+    const { error } = await resend.batch.send(
+      recipients.map((to) => ({
+        from: FROM,
+        to,
+        subject,
+        react: element,
+        text,
+        headers: { "List-Unsubscribe": `<${settingsUrl}>` },
+      })),
+      { idempotencyKey }
+    );
+    if (error) {
+      console.error("Error sending pulse reminder batch:", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error sending pulse reminder batch:", error);
     return false;
   }
 };

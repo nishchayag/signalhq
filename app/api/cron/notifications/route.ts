@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import { flushDailyDigests } from "@/lib/notifications";
+import { sendPulseReminders } from "@/lib/pulseReminders";
 import {
   expireStaleInvitations,
   sweepExpiredUnverifiedUsers,
@@ -9,10 +10,12 @@ import {
 import { backfillEmbeddings, enrichPending } from "@/lib/aiEnrichment";
 
 // Step deadlines, measured from the start of the run and kept under
-// maxDuration (60s) with room to respond. Digests stop starting new users at
-// 35s (their AI summaries stop at 30s at the latest — see
-// flushDailyDigests), leaving the fast sweeps and then AI enrichment the
-// rest, up to 50s.
+// maxDuration (60s) with room to respond. Pulse reminders run first with a
+// short budget of their own (a handful of Resend batch calls, not one email
+// per user); digests stop starting new users at 35s (their AI summaries
+// stop at 30s at the latest — see flushDailyDigests), leaving the fast
+// sweeps and then AI enrichment the rest, up to 50s.
+const PULSE_STEP_DEADLINE_MS = 12_000;
 const DIGEST_STEP_DEADLINE_MS = 35_000;
 const AI_STEP_DEADLINE_MS = 50_000;
 
@@ -50,6 +53,9 @@ export async function GET(request: NextRequest) {
     }
   };
 
+  const pulseReminders = await step("pulseReminders", () =>
+    sendPulseReminders({ deadline: start + PULSE_STEP_DEADLINE_MS })
+  );
   const digests = await step("digests", () =>
     flushDailyDigests({ deadline: start + DIGEST_STEP_DEADLINE_MS })
   );
@@ -66,6 +72,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
+    pulseReminders,
     digests,
     unverifiedUsersDeleted,
     orphans,
