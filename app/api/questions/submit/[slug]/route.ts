@@ -17,6 +17,7 @@ import { afterMessageCreated } from "@/lib/messageEvents";
 import { isGuardOffered } from "@/lib/aiQuota";
 import { publicQuestionConfig, questionState } from "@/lib/answers";
 import { QUESTION_CLOSED, withResponseSlot } from "@/lib/answerClaim";
+import { roundAt, type QuestionPulseLike } from "@/lib/pulse";
 
 // Room for the post-response AI enrichment (runAfter) on Vercel.
 export const maxDuration = 30;
@@ -46,7 +47,7 @@ export async function GET(
     const question = await QuestionModel.findOne(publicFilter(slug))
       .populate("userId", "username")
       .select(
-        "questionText description slug userId organizationId type config closesAt maxResponses responseCount"
+        "questionText description slug userId organizationId type config closesAt maxResponses responseCount pulse"
       );
 
     if (!question) {
@@ -68,6 +69,14 @@ export async function GET(
         ? await isGuardOffered(question.organizationId)
         : false;
 
+    // "Opens on …" (scheduled) / "next round opens …" (already open) — the
+    // instant the next round starts, computed the same way questionState
+    // decided whether this is closed. Never anchorDate/timeZone/remind: this
+    // is a public endpoint, so only what the form needs to render is sent.
+    const nextRoundStartsAt = question.pulse
+      ? roundAt(question.pulse as QuestionPulseLike).endsAt.toISOString()
+      : null;
+
     return NextResponse.json(
       {
         success: true,
@@ -80,7 +89,14 @@ export async function GET(
           // Never responseCount or maxResponses: the cap would leak the count.
           config: publicQuestionConfig(question),
           closesAt: question.closesAt ?? null,
-          closed: state.closed ? { reason: state.reason } : null,
+          closed:
+            state.closed
+              ? {
+                  reason: state.reason,
+                  ...(state.reason === "scheduled" && { opensAt: nextRoundStartsAt }),
+                }
+              : null,
+          pulse: question.pulse ? { cadence: question.pulse.cadence, nextRoundStartsAt } : null,
         },
       },
       { status: 200 }
@@ -166,23 +182,30 @@ export async function POST(
     const enrich = isAiEnabled() && hasComment;
     const now = new Date();
 
-    const message = await withResponseSlot(question, async () => {
-      const doc = new MessageModel({
-        content,
-        ...(answer && { answer }),
-        createdAt: now,
-        lastInboundAt: now,
-        createdFor: question.userId,
-        questionId: question._id,
-        // Mirror the question's org/team onto the response for scoped reads.
-        organizationId: question.organizationId,
-        teamId: question.teamId,
-        replyToken,
-        ...(enrich && { ai: { status: "pending", attempts: 0 } }),
-      });
-      await doc.save();
-      return doc;
-    });
+    const message = await withResponseSlot(
+      question,
+      async () => {
+        const doc = new MessageModel({
+          content,
+          ...(answer && { answer }),
+          createdAt: now,
+          lastInboundAt: now,
+          createdFor: question.userId,
+          questionId: question._id,
+          // Mirror the question's org/team onto the response for scoped reads.
+          organizationId: question.organizationId,
+          teamId: question.teamId,
+          replyToken,
+          // Same `now` the slot claim (closesAt/cap) just checked against —
+          // never a second, independently-ticking clock read.
+          ...(question.pulse && { round: roundAt(question.pulse as QuestionPulseLike, now).index }),
+          ...(enrich && { ai: { status: "pending", attempts: 0 } }),
+        });
+        await doc.save();
+        return doc;
+      },
+      now
+    );
     if (!message) {
       return NextResponse.json(QUESTION_CLOSED, { status: 410 });
     }

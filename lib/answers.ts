@@ -2,6 +2,7 @@
 // date, response cap). Mongoose-free and server-free, so the models, the zod
 // schemas, route handlers and client components all share one definition.
 import { nanoid } from "nanoid";
+import { roundAt, type QuestionPulseLike } from "@/lib/pulse";
 
 export const QUESTION_TYPES = ["text", "rating", "nps", "single", "multi"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
@@ -62,6 +63,8 @@ export interface QuestionLike {
   closesAt?: Date | string | null;
   maxResponses?: number | null;
   responseCount?: number | null;
+  /** Recurring pulse config (lib/pulse.ts). Absent ⇒ not a pulse question. */
+  pulse?: QuestionPulseLike | null;
 }
 
 /** Missing type ⇒ text (every question from before typed questions). */
@@ -107,17 +110,23 @@ export function formatAnswer(answer: MessageAnswer | null | undefined): string {
   }
 }
 
-export type ClosedReason = "date" | "cap";
+export type ClosedReason = "date" | "cap" | "scheduled";
 export type QuestionState = { closed: false } | { closed: true; reason: ClosedReason };
 
 /**
  * Whether a question still takes new responses. Computed, never stored.
  * `isActive` is a separate switch (an inactive question is simply not
- * found publicly); this covers the close date and the response cap. The
- * submit routes enforce the same two rules atomically when they claim a slot,
- * so this is the read-side view, not the guard.
+ * found publicly); this covers the close date, the response cap, and — for
+ * a pulse question — not having opened its first round yet ("scheduled").
+ * A pulse question has no gaps between rounds once it opens, so "scheduled"
+ * only ever applies before round 0 (lib/pulse.ts#roundAt: index < 0). The
+ * submit routes enforce the same rules atomically when they claim a slot, so
+ * this is the read-side view, not the guard.
  */
 export function questionState(q: QuestionLike, now: Date = new Date()): QuestionState {
+  if (q.pulse && roundAt(q.pulse, now).index < 0) {
+    return { closed: true, reason: "scheduled" };
+  }
   if (q.closesAt && new Date(q.closesAt).getTime() <= now.getTime()) {
     return { closed: true, reason: "date" };
   }

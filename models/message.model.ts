@@ -64,6 +64,9 @@ export interface IMessage extends Document {
   createdAt: Date;
   createdFor: mongoose.Types.ObjectId;
   questionId?: mongoose.Types.ObjectId; // Reference to specific question (optional for backward compatibility)
+  // Which pulse round this response belongs to (lib/pulse.ts#roundAt),
+  // stamped at submit time. Absent for every non-pulse question's messages.
+  round?: number;
   // Owning organization. Optional during multi-tenant migration; backfilled
   // for existing messages, required once the migration completes.
   organizationId?: mongoose.Types.ObjectId;
@@ -161,6 +164,10 @@ const messageSchema: Schema<IMessage> = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Question",
     required: false, // Optional for backward compatibility
+  },
+  round: {
+    type: Number,
+    required: false,
   },
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,

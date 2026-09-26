@@ -88,10 +88,12 @@ export function teamLimitReached(
  * rendering/serving/delivering it — no destructive migration on downgrade.
  *  - `branding`: custom accent/welcome text/logo on public pages.
  *  - `integrations`: Slack and signed-webhook message delivery (Phase 4a).
- *  - `pulse`: recurring question rounds (Phase 4b; not yet built — reserved
- *    so the gating matrix below is already correct once it lands).
+ *  - `pulse`: recurring question rounds (Phase 4b). Gated on create and on
+ *    reactivating an inactive pulse question; a downgraded org's existing
+ *    pulses keep collecting responses but stop sending round reminders
+ *    (lib/pulseReminders.ts checks the plan again at send time).
  *  - `embedNoBadge`: hides the "Powered by SignalHQ" badge on the embed
- *    widget (Phase 4c; not yet built — same reservation as `pulse`).
+ *    widget (Phase 4c; not yet built — same reservation as `pulse` was).
  */
 export type PlanFeature = "branding" | "integrations" | "pulse" | "embedNoBadge";
 

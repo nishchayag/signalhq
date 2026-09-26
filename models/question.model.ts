@@ -7,6 +7,7 @@ import {
   type QuestionConfig,
   type QuestionType,
 } from "@/lib/answers";
+import { PULSE_CADENCES, type PulseCadence } from "@/lib/pulse";
 
 export type QuestionVisibility = "public" | "internal";
 
@@ -40,6 +41,22 @@ export interface IQuestion extends Document {
   // open indefinitely.
   closesAt?: Date | null;
   maxResponses?: number | null;
+  // Recurring pulse config (lib/pulse.ts). Absent ⇒ not a pulse question —
+  // PRO+ and OWNER/ADMIN-only (question:pulse), mutually exclusive with
+  // maxResponses and with visibility:"internal". `cadence`/`anchorDate`/
+  // `timeZone` lock once the question has a first response, same as the
+  // type/config lock; `remind`/`closesAt`/`isActive` stay editable.
+  pulse?: {
+    cadence: PulseCadence;
+    // "YYYY-MM-DD", local midnight in `timeZone`.
+    anchorDate: string;
+    timeZone: string;
+    remind: boolean;
+    // Highest round index a reminder has already gone out for
+    // (lib/pulseReminders.ts). -1 ⇒ none sent yet.
+    lastRemindedRound: number;
+    lastRemindedAt?: Date;
+  };
 }
 
 const QuestionSchema: Schema<IQuestion> = new Schema(
@@ -130,6 +147,23 @@ const QuestionSchema: Schema<IQuestion> = new Schema(
     },
     closesAt: { type: Date, default: undefined },
     maxResponses: { type: Number, min: 1, max: MAX_RESPONSES_LIMIT, default: undefined },
+    // Sub-schema so `pulse` stays undefined on non-pulse questions, same
+    // pattern as `config` above.
+    pulse: {
+      type: new Schema(
+        {
+          cadence: { type: String, enum: PULSE_CADENCES, required: true },
+          anchorDate: { type: String, required: true },
+          timeZone: { type: String, required: true },
+          remind: { type: Boolean, default: true },
+          lastRemindedRound: { type: Number, default: -1 },
+          lastRemindedAt: { type: Date },
+        },
+        { _id: false }
+      ),
+      required: false,
+      default: undefined,
+    },
   },
   {
     timestamps: true,

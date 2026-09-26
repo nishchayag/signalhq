@@ -13,6 +13,22 @@ import { parsePagination, paginate } from "@/lib/pagination";
 import { teamScopeFilter } from "@/lib/questionAccess";
 import { isValidObjectId } from "@/lib/objectId";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { getOrgPlan } from "@/lib/aiQuota";
+import { hasFeature } from "@/lib/plans";
+import { pulseSummary, type PulseCadence } from "@/lib/pulse";
+import { resolveTimeZone } from "@/lib/zonedDate";
+
+// FREE orgs get a machine-readable code back, same pattern as branding's
+// planGate (app/api/organizations/[orgId]/branding/route.ts).
+const pulsePlanGate = () =>
+  NextResponse.json(
+    {
+      success: false,
+      message: "Recurring pulse surveys are available on the Pro plan and up.",
+      code: "PLAN_UPGRADE_REQUIRED",
+    },
+    { status: 403 }
+  );
 
 export async function POST(request: NextRequest) {
   await connectDB();
@@ -49,13 +65,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { questionText, description, teamId, visibility, closesAt, maxResponses } = result.data;
+    const { questionText, description, teamId, visibility, closesAt, maxResponses, pulse } =
+      result.data;
     const type = result.data.type ?? "text";
     const normalized = normalizeQuestionConfig(type, result.data.config);
     const config = normalized && {
       ...normalized,
       ...(normalized.options && { options: assignOptionIds(normalized.options) }),
     };
+
+    // Recurring pulse: OWNER/ADMIN only, and PRO+ only — checked here (not
+    // just the schema) because both the role and the org's plan need a DB
+    // round-trip. The schema's superRefine already rejected an invalid time
+    // zone / a past anchor date / maxResponses+pulse / internal+pulse.
+    let pulseToSave:
+      | {
+          cadence: PulseCadence;
+          anchorDate: string;
+          timeZone: string;
+          remind: boolean;
+          lastRemindedRound: number;
+        }
+      | undefined;
+    if (pulse) {
+      if (!can(ctx.role, "question:pulse")) {
+        return NextResponse.json(
+          { success: false, message: "Insufficient permissions" },
+          { status: 403 }
+        );
+      }
+      const plan = await getOrgPlan(ctx.organizationId);
+      if (!hasFeature(plan, "pulse")) return pulsePlanGate();
+      // Canonicalise the zone name (already validated non-null by the schema).
+      const timeZone = resolveTimeZone(pulse.timeZone) ?? pulse.timeZone;
+      pulseToSave = {
+        cadence: pulse.cadence,
+        anchorDate: pulse.anchorDate,
+        timeZone,
+        remind: pulse.remind ?? true,
+        lastRemindedRound: -1,
+      };
+    }
 
     // Validate the team (if any) belongs to this org — and, for a MEMBER,
     // that they're actually on it (they can't see other teams' questions,
@@ -98,6 +148,7 @@ export async function POST(request: NextRequest) {
       ...(config && { config }),
       ...(closesAt && { closesAt: new Date(closesAt) }),
       ...(typeof maxResponses === "number" && { maxResponses }),
+      ...(pulseToSave && { pulse: pulseToSave }),
     });
 
     return NextResponse.json(
@@ -117,6 +168,7 @@ export async function POST(request: NextRequest) {
           config: question.config,
           closesAt: question.closesAt,
           maxResponses: question.maxResponses,
+          pulse: question.pulse ? pulseSummary(question.pulse) : null,
           createdAt: question.createdAt,
         },
       },
@@ -159,7 +211,7 @@ export async function GET(request: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .select(
-        "questionText description slug isActive teamId visibility responseCount type config closesAt maxResponses createdAt"
+        "questionText description slug isActive teamId visibility responseCount type config closesAt maxResponses pulse createdAt"
       );
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
 
@@ -173,6 +225,10 @@ export async function GET(request: NextRequest) {
         // The cap would reveal the count once the question closes on it.
         delete obj.maxResponses;
       }
+      // The raw subdocument (plus internal reminder bookkeeping) becomes the
+      // computed client-facing view: current round and when the next one
+      // opens (lib/pulse.ts#pulseSummary).
+      if (q.pulse) obj.pulse = pulseSummary(q.pulse);
       return obj;
     });
 

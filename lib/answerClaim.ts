@@ -55,14 +55,18 @@ export async function releaseResponseSlot(
 
 /**
  * claim → save → (release on failure). Returns null when the question is
- * closed; rethrows the save's error after releasing.
+ * closed; rethrows the save's error after releasing. `now` is shared with
+ * the caller's own use of the same instant (e.g. a pulse question's
+ * `Message.round` stamp), so the close/cap check and the round it's stamped
+ * against can never disagree about what time it is.
  */
 export async function withResponseSlot<T>(
   question: { _id: unknown; type?: QuestionType | null },
-  save: () => Promise<T>
+  save: () => Promise<T>,
+  now: Date = new Date()
 ): Promise<T | null> {
   const id = question._id as mongoose.Types.ObjectId;
-  if (!(await claimResponseSlot(id, questionType(question)))) return null;
+  if (!(await claimResponseSlot(id, questionType(question), now))) return null;
   try {
     return await save();
   } catch (err) {

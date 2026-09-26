@@ -59,5 +59,6 @@ export function toggleChoice(current: string[] | undefined, id: string, max: num
 export function closedMessage(reason?: ClosedReason): string {
   if (reason === "cap") return "This question has reached its response limit.";
   if (reason === "date") return "This question closed on its scheduled date.";
+  if (reason === "scheduled") return "This question hasn't opened yet.";
   return "This question is no longer accepting responses.";
 }

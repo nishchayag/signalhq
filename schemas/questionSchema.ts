@@ -18,6 +18,8 @@ import {
   type QuestionLike,
   type QuestionType,
 } from "@/lib/answers";
+import { PULSE_CADENCES } from "@/lib/pulse";
+import { localYmd, resolveTimeZone } from "@/lib/zonedDate";
 
 // ---- Typed questions: config input ----
 
@@ -58,6 +60,25 @@ const maxResponsesSchema = z
   .min(1, "Response cap must be at least 1")
   .max(MAX_RESPONSES_LIMIT, `Response cap cannot exceed ${MAX_RESPONSES_LIMIT}`)
   .nullable();
+
+// ---- Pulse (recurring rounds) input ----
+
+const YMD_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export const pulseInputSchema = z.object({
+  cadence: z.enum(PULSE_CADENCES),
+  anchorDate: z.string().regex(YMD_DATE, "Invalid anchor date"),
+  timeZone: z.string().min(1, "Time zone is required").max(64, "Invalid time zone"),
+  remind: z.boolean().optional(),
+});
+export type PulseInput = z.infer<typeof pulseInputSchema>;
+
+/** Update only: any subset of the pulse fields (e.g. just `remind`, without
+ * resending cadence/anchorDate/timeZone). The PUT route merges this onto the
+ * question's current pulse and re-validates the merged result — same
+ * pattern as questionConfigIssues for `config`. */
+export const pulseUpdateInputSchema = pulseInputSchema.partial();
+export type PulseUpdateInput = z.infer<typeof pulseUpdateInputSchema>;
 
 export interface ConfigIssue {
   path: (string | number)[];
@@ -153,6 +174,10 @@ export const createQuestionSchema = z
     config: questionConfigInputSchema.optional(),
     closesAt: closesAtSchema.optional(),
     maxResponses: maxResponsesSchema.optional(),
+    // Recurring pulse schedule (lib/pulse.ts). Create only takes the full
+    // shape — PRO+/OWNER-ADMIN gating happens in the route (it needs the
+    // org's plan and the caller's role, neither available to a pure schema).
+    pulse: pulseInputSchema.optional(),
   })
   .superRefine((data, ctx) => {
     for (const issue of questionConfigIssues(data.type ?? "text", data.config)) {
@@ -166,6 +191,36 @@ export const createQuestionSchema = z
         path: ["closesAt"],
         message: "Close date must be in the future",
       });
+    }
+    if (data.pulse) {
+      if (data.maxResponses != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["maxResponses"],
+          message: "A recurring question can't have a response cap",
+        });
+      }
+      if ((data.visibility ?? "public") === "internal") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["visibility"],
+          message: "A recurring question can't be internal",
+        });
+      }
+      const tz = resolveTimeZone(data.pulse.timeZone);
+      if (!tz) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["pulse", "timeZone"],
+          message: "Invalid time zone",
+        });
+      } else if (data.pulse.anchorDate < localYmd(new Date(), tz)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["pulse", "anchorDate"],
+          message: "Start date must be today or later",
+        });
+      }
     }
   });
 
@@ -188,6 +243,7 @@ export const updateQuestionSchema = z.object({
   config: questionConfigInputSchema.optional(),
   closesAt: closesAtSchema.optional(),
   maxResponses: maxResponsesSchema.optional(),
+  pulse: pulseUpdateInputSchema.optional(),
 });
 
 export const questionResponseSchema = z.object({

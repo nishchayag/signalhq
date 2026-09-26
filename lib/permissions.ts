@@ -60,6 +60,13 @@ import type { MembershipRole } from "@/models/membership.model";
  * OWNER/ADMIN only — like org:branding/org:labels, org-wide configuration,
  * and one that can broadcast feedback content to a channel or endpoint
  * outside the app.
+ *
+ * `question:pulse` (creating a question with a recurring pulse schedule, or
+ * editing an existing one's cadence/anchor/timezone/reminders) is OWNER/ADMIN
+ * only, per the phase 4 roadmap decision — unlike `question:create`, which
+ * MEMBER also holds, turning a question into a *recurring* one is admin-tier
+ * configuration (it also drives scheduled email reminders). Checked in
+ * addition to the plan gate (`pulse` in lib/plans.ts), not instead of it.
  */
 export type Permission =
   | "org:rename"
@@ -81,6 +88,7 @@ export type Permission =
   | "question:delete"
   | "question:answer"
   | "question:viewAllReplies"
+  | "question:pulse"
   | "message:read"
   | "message:reply"
   | "message:delete"
@@ -109,6 +117,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:delete",
     "question:answer",
     "question:viewAllReplies",
+    "question:pulse",
     "message:read",
     "message:reply",
     "message:delete",
@@ -132,6 +141,7 @@ const MATRIX: Record<MembershipRole, Permission[]> = {
     "question:delete",
     "question:answer",
     "question:viewAllReplies",
+    "question:pulse",
     "message:read",
     "message:reply",
     "message:delete",
