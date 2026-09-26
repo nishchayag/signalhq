@@ -10,7 +10,7 @@ export const PLAN_CHIP: Record<Plan, string> = {
 const PlanBadge = ({ plan }: { plan: Plan }) => (
   <Link
     href="/dashboard/organization"
-    className={`inline-flex items-center rounded-lg border-2 border-ink px-2.5 py-1 text-xs font-bold text-ink ${PLAN_CHIP[plan]}`}
+    className={`inline-flex items-center rounded-lg border-2 border-ink px-2.5 py-1 text-xs font-bold text-on-brand ${PLAN_CHIP[plan]}`}
   >
     {PLAN_DISPLAY[plan].name}
   </Link>

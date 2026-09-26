@@ -1,44 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
-import UserModel from "@/models/user.model";
-import { sendNotificationEmail } from "@/lib/mailService";
+import { flushDailyDigests } from "@/lib/notifications";
+import {
+  expireStaleInvitations,
+  sweepExpiredUnverifiedUsers,
+  sweepOrphans,
+} from "@/lib/orgCleanup";
+import { backfillEmbeddings, enrichPending } from "@/lib/aiEnrichment";
+
+// Step deadlines, measured from the start of the run and kept under
+// maxDuration (60s) with room to respond. Digests stop starting new users at
+// 35s (their AI summaries stop at 30s at the latest — see
+// flushDailyDigests), leaving the fast sweeps and then AI enrichment the
+// rest, up to 50s.
+const DIGEST_STEP_DEADLINE_MS = 35_000;
+const AI_STEP_DEADLINE_MS = 50_000;
+
+// Vercel caps a function run; batching in the helpers keeps each step bounded.
+export const maxDuration = 60;
 
 /**
- * GET /api/cron/notifications — daily digest flush, triggered by the Vercel
- * Cron schedule in vercel.json (once/day, the max frequency Hobby-tier cron
- * allows). Sends one digest email per user with pending "daily"-preference
- * notifications, then resets their counter. Gated on CRON_SECRET so it can't
- * be triggered by anyone else.
+ * GET /api/cron/notifications — the daily job, triggered by the Vercel Cron
+ * schedule in vercel.json (once/day, the max frequency Hobby-tier cron
+ * allows). Flushes "daily" notification digests, then runs the idempotent
+ * cleanup sweeps (expired unverified signups, orphaned memberships/orgs,
+ * expired invitations).
+ *
+ * Gated on CRON_SECRET. If it's unset the route refuses every call — the old
+ * `Bearer ${process.env.CRON_SECRET}` comparison matched the literal header
+ * "Bearer undefined" in that case.
  */
 export async function GET(request: NextRequest) {
+  const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ success: false }, { status: 401 });
   }
 
+  const start = Date.now();
   await connectDB();
 
-  const pendingUsers = await UserModel.find({
-    notificationPreference: "daily",
-    pendingNotificationCount: { $gt: 0 },
-  }).select("email name pendingNotificationCount");
-
-  let sent = 0;
-  for (const user of pendingUsers) {
-    const ok = await sendNotificationEmail({
-      email: user.email,
-      name: user.name,
-      count: user.pendingNotificationCount,
-      dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard`,
-    });
-    // Only reset the counter on a confirmed send — a transient email failure
-    // should let the count carry over and get flushed the next day instead
-    // of silently dropping those notifications.
-    if (ok) {
-      await UserModel.findByIdAndUpdate(user._id, { pendingNotificationCount: 0 });
-      sent++;
+  // Each step is independent: one failing mustn't skip the others.
+  const step = async <T,>(name: string, fn: () => Promise<T>) => {
+    try {
+      return await fn();
+    } catch (error) {
+      console.error(`Cron step "${name}" failed:`, error);
+      return { error: true };
     }
-  }
+  };
 
-  return NextResponse.json({ success: true, sent, total: pendingUsers.length });
+  const digests = await step("digests", () =>
+    flushDailyDigests({ deadline: start + DIGEST_STEP_DEADLINE_MS })
+  );
+  const unverifiedUsersDeleted = await step("unverified", () => sweepExpiredUnverifiedUsers());
+  const orphans = await step("orphans", () => sweepOrphans());
+  const invitationsExpired = await step("invitations", () => expireStaleInvitations());
+  // Last: it's the only step that can use most of the time budget.
+  const aiEnrichment = await step("aiEnrichment", () =>
+    enrichPending({ limit: 25, deadline: start + AI_STEP_DEADLINE_MS })
+  );
+  const embeddingBackfill = await step("embeddingBackfill", () =>
+    backfillEmbeddings({ deadline: start + AI_STEP_DEADLINE_MS })
+  );
+
+  return NextResponse.json({
+    success: true,
+    digests,
+    unverifiedUsersDeleted,
+    orphans,
+    invitationsExpired,
+    aiEnrichment,
+    embeddingBackfill,
+  });
 }

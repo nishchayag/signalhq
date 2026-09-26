@@ -4,6 +4,7 @@ import userModel from "@/models/user.model";
 import { sendEmail } from "@/lib/mailService";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { getClientIp } from "@/lib/getClientIp";
+import { generateOtp } from "@/lib/otp";
 import { forgotPasswordSchema } from "@/schemas/forgotPasswordSchema";
 
 // Generic response regardless of whether the account exists/is verified —
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Only verified accounts have a usable login to reset — an unverified
     // signup should resend/verify instead, not reset a password.
     if (user && user.isVerified) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const code = generateOtp();
       user.forgotPasswordCode = code;
       user.forgotPasswordCodeExpiry = new Date(Date.now() + 5 * 60 * 1000);
       await user.save();

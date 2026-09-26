@@ -23,4 +23,16 @@ describe("updateNotificationPreferenceSchema", () => {
       false
     );
   });
+
+  it("accepts aiDigestSummary alone or with a preference", () => {
+    expect(updateNotificationPreferenceSchema.safeParse({ aiDigestSummary: false }).success).toBe(true);
+    expect(
+      updateNotificationPreferenceSchema.safeParse({ notificationPreference: "daily", aiDigestSummary: true }).success
+    ).toBe(true);
+  });
+
+  it("rejects a non-boolean aiDigestSummary and unknown keys", () => {
+    expect(updateNotificationPreferenceSchema.safeParse({ aiDigestSummary: "yes" }).success).toBe(false);
+    expect(updateNotificationPreferenceSchema.safeParse({ aiDigestSummary: true, extra: 1 }).success).toBe(false);
+  });
 });

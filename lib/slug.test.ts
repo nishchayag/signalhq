@@ -21,6 +21,18 @@ describe("slugify", () => {
     expect(slugify("a".repeat(60)).length).toBe(40);
   });
 
+  it("transliterates accented letters instead of dropping them", () => {
+    expect(slugify("José Tester")).toBe("jose-tester");
+    expect(slugify("Anne-Marie O'Brien")).toBe("anne-marie-o-brien");
+    expect(slugify("Crème Brûlée Café")).toBe("creme-brulee-cafe");
+    expect(slugify("Zoë Ñúñez")).toBe("zoe-nunez");
+  });
+
+  it("maps letters that don't decompose under NFD", () => {
+    expect(slugify("Straße")).toBe("strasse");
+    expect(slugify("Ærø Łódź")).toBe("aero-lodz");
+  });
+
   it("returns an empty string for input with no alphanumeric characters", () => {
     expect(slugify("!!!")).toBe("");
   });

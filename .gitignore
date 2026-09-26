@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# /brag launch-video generations
+brag-output/
+
+# graphify knowledge graph (local, regenerable via `graphify update .`)
+graphify-out/
+
+# Personal Claude Code context files: kept local, never committed
+CLAUDE.md

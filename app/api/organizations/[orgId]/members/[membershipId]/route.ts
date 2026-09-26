@@ -5,9 +5,11 @@ import { requireOrgAccess } from "@/lib/apiAuth";
 import { outranks } from "@/lib/permissions";
 import { updateMemberRoleSchema } from "@/schemas/memberSchema";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
+import { unassignUser } from "@/lib/orgCleanup";
 
 // PATCH /api/organizations/:orgId/members/:membershipId — change a role.
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string; membershipId: string }> }
 ) {
@@ -53,6 +55,16 @@ export async function PATCH(
   target.role = result.data.role;
   await target.save();
 
+  // Demoted to MEMBER: they lose sight of other teams' messages, so they
+  // can't stay assigned to them (assignees must pass canAccessQuestion).
+  if (target.role === "MEMBER" && previousRole !== "MEMBER") {
+    const teams = await TeamModel.find({ organizationId: orgId, members: target.userId }).select("_id");
+    await unassignUser(target.userId, {
+      organizationId: orgId,
+      teamId: { $exists: true, $nin: [null, ...teams.map((t) => t._id)] },
+    });
+  }
+
   await logActivity({
     organizationId: orgId,
     actorUserId: auth.userId,
@@ -72,7 +84,7 @@ export async function PATCH(
 
 // DELETE /api/organizations/:orgId/members/:membershipId — remove a member.
 // A non-owner member may also remove *themselves* (leave the org).
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; membershipId: string }> }
 ) {
@@ -110,12 +122,28 @@ export async function DELETE(
     );
   }
 
+  // Leaving your last org strands you the same way deleting it would (e.g.
+  // after transferring away your personal org and becoming ADMIN).
+  if (isSelf) {
+    const remaining = await MembershipModel.countDocuments({ userId: auth.userId });
+    if (remaining <= 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You can't leave your only organization. Create or join another one first.",
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   await MembershipModel.deleteOne({ _id: target._id });
-  // Drop them from any teams in this org.
+  // Drop them from any teams in this org, and from any message assignments.
   await TeamModel.updateMany(
     { organizationId: orgId },
     { $pull: { members: target.userId } }
   );
+  await unassignUser(target.userId, { organizationId: orgId });
 
   await logActivity({
     organizationId: orgId,
@@ -129,3 +157,6 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const PATCH = withErrorHandling(handlePATCH);
+export const DELETE = withErrorHandling(handleDELETE);

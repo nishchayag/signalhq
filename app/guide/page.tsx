@@ -601,7 +601,7 @@ export default function GuidePage() {
             >
               <div className="flex items-center gap-3">
                 <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-ink text-ink shadow-solid-sm ${section.chip}`}
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-ink text-on-brand shadow-solid-sm ${section.chip}`}
                 >
                   {section.icon}
                 </span>
@@ -616,7 +616,7 @@ export default function GuidePage() {
           ))}
         </article>
 
-        <div className="mt-16 rounded-2xl border-2 border-ink bg-brand-yellow p-6 text-ink shadow-solid">
+        <div className="mt-16 rounded-2xl border-2 border-ink bg-brand-yellow p-6 text-on-brand shadow-solid">
           <h2 className="text-xl font-black tracking-tight">
             Ready to try it?
           </h2>

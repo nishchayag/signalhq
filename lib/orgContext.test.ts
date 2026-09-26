@@ -11,6 +11,7 @@ import {
 } from "@/lib/orgContext";
 import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
+import OrgAssetModel from "@/models/orgAsset.model";
 
 beforeAll(startTestDB);
 afterEach(clearTestDB);
@@ -89,6 +90,38 @@ describe("resolveActiveContext", () => {
 
     const ctx = await resolveActiveContext(fakeSession(String(userId)));
     expect(ctx?.organizationId).toBe(String(older._id));
+  });
+});
+
+describe("resolveActiveContext never loads logo bytes", () => {
+  it("returns an org doc with no bytes/OrgAsset data even when a logo exists", async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const { org } = await makeOrgWithMembership(userId, "Branded");
+    await OrganizationModel.updateOne(
+      { _id: org._id },
+      { plan: "PRO", "branding.logoVersion": 1 }
+    );
+    // A real (if tiny) logo row, so this test would fail loudly — a huge
+    // payload back on ctx.organization, or a slow query joining it in — if
+    // resolveActiveContext ever started pulling OrgAsset in.
+    await OrgAssetModel.create({
+      organizationId: org._id,
+      kind: "logo",
+      contentType: "image/png",
+      bytes: Buffer.alloc(50_000, 7),
+      size: 50_000,
+      sha256: "y".repeat(64),
+    });
+
+    const ctx = await resolveActiveContext(fakeSession(String(userId), String(org._id)));
+    expect(ctx).not.toBeNull();
+    const raw = ctx!.organization.toObject();
+    expect(raw).not.toHaveProperty("bytes");
+    expect(raw).not.toHaveProperty("logo");
+    expect(raw.branding).toMatchObject({ logoVersion: 1 });
+    // Sanity: the whole serialized doc is small — nowhere near the 50KB
+    // logo, confirming the bytes were never fetched alongside it.
+    expect(JSON.stringify(raw).length).toBeLessThan(1000);
   });
 });
 

@@ -1,30 +1,16 @@
-import { redirect } from "next/navigation";
-import connectDB from "@/lib/connectDB";
-import QuestionModel from "@/models/question.model";
-import OrganizationModel from "@/models/organization.model";
-import QuestionResponseForm from "@/components/QuestionResponseForm";
+import { notFound, permanentRedirect } from "next/navigation";
+import { getCanonicalQuestion } from "@/lib/publicLookups";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-// Legacy question URL. Redirects to the org-scoped equivalent when the question
-// belongs to an org; otherwise renders the response form inline (legacy data).
+// Legacy question URL: permanently redirects to the canonical org-scoped
+// page. Every question has an org since the multi-tenant backfill, so one
+// without an (existing) org is treated as not found.
 export default async function LegacyQuestionPage({ params }: PageProps) {
   const { slug } = await params;
-  await connectDB();
-
-  const question = await QuestionModel.findOne({ slug }).select(
-    "organizationId"
-  );
-
-  if (question?.organizationId) {
-    const org = await OrganizationModel.findById(
-      question.organizationId
-    ).select("slug");
-    if (org) redirect(`/o/${org.slug}/q/${slug}`);
-  }
-
-  // Fallback for questions that predate the org migration.
-  return <QuestionResponseForm slug={slug} />;
+  const question = await getCanonicalQuestion(slug);
+  if (!question) notFound();
+  permanentRedirect(question.path);
 }

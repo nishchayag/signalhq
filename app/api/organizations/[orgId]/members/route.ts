@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import MembershipModel from "@/models/membership.model";
 import "@/models/user.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 interface PopulatedUser {
   _id: string;
@@ -11,7 +12,7 @@ interface PopulatedUser {
 }
 
 // GET /api/organizations/:orgId/members — list members (any member may view).
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -44,3 +45,5 @@ export async function GET(
     { status: 200 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);

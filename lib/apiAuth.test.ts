@@ -92,4 +92,22 @@ describe("requireOrgAccess", () => {
     const result = await requireOrgAccess(String(org._id));
     expect(result.ok).toBe(true);
   });
+
+  it("404s (not 500s) a malformed organization id, including the literal \"undefined\"", async () => {
+    getServerSession.mockResolvedValue({
+      user: { _id: String(new mongoose.Types.ObjectId()) },
+    });
+    for (const bad of ["not-an-id", "undefined", "null", ""]) {
+      const result = await requireOrgAccess(bad);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.response.status).toBe(404);
+    }
+  });
+
+  it("still 401s an unauthenticated caller before looking at the id", async () => {
+    getServerSession.mockResolvedValue(null);
+    const result = await requireOrgAccess("not-an-id");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(401);
+  });
 });

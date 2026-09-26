@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { User } from "next-auth";
-import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut, Settings, User as UserIcon } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import PlanBadge from "@/components/PlanBadge";
 import Logo from "@/components/Logo";
@@ -107,6 +107,22 @@ const Navbar = () => {
               >
                 <LayoutDashboard className="h-4 w-4" />
                 Dashboard
+              </Link>
+              <Link
+                href="/dashboard/organization"
+                onClick={() => setIsOpen(false)}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
+              >
+                <Settings className="h-4 w-4" />
+                Organization settings
+              </Link>
+              <Link
+                href="/dashboard/account"
+                onClick={() => setIsOpen(false)}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
+              >
+                <UserIcon className="h-4 w-4" />
+                Account settings
               </Link>
               <button
                 onClick={() => {

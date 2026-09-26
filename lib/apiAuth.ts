@@ -4,6 +4,7 @@ import authOptions from "@/lib/nextAuthOptions";
 import connectDB from "@/lib/connectDB";
 import MembershipModel, { IMembership } from "@/models/membership.model";
 import { can, Permission } from "@/lib/permissions";
+import { isValidObjectId } from "@/lib/objectId";
 import type { Session } from "next-auth";
 
 type Ok = {
@@ -32,6 +33,20 @@ export async function requireOrgAccess(
       response: NextResponse.json(
         { success: false, message: "Not authenticated" },
         { status: 401 }
+      ),
+    };
+  }
+
+  // Auth first (401), then shape: a malformed id (or the literal "undefined"
+  // from String(question.organizationId) on a legacy org-less record) would
+  // otherwise throw a CastError → 500. 404 rather than 403 so a garbage id
+  // reads the same as an org that doesn't exist.
+  if (!isValidObjectId(organizationId)) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { success: false, message: "Organization not found" },
+        { status: 404 }
       ),
     };
   }

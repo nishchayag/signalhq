@@ -2,16 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/connectDB";
 import OrganizationModel from "@/models/organization.model";
 import MembershipModel from "@/models/membership.model";
-import QuestionModel from "@/models/question.model";
-import MessageModel from "@/models/message.model";
-import TeamModel from "@/models/team.model";
-import InvitationModel from "@/models/invitation.model";
+import OrgAssetModel from "@/models/orgAsset.model";
 import { renameOrganizationSchema } from "@/schemas/organizationSchema";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
+import { deleteOrganizationsCascade, rehomeStrandedUsers } from "@/lib/orgCleanup";
+import { withErrorHandling } from "@/lib/apiHandler";
+import { brandingView } from "@/lib/branding";
+import { hasFeature } from "@/lib/plans";
 
-// GET /api/organizations/:orgId — details for a member.
-export async function GET(
+// GET /api/organizations/:orgId — details for a member. Branding settings
+// (accent/welcomeText/logoVersion) are included here rather than behind
+// their own GET route — they aren't secret to members, and the org settings
+// page already loads this on every visit. Never selects/returns logo bytes
+// (those live in a separate OrgAsset row); the settings UI previews the
+// logo via the public GET /api/o/:orgSlug/logo route instead.
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -20,7 +26,7 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const organization = await OrganizationModel.findById(orgId).select(
-    "name slug createdBy createdAt plan"
+    "name slug createdBy createdAt plan branding"
   );
   if (!organization) {
     return NextResponse.json(
@@ -33,19 +39,30 @@ export async function GET(
     organizationId: orgId,
   });
 
+  // Whether an OrgAsset logo row exists — never selects `bytes` (select:
+  // false on the schema already guards that, but `.exists()` never pulls
+  // fields at all). This is what the settings UI should key "a logo exists"
+  // on, not `branding.logoVersion > 0`, since the version is bumped on
+  // delete too (see the logo route) and would otherwise keep pointing the
+  // preview/public <img> at a URL that 404s after a removal.
+  const hasLogo = !!(await OrgAssetModel.exists({ organizationId: orgId, kind: "logo" }));
+
   return NextResponse.json(
     {
       success: true,
       organization,
       role: auth.membership.role,
       memberCount,
+      branding: brandingView(organization),
+      brandingAllowed: hasFeature(organization.plan, "branding"),
+      hasLogo,
     },
     { status: 200 }
   );
 }
 
 // PATCH /api/organizations/:orgId — rename (OWNER only; slug is immutable).
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -83,7 +100,7 @@ export async function PATCH(
 }
 
 // DELETE /api/organizations/:orgId — delete org and all its data (OWNER only).
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -92,18 +109,34 @@ export async function DELETE(
   if (!auth.ok) return auth.response;
 
   await connectDB();
+
+  // Deleting your only org would leave you with no membership at all —
+  // resolveActiveContext returns null and the whole dashboard 401s.
+  const callerMemberships = await MembershipModel.countDocuments({ userId: auth.userId });
+  if (callerMemberships <= 1) {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          "You can't delete your only organization. Create or join another one first, or delete your account instead.",
+      },
+      { status: 409 }
+    );
+  }
+
   const organization = await OrganizationModel.findById(orgId).select("name slug");
+  const otherMemberIds = (
+    await MembershipModel.find({ organizationId: orgId, userId: { $ne: auth.userId } }).select("userId")
+  ).map((m) => m.userId);
 
   // Cascade: remove org-owned data. Messages/questions created before the
   // multi-tenant migration that still lack an org are left untouched.
-  await Promise.all([
-    MessageModel.deleteMany({ organizationId: orgId }),
-    QuestionModel.deleteMany({ organizationId: orgId }),
-    TeamModel.deleteMany({ organizationId: orgId }),
-    InvitationModel.deleteMany({ organizationId: orgId }),
-    MembershipModel.deleteMany({ organizationId: orgId }),
-  ]);
-  await OrganizationModel.findByIdAndDelete(orgId);
+  await deleteOrganizationsCascade([orgId]);
+
+  // Other members may have had this as their only org (e.g. they
+  // transferred away their own). Don't strand them — give them a fresh
+  // personal org rather than blocking the owner's delete.
+  await rehomeStrandedUsers(otherMemberIds);
 
   // Logged after the cascade so the org itself is dangling by the time this
   // entry exists — metadata carries the name/slug since they won't be
@@ -121,3 +154,7 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
+export const PATCH = withErrorHandling(handlePATCH);
+export const DELETE = withErrorHandling(handleDELETE);

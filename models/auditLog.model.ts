@@ -12,7 +12,13 @@ export type AuditAction =
   | "team.updated"
   | "team.deleted"
   | "invitation.created"
-  | "invitation.revoked";
+  | "invitation.revoked"
+  | "label.created"
+  | "label.updated"
+  | "label.deleted"
+  | "branding.updated"
+  | "branding.logo_uploaded"
+  | "branding.logo_removed";
 
 export interface IAuditLog extends Document {
   _id: string;

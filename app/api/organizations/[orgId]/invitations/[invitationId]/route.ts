@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import InvitationModel from "@/models/invitation.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // DELETE /api/organizations/:orgId/invitations/:invitationId — revoke a pending invite.
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; invitationId: string }> }
 ) {
@@ -23,6 +24,15 @@ export async function DELETE(
     );
   }
 
+  // Only a live invite can be revoked — flipping an ACCEPTED one to REVOKED
+  // would rewrite history (the member is already in).
+  if (invitation.status !== "PENDING") {
+    return NextResponse.json(
+      { success: false, message: `This invitation is already ${invitation.status.toLowerCase()}` },
+      { status: 409 }
+    );
+  }
+
   invitation.status = "REVOKED";
   await invitation.save();
 
@@ -38,3 +48,5 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const DELETE = withErrorHandling(handleDELETE);

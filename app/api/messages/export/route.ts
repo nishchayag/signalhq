@@ -5,14 +5,17 @@ import connectDB from "@/lib/connectDB";
 import MessageModel from "@/models/message.model";
 import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
-import { parseSearchQuery } from "@/lib/pagination";
+import { buildMessageListFilter, type MessageListViewer } from "@/lib/messageListQuery";
 import { messagesToCsv } from "@/lib/csv";
-import { loadAndAuthorize } from "@/app/api/questions/[questionId]/route";
+import type { ThreadSource } from "@/lib/thread";
+import { loadAndAuthorize } from "@/lib/questionAccess";
+import { effectiveReadSince } from "@/lib/readState";
+import { questionType } from "@/lib/answers";
 
 // Hard cap so a single export can't pull in an unbounded number of documents.
 const MAX_ROWS = 10_000;
 
-// GET /api/messages/export[?questionId=][&q=] — CSV download of either the
+// GET /api/messages/export[?questionId=][&q=][&status=&unread=&label=&assignee=] — CSV download of either the
 // active org's general messages (questionId omitted, mirrors
 // app/api/getMessages/route.ts's filter) or one question's public responses
 // (questionId given, mirrors app/api/questions/[questionId]/route.ts's
@@ -21,16 +24,23 @@ export async function GET(request: NextRequest) {
   await connectDB();
   try {
     const questionId = request.nextUrl.searchParams.get("questionId");
-    const search = parseSearchQuery(request);
 
-    let filter: Record<string, unknown>;
+    let base: Record<string, unknown>;
+    let viewer: MessageListViewer;
     let filenameHint: string;
+    let typed = false;
 
     if (questionId) {
       const authz = await loadAndAuthorize(questionId);
       if (!authz.ok) return authz.response;
-      filter = { questionId, authorType: { $ne: "member" } };
+      base = { questionId, authorType: { $ne: "member" } };
+      viewer = {
+        userId: authz.userId,
+        role: authz.role,
+        readSince: authz.membership ? effectiveReadSince(authz.membership) : null,
+      };
       filenameHint = authz.question.slug;
+      typed = questionType(authz.question) !== "text";
     } else {
       const session = await getServerSession(authOptions);
       const ctx = await resolveActiveContext(session);
@@ -46,16 +56,28 @@ export async function GET(request: NextRequest) {
           { status: 403 }
         );
       }
-      filter = { organizationId: ctx.organizationId, questionId: null };
+      base = { organizationId: ctx.organizationId, questionId: null };
+      viewer = {
+        userId: String(ctx.membership.userId),
+        role: ctx.role,
+        readSince: effectiveReadSince(ctx.membership),
+      };
       filenameHint = ctx.organization.slug;
     }
-    if (search) filter.content = { $regex: search, $options: "i" };
+    const filter = buildMessageListFilter({
+      base,
+      searchParams: request.nextUrl.searchParams,
+      viewer,
+      mode: "export",
+    });
 
     const messages = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
-      .limit(MAX_ROWS);
+      .limit(MAX_ROWS)
+      .select("content answer createdAt authorType replies")
+      .lean<ThreadSource[]>();
 
-    const csv = messagesToCsv(messages);
+    const csv = messagesToCsv(messages, { typed });
     const filename = `messages-${filenameHint}-${new Date().toISOString().slice(0, 10)}.csv`;
 
     return new NextResponse(csv, {

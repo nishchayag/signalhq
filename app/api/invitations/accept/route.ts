@@ -8,10 +8,11 @@ import OrganizationModel from "@/models/organization.model";
 import TeamModel from "@/models/team.model";
 import UserModel from "@/models/user.model";
 import { acceptInvitationSchema } from "@/schemas/invitationSchema";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // POST /api/invitations/accept — authenticated user accepts an invite by token.
 // Works for both brand-new accounts (they sign up first) and existing accounts.
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   await connectDB();
 
   const session = await getServerSession(authOptions);
@@ -109,3 +110,5 @@ export async function POST(request: NextRequest) {
     { status: 200 }
   );
 }
+
+export const POST = withErrorHandling(handlePOST);

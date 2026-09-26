@@ -7,6 +7,12 @@ export interface IMembership extends Document {
   organizationId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   role: MembershipRole;
+  // Messages whose last activity is before this count as read for this
+  // member (so joining doesn't flood them with the backlog). Missing ⇒
+  // createdAt — read it through lib/readState.ts#effectiveReadSince.
+  readSince?: Date;
+  // Per-org mute: no notification emails from this org for this member.
+  notificationsMuted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +37,8 @@ const MembershipSchema: Schema<IMembership> = new Schema(
       default: "MEMBER",
       required: true,
     },
+    readSince: { type: Date, required: false },
+    notificationsMuted: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -39,6 +47,11 @@ const MembershipSchema: Schema<IMembership> = new Schema(
 
 // A user can have at most one membership per organization.
 MembershipSchema.index({ organizationId: 1, userId: 1 }, { unique: true });
+// "All of this user's memberships, oldest first" runs on every session
+// resolution (resolveActiveContext / getActiveOrgForToken fallback, org
+// switcher, /u redirect); the compound above leads with organizationId and
+// can't serve it.
+MembershipSchema.index({ userId: 1, createdAt: 1 });
 
 const MembershipModel =
   (mongoose.models.Membership as mongoose.Model<IMembership>) ||

@@ -8,13 +8,15 @@ import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { createInvitationSchema } from "@/schemas/invitationSchema";
 import { sendInvitationEmail } from "@/lib/mailService";
+import { buildPublicUrl } from "@/lib/publicUrl";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 const INVITE_TTL_DAYS = 7;
 
 // GET /api/organizations/:orgId/invitations — pending invites.
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -33,7 +35,7 @@ export async function GET(
 }
 
 // POST /api/organizations/:orgId/invitations — create + email an invite.
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -118,10 +120,7 @@ export async function POST(
   );
 
   const organization = await OrganizationModel.findById(orgId).select("name");
-  const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
-    "http://localhost:3000";
-  const acceptUrl = `${baseUrl}/invite/${token}`;
+  const acceptUrl = buildPublicUrl(`/invite/${token}`);
 
   const emailed = await sendInvitationEmail({
     email,
@@ -155,3 +154,6 @@ export async function POST(
     { status: 201 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
+export const POST = withErrorHandling(handlePOST);

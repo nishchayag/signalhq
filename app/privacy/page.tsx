@@ -8,7 +8,7 @@ export const generateMetadata = () =>
     url: "/privacy",
   });
 
-const LAST_UPDATED = "July 2, 2026";
+const LAST_UPDATED = "September 24, 2026";
 
 const SECTIONS: { heading: string; body: React.ReactNode }[] = [
   {
@@ -85,6 +85,14 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
           <li>Enforce rate limits and detect abuse on public submission endpoints.</li>
           <li>Understand aggregate product usage to improve SignalHQ.</li>
           <li>Comply with legal obligations where applicable.</li>
+          <li>
+            Optional AI features: suggesting feedback-question wording,
+            tagging and summarizing received feedback for an organization&apos;s
+            dashboard, drafting replies, and an optional pre-submit check
+            that flags details in an anonymous draft that might identify its
+            sender. See Section 5 for the provider and how each feature
+            handles data.
+          </li>
         </ul>
         <p className="mt-3">We do not sell personal data.</p>
       </>
@@ -105,6 +113,18 @@ const SECTIONS: { heading: string; body: React.ReactNode }[] = [
             <span className="font-semibold text-foreground">Resend</span> —
             delivers transactional email (verification, password reset,
             invitations).
+          </li>
+          <li>
+            <span className="font-semibold text-foreground">Mistral AI</span>{" "}
+            — powers our optional AI features: generating feedback-question
+            suggestions, tagging and summarizing received feedback for an
+            organization&apos;s dashboard, drafting suggested replies, and
+            the optional pre-submit anonymity check that scans an anonymous
+            draft (before it&apos;s sent) for details that might identify
+            its sender. We&apos;ve opted out of Mistral using this data to
+            train its models. Anonymity-check drafts are sent for that one
+            check and are not stored by SignalHQ; the check only runs when
+            someone clicks to request it.
           </li>
           <li>
             <span className="font-semibold text-foreground">

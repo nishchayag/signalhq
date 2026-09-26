@@ -3,18 +3,14 @@ import { MetadataRoute } from "next";
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://signalhq.io";
 
+  // Only indexable pages: login, dashboard and verifyEmail are noindex /
+  // disallowed, so listing them here contradicted robots.txt.
   return [
     {
       url: baseUrl,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1,
-    },
-    {
-      url: `${baseUrl}/login`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.8,
     },
     {
       url: `${baseUrl}/signup`,
@@ -27,18 +23,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/dashboard`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.7,
-    },
-    {
-      url: `${baseUrl}/verifyEmail`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.5,
     },
     {
       url: `${baseUrl}/guide`,

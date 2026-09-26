@@ -1,4 +1,12 @@
 import mongoose, { Document, Schema } from "mongoose";
+import {
+  MAX_RESPONSES_LIMIT,
+  OPTION_LABEL_MAX,
+  QUESTION_TYPES,
+  SCALE_LABEL_MAX,
+  type QuestionConfig,
+  type QuestionType,
+} from "@/lib/answers";
 
 export type QuestionVisibility = "public" | "internal";
 
@@ -23,6 +31,15 @@ export interface IQuestion extends Document {
   createdAt: Date;
   updatedAt: Date;
   responseCount: number;
+  // Typed questions (lib/answers.ts). Missing type ⇒ "text" (every question
+  // from before typed questions); missing config ⇒ defaults.
+  type?: QuestionType;
+  config?: QuestionConfig;
+  // Closing. Closed state is computed (lib/answers.ts#questionState), never
+  // stored: past `closesAt`, or `responseCount >= maxResponses`. Both absent ⇒
+  // open indefinitely.
+  closesAt?: Date | null;
+  maxResponses?: number | null;
 }
 
 const QuestionSchema: Schema<IQuestion> = new Schema(
@@ -73,6 +90,46 @@ const QuestionSchema: Schema<IQuestion> = new Schema(
       type: Number,
       default: 0,
     },
+    type: {
+      type: String,
+      enum: QUESTION_TYPES,
+      default: "text",
+    },
+    // Sub-schema so it stays undefined on text questions instead of `{}`.
+    config: {
+      type: new Schema(
+        {
+          options: {
+            type: [
+              new Schema(
+                {
+                  id: { type: String, required: true },
+                  label: { type: String, required: true, trim: true, maxlength: OPTION_LABEL_MAX },
+                },
+                { _id: false }
+              ),
+            ],
+            default: undefined,
+          },
+          allowComment: { type: Boolean },
+          scaleLabels: {
+            type: new Schema(
+              {
+                min: { type: String, trim: true, maxlength: SCALE_LABEL_MAX },
+                max: { type: String, trim: true, maxlength: SCALE_LABEL_MAX },
+              },
+              { _id: false }
+            ),
+            required: false,
+          },
+          maxSelections: { type: Number, min: 1 },
+        },
+        { _id: false }
+      ),
+      required: false,
+    },
+    closesAt: { type: Date, default: undefined },
+    maxResponses: { type: Number, min: 1, max: MAX_RESPONSES_LIMIT, default: undefined },
   },
   {
     timestamps: true,

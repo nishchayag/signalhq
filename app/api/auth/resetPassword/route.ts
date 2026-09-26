@@ -39,6 +39,24 @@ export async function POST(request: NextRequest) {
     }
 
     const { email, otpCode, newPassword } = result.data;
+
+    // Per-account cap on top of the per-IP one above, so a 6-digit code
+    // can't be brute-forced by spreading guesses across many IPs.
+    const accountAllowed = await checkRateLimit(
+      `resetPassword:acct:${email.toLowerCase()}`,
+      5,
+      10 * 60 * 1000
+    );
+    if (!accountAllowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Too many attempts for this account. Please try again in a few minutes.",
+        },
+        { status: 429 }
+      );
+    }
+
     const user = await userModel.findOne({ email });
     if (
       !user ||
@@ -71,6 +89,9 @@ export async function POST(request: NextRequest) {
     user.password = await bcrypt.hash(newPassword, 10);
     user.forgotPasswordCode = undefined;
     user.forgotPasswordCodeExpiry = undefined;
+    // Kill every existing session: whoever triggered the reset may be
+    // locking out someone who already has a session.
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
 
     return NextResponse.json(

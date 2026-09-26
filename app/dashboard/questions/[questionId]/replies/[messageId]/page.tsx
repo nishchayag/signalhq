@@ -4,19 +4,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import axios from "axios";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
-import { Loader2, Send, User, Building2 } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { enterToSendWith, enterToSendHint } from "@/lib/enterToSend";
 import { PageLoader } from "@/components/Loader";
-
-interface ThreadEntry {
-  _id?: string;
-  authorRole: "member" | "org";
-  content: string;
-  createdAt: string;
-}
+import AiDraftButton from "@/components/AiDraftButton";
+import ThreadView, { type ThreadViewTurn } from "@/components/ThreadView";
+import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
 
 interface ThreadMessage {
   _id: string;
@@ -24,7 +19,6 @@ interface ThreadMessage {
   createdAt: string;
   questionId: string;
   authorUserId: string;
-  replies: ThreadEntry[];
 }
 
 export default function ThreadPage() {
@@ -33,8 +27,25 @@ export default function ThreadPage() {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(true);
   const [thread, setThread] = useState<ThreadMessage | null>(null);
+  const [turns, setTurns] = useState<ThreadViewTurn[]>([]);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [ai, setAi] = useState<AiStatus | null>(null);
+
+  const fetchAi = useCallback(async () => {
+    const orgId = session?.user?.activeOrgId;
+    if (!orgId) return;
+    try {
+      const res = await axios.get(`/api/organizations/${orgId}/ai`);
+      setAi(res.data as AiStatus);
+    } catch (error) {
+      console.error("Error fetching AI status:", error);
+      setAi({
+        enabled: false,
+        can: { suggest: false, insights: false, draft: false, viewSafety: false, search: false },
+      });
+    }
+  }, [session?.user?.activeOrgId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +53,7 @@ export default function ThreadPage() {
       const res = await axios.get(`/api/messages/${params.messageId}/reply`);
       if (res.data.success) {
         setThread(res.data.message);
+        setTurns(res.data.turns);
       } else {
         toast.error(res.data.message || "Failed to load thread");
       }
@@ -58,6 +70,11 @@ export default function ThreadPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAi();
+  }, [fetchAi]);
 
   const isThreadOwner =
     !!thread && !!session?.user?._id && thread.authorUserId === session.user._id;
@@ -98,10 +115,12 @@ export default function ThreadPage() {
     );
   }
 
-  const turns: ThreadEntry[] = [
-    { authorRole: "member", content: thread.content, createdAt: thread.createdAt },
-    ...thread.replies,
-  ];
+  // `turns` comes straight from the API's lib/thread.ts#threadOf (state, set
+  // in `load`), so a typed answer's chip renders the same way it does
+  // everywhere else. Org turns always show "Org reply" here — only the member's own turns
+  // switch to "You" when they're viewing their own thread; an oversight
+  // admin's own reply isn't singled out as "You" either.
+  const viewerRole = isThreadOwner ? "member" : undefined;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background py-10 px-4">
@@ -124,38 +143,18 @@ export default function ThreadPage() {
           </Button>
         </div>
 
-        <div className="space-y-3">
-          {turns.map((turn, i) => (
-            <div
-              key={turn._id || i}
-              className={`rounded-2xl border-2 border-ink p-4 shadow-solid-sm ${
-                turn.authorRole === "org" ? "bg-brand-mint/25" : "bg-brand-blue/20"
-              }`}
-            >
-              <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                {turn.authorRole === "org" ? (
-                  <>
-                    <Building2 className="h-3.5 w-3.5" />
-                    Org reply
-                  </>
-                ) : (
-                  <>
-                    <User className="h-3.5 w-3.5" />
-                    {isThreadOwner ? "You" : "Member"}
-                  </>
-                )}
-                <span className="font-normal normal-case">
-                  · {formatDistanceToNow(new Date(turn.createdAt), { addSuffix: true })}
-                </span>
-              </div>
-              <p className="text-sm text-foreground whitespace-pre-wrap">
-                {turn.content}
-              </p>
-            </div>
-          ))}
-        </div>
+        <ThreadView turns={turns} viewerRole={viewerRole} />
 
         <div className="mt-6 space-y-3">
+          {!isThreadOwner && (
+            <AiDraftButton
+              messageId={params.messageId}
+              currentText={reply}
+              onDraft={setReply}
+              ai={ai}
+              refreshAi={fetchAi}
+            />
+          )}
           <Textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}

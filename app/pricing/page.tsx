@@ -43,7 +43,7 @@ export default async function PricingPage() {
                   }`}
                 >
                   <span
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 border-ink ${CHIP[p]} text-sm font-black text-ink`}
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 border-ink ${CHIP[p]} text-sm font-black text-on-brand`}
                   >
                     {PLAN_DISPLAY[p].name.charAt(0)}
                   </span>

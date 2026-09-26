@@ -19,7 +19,7 @@ const Footer = () => {
           <nav className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm font-semibold">
             <Link
               href="/guide"
-              className="pop inline-flex items-center rounded-lg border-2 border-ink bg-brand-yellow px-3 py-1.5 text-ink"
+              className="pop inline-flex items-center rounded-lg border-2 border-ink bg-brand-yellow px-3 py-1.5 text-on-brand"
             >
               User Guide
             </Link>

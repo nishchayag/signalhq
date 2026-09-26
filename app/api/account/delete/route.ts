@@ -6,10 +6,8 @@ import bcrypt from "bcryptjs";
 import UserModel from "@/models/user.model";
 import MembershipModel from "@/models/membership.model";
 import OrganizationModel from "@/models/organization.model";
-import QuestionModel from "@/models/question.model";
 import MessageModel from "@/models/message.model";
-import TeamModel from "@/models/team.model";
-import InvitationModel from "@/models/invitation.model";
+import { deleteOrganizationsCascade, unassignUser } from "@/lib/orgCleanup";
 
 /**
  * DELETE /api/account/delete — self-service account deletion, password
@@ -100,24 +98,13 @@ export async function DELETE(request: NextRequest) {
     // Safe to proceed — every org this user OWNS has no other members, so
     // fully cascade-delete those (mirrors organizations/[orgId]'s DELETE).
     const soleOwnedOrgIds = ownedMemberships.map((m) => m.organizationId);
-    if (soleOwnedOrgIds.length > 0) {
-      await Promise.all([
-        MessageModel.deleteMany({ organizationId: { $in: soleOwnedOrgIds } }),
-        QuestionModel.deleteMany({ organizationId: { $in: soleOwnedOrgIds } }),
-        TeamModel.deleteMany({ organizationId: { $in: soleOwnedOrgIds } }),
-        InvitationModel.deleteMany({
-          organizationId: { $in: soleOwnedOrgIds },
-        }),
-        MembershipModel.deleteMany({
-          organizationId: { $in: soleOwnedOrgIds },
-        }),
-        OrganizationModel.deleteMany({ _id: { $in: soleOwnedOrgIds } }),
-      ]);
-    }
+    await deleteOrganizationsCascade(soleOwnedOrgIds);
 
     // Orgs the user belongs to but doesn't own: just remove their
     // membership (leave the org) — the org's own data isn't touched.
     await MembershipModel.deleteMany({ userId, role: { $ne: "OWNER" } });
+    // …and stop being anyone's assignee there.
+    await unassignUser(userId);
 
     // Legacy pre-migration messages tied directly to this user (no org yet).
     await MessageModel.deleteMany({

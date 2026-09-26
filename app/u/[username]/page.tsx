@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import connectDB from "@/lib/connectDB";
 import UserModel from "@/models/user.model";
 import OrganizationModel from "@/models/organization.model";
+import MembershipModel from "@/models/membership.model";
 
 interface PageProps {
   params: Promise<{ username: string }>;
@@ -19,10 +20,14 @@ export default async function LegacyUserPage({ params }: PageProps) {
   }).select("_id");
   if (!user) notFound();
 
-  // The personal org is the oldest org created by this user (from the backfill).
-  const org = await OrganizationModel.findOne({ createdBy: user._id })
+  // The personal org is the user's oldest membership — the same rule
+  // resolveActiveContext uses. Not `createdBy`: that follows ownership now
+  // (transfer-ownership moves it), so it no longer means "personal org".
+  const membership = await MembershipModel.findOne({ userId: user._id })
     .sort({ createdAt: 1 })
-    .select("slug");
+    .select("organizationId");
+  if (!membership) notFound();
+  const org = await OrganizationModel.findById(membership.organizationId).select("slug");
   if (!org) notFound();
 
   redirect(`/o/${org.slug}`);

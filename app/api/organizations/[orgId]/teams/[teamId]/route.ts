@@ -7,6 +7,8 @@ import "@/models/user.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { updateTeamSchema } from "@/schemas/teamSchema";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
+import { unassignUser } from "@/lib/orgCleanup";
 
 interface PopulatedUser {
   _id: string;
@@ -15,7 +17,7 @@ interface PopulatedUser {
 }
 
 // GET /api/organizations/:orgId/teams/:teamId — team details + members.
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; teamId: string }> }
 ) {
@@ -48,7 +50,7 @@ export async function GET(
 }
 
 // PATCH /api/organizations/:orgId/teams/:teamId — rename and/or set members.
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string; teamId: string }> }
 ) {
@@ -75,16 +77,32 @@ export async function PATCH(
 
   if (result.data.name !== undefined) team.name = result.data.name;
 
+  let removed: string[] = [];
   if (result.data.memberIds !== undefined) {
     // Only users who are actually org members may be on a team.
     const valid = await MembershipModel.find({
       organizationId: orgId,
       userId: { $in: result.data.memberIds },
     }).select("userId");
+    const next = new Set(valid.map((m) => String(m.userId)));
+    removed = team.members.map(String).filter((id) => !next.has(id));
     team.members = valid.map((m) => m.userId);
   }
 
   await team.save();
+
+  // A MEMBER taken off the team loses access to its messages, so unassign
+  // them there (OWNER/ADMIN see every team and stay assigned).
+  if (removed.length > 0) {
+    const members = await MembershipModel.find({
+      organizationId: orgId,
+      userId: { $in: removed },
+      role: "MEMBER",
+    }).select("userId");
+    for (const m of members) {
+      await unassignUser(m.userId, { organizationId: orgId, teamId: team._id });
+    }
+  }
 
   await logActivity({
     organizationId: orgId,
@@ -101,7 +119,7 @@ export async function PATCH(
 
 // DELETE /api/organizations/:orgId/teams/:teamId — delete team; its questions
 // and messages fall back to org-level (teamId cleared), not deleted.
-export async function DELETE(
+async function handleDELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ orgId: string; teamId: string }> }
 ) {
@@ -135,3 +153,7 @@ export async function DELETE(
     { status: 200 }
   );
 }
+
+export const GET = withErrorHandling(handleGET);
+export const PATCH = withErrorHandling(handlePATCH);
+export const DELETE = withErrorHandling(handleDELETE);

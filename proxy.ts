@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { currentSessionUser } from "@/lib/sessionRevocation";
 
 // Auth-only pages: a logged-in user has no business here and is bounced to the
 // dashboard. A logged-out user is allowed (this is where they sign in).
@@ -104,18 +105,48 @@ export async function proxy(request: NextRequest) {
     secureCookie,
   });
   const currUrl = request.nextUrl.pathname;
-  // Force login for protected pages.
-  if (!token && !isPublicPage(currUrl)) {
-    return NextResponse.redirect(new URL("/login", request.url));
+
+  // getToken() only decodes the cookie — it never runs the jwt callback, so
+  // it can't see a revoked session (password changed/reset elsewhere). Check
+  // tokenVersion here too, otherwise the first navigation after revocation
+  // still renders protected pages from a dead cookie. A revoked cookie is
+  // cleared below so the browser stops sending it.
+  let revoked = false;
+  if (token?._id) {
+    revoked = !(await currentSessionUser(token._id, token.tokenVersion));
   }
-  // Keep authenticated users out of the auth-only pages (but NOT public
-  // feedback/invite pages, which they're allowed to view).
-  if (token && authPages.includes(currUrl)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // Both checks key on the same flag: gating one on `token` and the other on
+  // `token._id` would bounce a revoked/empty token login <-> dashboard.
+  const authed = Boolean(token?._id) && !revoked;
+
+  let response: NextResponse;
+  if (!authed && !isPublicPage(currUrl)) {
+    // Force login for protected pages.
+    response = NextResponse.redirect(new URL("/login", request.url));
+  } else if (authed && authPages.includes(currUrl)) {
+    // Keep authenticated users out of the auth-only pages (but NOT public
+    // feedback/invite pages, which they're allowed to view).
+    response = NextResponse.redirect(new URL("/dashboard", request.url));
+  } else {
+    response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("Content-Security-Policy", csp);
   }
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
-  response.headers.set("Content-Security-Policy", csp);
+  if (revoked) {
+    // Session cookie may be chunked (name.0, name.1, …).
+    const base = `${secureCookie ? "__Secure-" : ""}next-auth.session-token`;
+    for (const { name } of request.cookies.getAll()) {
+      if (name === base || name.startsWith(`${base}.`)) {
+        response.cookies.set(name, "", {
+          maxAge: 0,
+          path: "/",
+          httpOnly: true,
+          sameSite: "lax",
+          secure: secureCookie,
+        });
+      }
+    }
+  }
   return response;
 }
 

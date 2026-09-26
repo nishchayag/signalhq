@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 import axios from "axios";
 import { signupSchema } from "@/schemas/signUpSchema";
 import Link from "next/link";
@@ -108,6 +109,7 @@ const Page = () => {
 
       await axios.post("/api/auth/signup", data);
       toast.success("Signup successful! Redirecting to Verify Email page...");
+      trackEvent("signup_completed");
       // Carry a relative ?callbackUrl through the verify → login chain so an
       // invited new user lands back on the invite after verifying.
       const cb = new URLSearchParams(window.location.search).get(
@@ -118,7 +120,7 @@ const Page = () => {
         ? `&callbackUrl=${encodeURIComponent(cb!)}`
         : "";
       router.push(
-        `/verifyEmail?username=${data.username}&email=${data.email}${cbParam}`
+        `/verifyEmail?username=${encodeURIComponent(data.username)}&email=${encodeURIComponent(data.email)}${cbParam}`
       );
     } catch (error) {
       console.error("Error signing up:", error);
@@ -138,7 +140,7 @@ const Page = () => {
     <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-dot-grid px-4 py-16">
       <div className="relative w-full max-w-md rounded-2xl border-2 border-ink bg-card p-8 shadow-solid-lg">
         <div className="mb-7 text-center">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-mint text-ink">
+          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-mint text-on-brand">
             <Check className="h-5 w-5" strokeWidth={2.5} />
           </span>
           <h1 className="text-2xl font-black tracking-tight text-foreground">

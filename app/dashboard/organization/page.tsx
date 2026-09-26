@@ -11,11 +11,14 @@ import {
   Settings,
   Trash2,
   Loader2,
-  Copy,
   LogOut,
   CreditCard,
   Check,
   History,
+  Tag,
+  Pencil,
+  Share2,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
@@ -29,11 +32,35 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import ShareDialog from "@/components/ShareDialog";
+import BrandingSettings, {
+  type BrandingSettingsValue,
+} from "@/app/dashboard/_components/BrandingSettings";
 import { can } from "@/lib/permissions";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { apiError } from "@/lib/apiError";
+import { buildPublicUrl } from "@/lib/publicUrl";
 import type { MembershipRole } from "@/models/membership.model";
 import { PLAN_ORDER, PLAN_LIMITS, PLAN_DISPLAY, type Plan } from "@/lib/plans";
+import { LABEL_COLORS, LABEL_NAME_MAX, ORG_MAX_LABELS, type LabelColor } from "@/lib/triageConstants";
+import type { LabelView } from "@/lib/labels";
 
-type Tab = "members" | "invitations" | "teams" | "settings" | "plan" | "activity";
+type Tab =
+  | "members"
+  | "invitations"
+  | "teams"
+  | "labels"
+  | "branding"
+  | "settings"
+  | "plan"
+  | "activity";
+
+const LABEL_COLOR_BG: Record<LabelColor, string> = {
+  yellow: "bg-brand-yellow",
+  pink: "bg-brand-pink",
+  mint: "bg-brand-mint",
+  blue: "bg-brand-blue",
+};
 
 interface ActivityEntry {
   _id: string;
@@ -56,6 +83,9 @@ const ACTIVITY_LABELS: Record<string, string> = {
   "team.deleted": "deleted a team",
   "invitation.created": "invited a member",
   "invitation.revoked": "revoked an invitation",
+  "label.created": "created a label",
+  "label.updated": "updated a label",
+  "label.deleted": "deleted a label",
 };
 
 function describeActivity(entry: ActivityEntry): string {
@@ -74,7 +104,13 @@ function describeActivity(entry: ActivityEntry): string {
     case "team.created":
     case "team.updated":
     case "team.deleted":
+    case "label.created":
+    case "label.deleted":
       return `${ACTIVITY_LABELS[entry.action]}: "${meta.name}"`;
+    case "label.updated":
+      return meta.from
+        ? `Renamed a label from "${meta.from}" to "${meta.name}"`
+        : `${ACTIVITY_LABELS[entry.action]}: "${meta.name}"`;
     default:
       return ACTIVITY_LABELS[entry.action] || entry.action;
   }
@@ -105,6 +141,7 @@ interface Team {
 export default function OrganizationPage() {
   const { data: session, update } = useSession();
   const router = useRouter();
+  const confirm = useConfirm();
   const orgId = session?.user?.activeOrgId;
   const role = session?.user?.activeOrgRole as MembershipRole | undefined;
   const orgSlug = session?.user?.activeOrgSlug;
@@ -113,13 +150,23 @@ export default function OrganizationPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [labels, setLabels] = useState<LabelView[]>([]);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [activityHasMore, setActivityHasMore] = useState(false);
   const [activityCursor, setActivityCursor] = useState<string | null>(null);
   const [activityLoadingMore, setActivityLoadingMore] = useState(false);
   const [plan, setPlan] = useState<Plan>("FREE");
+  const [orgName, setOrgName] = useState("");
+  const [branding, setBranding] = useState<BrandingSettingsValue>({
+    accent: "yellow",
+    welcomeText: "",
+    logoVersion: 0,
+  });
+  const [brandingAllowed, setBrandingAllowed] = useState(false);
+  const [hasLogo, setHasLogo] = useState(false);
   const [switchingPlan, setSwitchingPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState("");
@@ -132,6 +179,14 @@ export default function OrganizationPage() {
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [manageTeam, setManageTeam] = useState<Team | null>(null);
 
+  // Labels
+  const [newLabelName, setNewLabelName] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState<LabelColor>("yellow");
+  const [creatingLabel, setCreatingLabel] = useState(false);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelName, setEditingLabelName] = useState("");
+  const [savingLabelId, setSavingLabelId] = useState<string | null>(null);
+
   // Settings
   const [renameValue, setRenameValue] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -142,14 +197,22 @@ export default function OrganizationPage() {
     if (!orgId) return;
     setLoading(true);
     try {
-      const [org, m, t] = await Promise.all([
+      const [org, m, t, l] = await Promise.all([
         axios.get(`/api/organizations/${orgId}`),
         axios.get(`/api/organizations/${orgId}/members`),
         axios.get(`/api/organizations/${orgId}/teams`),
+        axios.get(`/api/organizations/${orgId}/labels`),
       ]);
-      if (org.data.success) setPlan(org.data.organization.plan);
+      if (org.data.success) {
+        setPlan(org.data.organization.plan);
+        setOrgName(org.data.organization.name);
+        if (org.data.branding) setBranding(org.data.branding);
+        setBrandingAllowed(!!org.data.brandingAllowed);
+        setHasLogo(!!org.data.hasLogo);
+      }
       if (m.data.success) setMembers(m.data.members);
       if (t.data.success) setTeams(t.data.teams);
+      if (l.data.success) setLabels(l.data.labels);
       if (can(role, "member:invite")) {
         const inv = await axios.get(`/api/organizations/${orgId}/invitations`);
         if (inv.data.success) setInvites(inv.data.invitations);
@@ -205,6 +268,15 @@ export default function OrganizationPage() {
 
   // ---- Member actions ----
   const changeRole = async (m: Member, newRole: "ADMIN" | "MEMBER") => {
+    // Promotions apply straight away; a demotion takes access away, so ask.
+    if (m.role === "ADMIN" && newRole === "MEMBER") {
+      const ok = await confirm({
+        title: `Make ${m.name} a member?`,
+        description: "They'll lose admin access: managing members, teams and questions, and replying to feedback.",
+        confirmLabel: "Change role",
+      });
+      if (!ok) return;
+    }
     try {
       const res = await axios.patch(
         `/api/organizations/${orgId}/members/${m.membershipId}`,
@@ -225,21 +297,16 @@ export default function OrganizationPage() {
   };
 
   const removeMember = async (m: Member) => {
-    if (!confirm(`Remove ${m.name} from the organization?`)) return;
-    try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/members/${m.membershipId}`
-      );
-      if (res.data.success) {
-        toast.success("Member removed");
-        setMembers((prev) =>
-          prev.filter((x) => x.membershipId !== m.membershipId)
-        );
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to remove member");
-    }
+    const ok = await confirm({
+      title: `Remove ${m.name}?`,
+      description: "They'll lose access to this organization and its teams immediately.",
+      confirmLabel: "Remove member",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/members/${m.membershipId}`),
+    });
+    if (!ok) return;
+    toast.success("Member removed");
+    setMembers((prev) => prev.filter((x) => x.membershipId !== m.membershipId));
   };
 
   // ---- Invitations ----
@@ -266,18 +333,17 @@ export default function OrganizationPage() {
     }
   };
 
-  const revokeInvite = async (id: string) => {
-    try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/invitations/${id}`
-      );
-      if (res.data.success) {
-        toast.success("Invitation revoked");
-        setInvites((prev) => prev.filter((i) => i._id !== id));
-      }
-    } catch {
-      toast.error("Failed to revoke");
-    }
+  const revokeInvite = async (invite: Invitation) => {
+    const ok = await confirm({
+      title: `Revoke the invitation to ${invite.email}?`,
+      description: "Their invite link will stop working. You can invite them again later.",
+      confirmLabel: "Revoke",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/invitations/${invite._id}`),
+    });
+    if (!ok) return;
+    toast.success("Invitation revoked");
+    setInvites((prev) => prev.filter((i) => i._id !== invite._id));
   };
 
   // ---- Teams ----
@@ -293,27 +359,106 @@ export default function OrganizationPage() {
         setTeamName("");
         load();
       } else toast.error(res.data.message);
-    } catch {
-      toast.error("Failed to create team");
+    } catch (e) {
+      // A 403 here is the plan's team limit — show the server's explanation
+      // and a way forward instead of a generic "Failed".
+      const atLimit = axios.isAxiosError(e) && e.response?.status === 403;
+      toast.error(apiError(e, "Failed to create team"), {
+        action: atLimit ? { label: "View plans", onClick: () => setTab("plan") } : undefined,
+      });
     } finally {
       setCreatingTeam(false);
     }
   };
 
   const deleteTeam = async (t: Team) => {
-    if (!confirm(`Delete team "${t.name}"? Its questions become org-level.`))
-      return;
+    const ok = await confirm({
+      title: `Delete the "${t.name}" team?`,
+      description: "Its questions become organization-wide. Members stay in the organization.",
+      confirmLabel: "Delete team",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/teams/${t._id}`),
+    });
+    if (!ok) return;
+    toast.success("Team deleted");
+    setTeams((prev) => prev.filter((x) => x._id !== t._id));
+  };
+
+  // ---- Labels ----
+  const createLabel = async () => {
+    if (!newLabelName.trim()) return toast.error("Enter a name");
+    setCreatingLabel(true);
     try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/teams/${t._id}`
-      );
+      const res = await axios.post(`/api/organizations/${orgId}/labels`, {
+        name: newLabelName.trim(),
+        color: newLabelColor,
+      });
       if (res.data.success) {
-        toast.success("Team deleted");
-        setTeams((prev) => prev.filter((x) => x._id !== t._id));
+        toast.success("Label created");
+        setLabels((prev) => [...prev, res.data.label]);
+        setNewLabelName("");
+      } else {
+        toast.error(res.data.message);
       }
-    } catch {
-      toast.error("Failed to delete team");
+    } catch (e) {
+      toast.error(apiError(e, "Failed to create label"));
+    } finally {
+      setCreatingLabel(false);
     }
+  };
+
+  const startRenameLabel = (label: LabelView) => {
+    setEditingLabelId(label._id);
+    setEditingLabelName(label.name);
+  };
+
+  const saveRenameLabel = async (labelId: string) => {
+    const name = editingLabelName.trim();
+    if (!name) return toast.error("Name is required");
+    setSavingLabelId(labelId);
+    try {
+      const res = await axios.patch(`/api/organizations/${orgId}/labels/${labelId}`, { name });
+      if (res.data.success) {
+        setLabels((prev) => prev.map((l) => (l._id === labelId ? res.data.label : l)));
+        setEditingLabelId(null);
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (e) {
+      toast.error(apiError(e, "Failed to rename label"));
+    } finally {
+      setSavingLabelId(null);
+    }
+  };
+
+  const recolorLabel = async (label: LabelView, color: LabelColor) => {
+    if (color === label.color) return;
+    setSavingLabelId(label._id);
+    try {
+      const res = await axios.patch(`/api/organizations/${orgId}/labels/${label._id}`, { color });
+      if (res.data.success) {
+        setLabels((prev) => prev.map((l) => (l._id === label._id ? res.data.label : l)));
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (e) {
+      toast.error(apiError(e, "Failed to recolor label"));
+    } finally {
+      setSavingLabelId(null);
+    }
+  };
+
+  const deleteLabel = async (label: LabelView) => {
+    const ok = await confirm({
+      title: `Delete the "${label.name}" label?`,
+      description: "It's removed from every message that carries it. This can't be undone.",
+      confirmLabel: "Delete label",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/labels/${label._id}`),
+    });
+    if (!ok) return;
+    toast.success("Label deleted");
+    setLabels((prev) => prev.filter((l) => l._id !== label._id));
   };
 
   // ---- Settings ----
@@ -328,8 +473,8 @@ export default function OrganizationPage() {
         toast.success("Organization renamed. Reloading…");
         window.location.reload();
       } else toast.error(res.data.message);
-    } catch {
-      toast.error("Failed to rename");
+    } catch (e) {
+      toast.error(apiError(e, "Failed to rename"));
     } finally {
       setRenaming(false);
     }
@@ -338,48 +483,42 @@ export default function OrganizationPage() {
   const transferOwnership = async () => {
     if (!transferTarget) return toast.error("Choose a member first");
     const target = members.find((m) => m.membershipId === transferTarget);
-    if (
-      !confirm(
-        `Make ${target?.name ?? "this member"} the owner of this organization? You'll become an admin.`
-      )
-    )
-      return;
     setTransferring(true);
-    try {
-      const res = await axios.patch(
-        `/api/organizations/${orgId}/transfer-ownership`,
-        { membershipId: transferTarget }
-      );
-      if (res.data.success) {
-        toast.success("Ownership transferred. Reloading…");
-        await update();
-        window.location.reload();
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to transfer ownership");
-    } finally {
-      setTransferring(false);
-    }
+    const ok = await confirm({
+      title: `Make ${target?.name ?? "this member"} the owner?`,
+      description:
+        "They'll control billing, settings and deletion of this organization. You'll become an admin, and only the new owner can transfer it back.",
+      confirmLabel: "Transfer ownership",
+      destructive: true,
+      action: () =>
+        axios.patch(`/api/organizations/${orgId}/transfer-ownership`, { membershipId: transferTarget }),
+    });
+    setTransferring(false);
+    if (!ok) return;
+    toast.success("Ownership transferred. Reloading…");
+    await update();
+    window.location.reload();
   };
 
   const deleteOrg = async () => {
-    if (
-      !confirm(
-        "Delete this organization and ALL its data? This cannot be undone."
-      )
-    )
-      return;
-    try {
-      const res = await axios.delete(`/api/organizations/${orgId}`);
-      if (res.data.success) {
-        toast.success("Organization deleted");
-        window.location.href = "/dashboard";
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to delete");
-    }
+    const ok = await confirm({
+      title: "Delete this organization?",
+      description:
+        "Every question, message, team and invitation in it is permanently deleted. Members lose access. This can't be undone.",
+      confirmLabel: "Delete organization",
+      destructive: true,
+      // Typed confirmation for the one truly irreversible, org-wide action.
+      requireText: orgName || orgSlug || undefined,
+      action: () => axios.delete(`/api/organizations/${orgId}`),
+    });
+    if (!ok) return;
+    toast.success("Organization deleted");
+    // The JWT still carries this org as activeOrgId; a bare update()
+    // re-validates it in the jwt callback, which falls back to the user's
+    // oldest remaining membership. Without it, dashboard requests keep
+    // 403ing against the deleted org.
+    await update();
+    window.location.href = "/dashboard";
   };
 
   // ---- Plan ----
@@ -408,25 +547,27 @@ export default function OrganizationPage() {
   const leaveOrg = async () => {
     const self = members.find((m) => m.isSelf);
     if (!self) return;
-    if (!confirm("Leave this organization?")) return;
-    try {
-      const res = await axios.delete(
-        `/api/organizations/${orgId}/members/${self.membershipId}`
-      );
-      if (res.data.success) {
-        toast.success("You left the organization");
-        window.location.href = "/dashboard";
-      } else toast.error(res.data.message);
-    } catch (e) {
-      const msg = axios.isAxiosError(e) ? e.response?.data?.message : null;
-      toast.error(msg || "Failed to leave");
-    }
+    const ok = await confirm({
+      title: "Leave this organization?",
+      description: "You'll lose access to its questions and feedback. An admin would have to invite you back.",
+      confirmLabel: "Leave",
+      destructive: true,
+      action: () => axios.delete(`/api/organizations/${orgId}/members/${self.membershipId}`),
+    });
+    if (!ok) return;
+    toast.success("You left the organization");
+    await update(); // drop the now-invalid activeOrgId (see deleteOrg)
+    window.location.href = "/dashboard";
   };
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "members", label: "Members", icon: <Users className="h-4 w-4" /> },
     { key: "invitations", label: "Invitations", icon: <Mail className="h-4 w-4" /> },
     { key: "teams", label: "Teams", icon: <FolderKanban className="h-4 w-4" /> },
+    ...(can(role, "org:labels")
+      ? [{ key: "labels" as Tab, label: "Labels", icon: <Tag className="h-4 w-4" /> }]
+      : []),
+    { key: "branding", label: "Branding", icon: <Palette className="h-4 w-4" /> },
     { key: "plan", label: "Plan", icon: <CreditCard className="h-4 w-4" /> },
     ...(can(role, "org:viewActivity")
       ? [{ key: "activity" as Tab, label: "Activity", icon: <History className="h-4 w-4" /> }]
@@ -446,13 +587,16 @@ export default function OrganizationPage() {
           </Button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 border-b-2 border-ink">
+        {/* Tabs — this row doesn't wrap (there are up to 8 of them), so on
+            narrow viewports it scrolls horizontally within itself instead of
+            widening the whole page (which would otherwise push
+            document.documentElement.scrollWidth past the viewport). */}
+        <div className="flex gap-1 mb-6 overflow-x-auto border-b-2 border-ink">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-bold border-b-4 -mb-0.5 transition-colors ${
+              className={`flex shrink-0 items-center gap-2 px-4 py-2 text-sm font-bold border-b-4 -mb-0.5 transition-colors ${
                 tab === t.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -510,6 +654,8 @@ export default function OrganizationPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0"
+                              aria-label={`Remove ${m.name}`}
+                              title={`Remove ${m.name}`}
                               onClick={() => removeMember(m)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -593,7 +739,7 @@ export default function OrganizationPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => revokeInvite(i._id)}
+                          onClick={() => revokeInvite(i)}
                         >
                           Revoke
                         </Button>
@@ -653,6 +799,8 @@ export default function OrganizationPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0"
+                              aria-label={`Delete team ${t.name}`}
+                              title={`Delete team ${t.name}`}
                               onClick={() => deleteTeam(t)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -664,6 +812,140 @@ export default function OrganizationPage() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {tab === "labels" && can(role, "org:labels") && (
+              <div className="space-y-6">
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <p className="font-medium">New label</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <Input
+                        placeholder="Label name"
+                        value={newLabelName}
+                        maxLength={LABEL_NAME_MAX}
+                        onChange={(e) => setNewLabelName(e.target.value)}
+                      />
+                      <div className="flex items-center gap-1.5">
+                        {LABEL_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            aria-label={`${c} label color`}
+                            aria-pressed={newLabelColor === c}
+                            onClick={() => setNewLabelColor(c)}
+                            className={`h-7 w-7 shrink-0 rounded-full border-2 ${LABEL_COLOR_BG[c]} ${
+                              newLabelColor === c ? "border-ink ring-2 ring-ring" : "border-ink/40"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <Button onClick={createLabel} disabled={creatingLabel || labels.length >= ORG_MAX_LABELS}>
+                        {creatingLabel ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+                      </Button>
+                    </div>
+                    {labels.length >= ORG_MAX_LABELS && (
+                      <p className="text-xs text-muted-foreground">
+                        An organization can have at most {ORG_MAX_LABELS} labels.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-2">
+                  {labels.length === 0 && (
+                    <p className="text-sm text-muted-foreground/70">No labels yet.</p>
+                  )}
+                  {labels.map((label) => (
+                    <Card key={label._id}>
+                      <CardContent className="p-3 flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          {editingLabelId === label._id ? (
+                            <Input
+                              autoFocus
+                              value={editingLabelName}
+                              maxLength={LABEL_NAME_MAX}
+                              onChange={(e) => setEditingLabelName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveRenameLabel(label._id);
+                                if (e.key === "Escape") setEditingLabelId(null);
+                              }}
+                              className="h-8 max-w-[220px]"
+                            />
+                          ) : (
+                            <span className="truncate text-sm font-medium">{label.name}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {LABEL_COLORS.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              aria-label={`Set color ${c}`}
+                              aria-pressed={label.color === c}
+                              disabled={savingLabelId === label._id}
+                              onClick={() => recolorLabel(label, c)}
+                              className={`h-5 w-5 shrink-0 rounded-full border-2 ${LABEL_COLOR_BG[c]} ${
+                                label.color === c ? "border-ink ring-2 ring-ring" : "border-ink/40"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {editingLabelId === label._id ? (
+                            <Button
+                              size="sm"
+                              onClick={() => saveRenameLabel(label._id)}
+                              disabled={savingLabelId === label._id}
+                            >
+                              {savingLabelId === label._id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Save"
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              aria-label={`Rename ${label.name}`}
+                              title={`Rename ${label.name}`}
+                              onClick={() => startRenameLabel(label)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            aria-label={`Delete ${label.name}`}
+                            title={`Delete ${label.name}`}
+                            onClick={() => deleteLabel(label)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tab === "branding" && (
+              <BrandingSettings
+                orgId={orgId}
+                orgSlug={orgSlug}
+                orgName={orgName}
+                role={role}
+                branding={branding}
+                brandingAllowed={brandingAllowed}
+                hasLogo={hasLogo}
+                onBrandingChange={setBranding}
+                onHasLogoChange={setHasLogo}
+              />
             )}
 
             {tab === "plan" && (
@@ -800,14 +1082,11 @@ export default function OrganizationPage() {
                       <Input readOnly value={`/o/${orgSlug}`} />
                       <Button
                         variant="outline"
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${window.location.origin}/o/${orgSlug}`
-                          );
-                          toast.success("Link copied");
-                        }}
+                        aria-label="Share feedback link"
+                        title="Share feedback link"
+                        onClick={() => setShareOpen(true)}
                       >
-                        <Copy className="h-4 w-4" />
+                        <Share2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </CardContent>
@@ -926,6 +1205,16 @@ export default function OrganizationPage() {
           }}
         />
       )}
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        url={buildPublicUrl(`/o/${orgSlug}`)}
+        title="Share your feedback link"
+        description="Share this link or QR code to collect anonymous feedback."
+        filenameBase={`${orgSlug}-feedback`}
+        copyEventLabel="org"
+      />
     </div>
   );
 }

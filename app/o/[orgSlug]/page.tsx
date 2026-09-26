@@ -1,26 +1,43 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import connectDB from "@/lib/connectDB";
-import OrganizationModel from "@/models/organization.model";
+import type { Metadata } from "next";
 import QuestionModel from "@/models/question.model";
+import { generateMetadata as createMetadata } from "@/lib/metadata";
+import { getPublicOrg } from "@/lib/publicLookups";
+import { questionState } from "@/lib/answers";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import OrgFeedbackForm from "@/components/OrgFeedbackForm";
+import PublicBrandHeader from "@/components/PublicBrandHeader";
+import { isGuardOffered } from "@/lib/aiQuota";
 
 interface PageProps {
   params: Promise<{ orgSlug: string }>;
 }
 
+// Shared links unfurl with the org's name instead of the generic site title.
+// noindex: these are user-generated pages, not marketing content.
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { orgSlug } = await params;
+  const organization = await getPublicOrg(orgSlug);
+  if (!organization) return createMetadata({ title: "Organization not found", noindex: true });
+  return createMetadata({
+    title: `Send anonymous feedback to ${organization.name}`,
+    description: `Share honest, anonymous feedback with ${organization.name}. No account needed, and nothing ties the message back to you.`,
+    url: `/o/${organization.slug}`,
+    noindex: true,
+  });
+}
+
 // Public org feedback landing page — general feedback + active questions.
 export default async function OrgPublicPage({ params }: PageProps) {
   const { orgSlug } = await params;
-  await connectDB();
-
-  const organization = await OrganizationModel.findOne({ slug: orgSlug }).select(
-    "name slug"
-  );
+  const organization = await getPublicOrg(orgSlug);
   if (!organization) notFound();
 
-  const questions = await QuestionModel.find({
+  // Whether to offer the anonymity guard — a boolean only, never quota numbers.
+  const guardAvailable = await isGuardOffered(organization._id);
+
+  const allQuestions = await QuestionModel.find({
     organizationId: organization._id,
     isActive: true,
     // Internal questions are never listed on the public page. `$ne` (not
@@ -29,23 +46,21 @@ export default async function OrgPublicPage({ params }: PageProps) {
     visibility: { $ne: "internal" },
   })
     .sort({ createdAt: -1 })
-    .select("questionText slug")
+    .select("questionText slug closesAt maxResponses responseCount")
     .lean();
+  // A closed question (past its close date, or at its response cap) is
+  // simply not offered here — questionState is the same computed check the
+  // submit routes use, never a stored flag.
+  const questions = allQuestions.filter((q) => !questionState(q).closed);
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden bg-dot-grid py-16 px-4">
       <div className="relative max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-ink text-xl font-black">
-            {organization.name.charAt(0).toUpperCase()}
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground mb-2">
-            {organization.name}
-          </h1>
-          <p className="text-muted-foreground">
-            Share anonymous feedback — your identity is never revealed
-          </p>
-        </div>
+        <PublicBrandHeader
+          orgName={organization.name}
+          branding={organization.effectiveBranding}
+          fallbackSubtitle="Share anonymous feedback — your identity is never revealed"
+        />
 
         <Card>
           <CardHeader>
@@ -54,7 +69,11 @@ export default async function OrgPublicPage({ params }: PageProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <OrgFeedbackForm orgSlug={organization.slug} />
+            <OrgFeedbackForm
+              orgSlug={organization.slug}
+              guardAvailable={guardAvailable}
+              orgName={organization.name}
+            />
           </CardContent>
         </Card>
 

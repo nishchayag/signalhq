@@ -5,7 +5,15 @@ import authOptions from "@/lib/nextAuthOptions";
 import MessageModel from "@/models/message.model";
 import { resolveActiveContext } from "@/lib/orgContext";
 import { can } from "@/lib/permissions";
-import { parsePagination, paginate, parseSearchQuery } from "@/lib/pagination";
+import { parsePagination, paginate } from "@/lib/pagination";
+import { buildMessageListFilter } from "@/lib/messageListQuery";
+import { effectiveReadSince } from "@/lib/readState";
+import { withAiView } from "@/lib/messageView";
+import { scheduleLazySweep } from "@/lib/aiEnrichment";
+import { isSemanticRequest, semanticListResponse } from "@/lib/semanticSearch";
+
+// Room for the post-response lazy enrichment sweep (runAfter) on Vercel.
+export const maxDuration = 30;
 
 // General (non-question) anonymous messages for the active organization.
 // Cursor-paginated via ?limit=&before= (see lib/pagination.ts).
@@ -35,23 +43,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { limit, before } = parsePagination(request);
-    const search = parseSearchQuery(request);
-    const filter: Record<string, unknown> = {
-      organizationId: ctx.organizationId,
-      questionId: null,
+    const base = { organizationId: ctx.organizationId, questionId: null };
+    const { searchParams } = new URL(request.url);
+    const viewer = {
+      userId: String(ctx.membership.userId),
+      role: ctx.role,
+      readSince: effectiveReadSince(ctx.membership),
     };
-    if (before) filter.createdAt = { $lt: before };
-    if (search) filter.content = { $regex: search, $options: "i" };
 
+    // ?mode=semantic&q=… — ranked by meaning, no pagination (see
+    // lib/semanticSearch.ts). Same scoped filter as the regex path.
+    if (isSemanticRequest(request.url)) {
+      return semanticListResponse({
+        url: request.url,
+        userId: viewer.userId,
+        readSince: viewer.readSince,
+        role: ctx.role,
+        orgId: ctx.organizationId,
+        filter: buildMessageListFilter({ base, searchParams, viewer, mode: "semantic" }),
+      });
+    }
+
+    const { limit } = parsePagination(request);
+    const filter = buildMessageListFilter({ base, searchParams, viewer });
     const fetched = await MessageModel.find(filter)
       .sort({ createdAt: -1 })
-      .limit(limit + 1);
+      .limit(limit + 1)
+      .select("+ai +readBy");
     const { page, hasMore, nextCursor } = paginate(fetched, limit);
+    scheduleLazySweep(ctx.organizationId);
 
     return NextResponse.json({
       success: true,
-      messages: page,
+      messages: withAiView(page, ctx.role, {
+        viewerId: viewer.userId,
+        readSince: viewer.readSince,
+      }),
       hasMore,
       nextCursor,
     });

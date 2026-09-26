@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import MembershipModel from "@/models/membership.model";
+import OrganizationModel from "@/models/organization.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { transferOwnershipSchema } from "@/schemas/organizationSchema";
 import { logActivity } from "@/lib/auditLog";
+import { withErrorHandling } from "@/lib/apiHandler";
 
 // PATCH /api/organizations/:orgId/transfer-ownership — hand the OWNER role to
 // another member of the org. The current owner is demoted to ADMIN in the
 // same request so the org always has exactly one owner.
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
@@ -51,6 +53,12 @@ export async function PATCH(
   auth.membership.role = "ADMIN";
   await auth.membership.save();
 
+  // createdBy is what general org feedback is addressed to
+  // (sendMessage stamps createdFor: organization.createdBy and notifies
+  // them), so it must follow ownership — otherwise the old owner keeps
+  // getting it, and it silently stops if they later delete their account.
+  await OrganizationModel.updateOne({ _id: orgId }, { createdBy: target.userId });
+
   await logActivity({
     organizationId: orgId,
     actorUserId: auth.userId,
@@ -63,3 +71,5 @@ export async function PATCH(
     { status: 200 }
   );
 }
+
+export const PATCH = withErrorHandling(handlePATCH);

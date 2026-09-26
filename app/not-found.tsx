@@ -11,39 +11,29 @@ export const metadata: Metadata = createMetadata({
 
 export default function NotFound() {
   return (
-    <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-background px-4">
-      <div className="absolute inset-0 bg-grid opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
-      <div className="absolute left-1/2 top-1/3 h-64 w-[500px] -translate-x-1/2 rounded-full bg-primary/15 blur-[100px]" />
-      <div className="relative mx-auto max-w-md text-center">
-        <div className="mb-8">
-          <h1 className="text-8xl font-bold tracking-tight text-gradient sm:text-9xl">
-            404
-          </h1>
-          <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
-            Page not found
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            The page you are looking for doesn&apos;t exist or has been moved.
-          </p>
-        </div>
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-dot-grid px-4 py-16">
+      <div className="w-full max-w-md rounded-2xl border-2 border-ink bg-card p-8 text-center shadow-solid-lg">
+        <span className="mx-auto inline-flex rounded-xl border-2 border-ink bg-brand-yellow px-4 py-1 text-5xl font-black tracking-tight text-on-brand shadow-solid-sm">
+          404
+        </span>
+        <h1 className="mt-6 text-2xl font-black tracking-tight text-foreground">Page not found</h1>
+        <p className="mt-2 text-muted-foreground">
+          The page you&apos;re looking for doesn&apos;t exist or has moved.
+        </p>
 
-        <div className="space-y-4">
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Link
             href="/"
-            className="inline-block rounded-full bg-primary px-6 py-3 font-medium text-primary-foreground transition hover:opacity-90"
+            className="inline-flex items-center justify-center rounded-lg border-2 border-ink bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground pop"
           >
             Back to home
           </Link>
-
-          <div className="text-sm text-muted-foreground">
-            <p>
-              Or try{" "}
-              <Link href="/signup" className="text-primary hover:underline">
-                signing up
-              </Link>{" "}
-              to start collecting feedback
-            </p>
-          </div>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center justify-center rounded-lg border-2 border-ink bg-card px-6 py-2.5 text-sm font-bold text-foreground pop"
+          >
+            Go to dashboard
+          </Link>
         </div>
       </div>
     </div>

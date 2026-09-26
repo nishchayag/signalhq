@@ -8,10 +8,17 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
 
+// Thrown by the credentials authorize() in lib/nextAuthOptions.tsx — only
+// reachable after a correct password, so acting on it leaks nothing.
+const UNVERIFIED_ERROR = "Please verify your email before logging in";
+
 const Page = () => {
   const { register, handleSubmit } = useForm<z.infer<typeof signinSchema>>();
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  // Set when the password was right but the email isn't verified yet — the
+  // only way back to the verify page used to be the signup redirect.
+  const [unverifiedIdentifier, setUnverifiedIdentifier] = React.useState<string | null>(null);
 
   const handleSubmitFunction = async (data: z.infer<typeof signinSchema>) => {
     setLoading(true);
@@ -31,7 +38,12 @@ const Page = () => {
         return;
       }
       if (response?.error) {
-        toast.error(response.error);
+        if (response.error === UNVERIFIED_ERROR) {
+          setUnverifiedIdentifier(data.identifier.trim());
+        } else {
+          setUnverifiedIdentifier(null);
+          toast.error(response.error);
+        }
         return;
       } else if (response?.ok) {
         toast.success("Login successful");
@@ -63,7 +75,7 @@ const Page = () => {
     <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden bg-dot-grid px-4 py-16">
       <div className="relative w-full max-w-md rounded-2xl border-2 border-ink bg-card p-8 shadow-solid-lg">
         <div className="mb-7 text-center">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-ink">
+          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-ink bg-brand-yellow text-on-brand">
             <LogIn className="h-5 w-5" strokeWidth={2.5} />
           </span>
           <h1 className="text-2xl font-black tracking-tight text-foreground">
@@ -147,6 +159,24 @@ const Page = () => {
             )}
           </button>
         </form>
+
+        {unverifiedIdentifier && (
+          <div
+            role="alert"
+            className="mt-5 rounded-lg border-2 border-ink bg-brand-yellow/30 p-4 text-sm text-foreground"
+          >
+            <p className="font-bold">Your email isn&apos;t verified yet.</p>
+            <p className="mt-1 text-muted-foreground">
+              We&apos;ll send a fresh code so you can finish setting up your account.
+            </p>
+            <Link
+              href={`/verifyEmail?identifier=${encodeURIComponent(unverifiedIdentifier)}`}
+              className="mt-3 inline-flex items-center rounded-lg border-2 border-ink bg-primary px-4 py-2 text-sm font-bold text-primary-foreground pop"
+            >
+              Verify your email
+            </Link>
+          </div>
+        )}
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
