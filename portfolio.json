@@ -1,17 +1,17 @@
 {
   "title": "SignalHQ",
-  "summary": "Anonymous feedback for teams. Organisations, teams and questions get shareable links, so people can say what they really think without signing up.",
-  "stack": ["Next.js", "TypeScript", "MongoDB", "Mongoose", "NextAuth", "Resend", "Mistral AI", "Zod"],
+  "summary": "Anonymous feedback for teams. Organisations share no-signup links, an AI anonymity guard warns people before a detail gives them away, and teams triage, reply and measure what comes back.",
+  "stack": ["Next.js", "TypeScript", "MongoDB", "Mongoose", "NextAuth", "Mistral AI", "Resend", "Tailwind CSS", "Zod", "Vitest"],
   "highlights": [
-    "Multi-tenant model: organisations, teams and questions with full CRUD management and email invitations",
-    "Public no-signup pages for anonymous submissions, with independent feedback threads per team",
-    "AI features on Mistral: insight summaries, suggested messages and automated moderation"
+    "AI anonymity guard that flags identifying details in a draft (\"the only designer on the team\") and suggests a safer rewrite before it's sent",
+    "Anonymous two-way threads: teams reply, and the sender can follow up through a private receipt link without ever revealing who they are",
+    "Rating, NPS and poll questions with response caps and close dates, plus a triage inbox and click-to-filter analytics"
   ],
   "details": [
-    { "label": "Multi-tenant by design", "body": "Users create organisations, invite teammates by email and organise feedback into teams and questions, each with its own shareable public link." },
-    { "label": "Anonymous, but safe", "body": "Responders never need an account. Submissions pass a profanity filter and an AI moderation model before they reach the team, and API routes are rate-limited." },
-    { "label": "AI where it helps", "body": "One isolated AI module on Mistral powers insight summaries, suggested messages and moderation, with the whole feature switchable off when no key is configured." },
-    { "label": "Keeps teams in the loop", "body": "Email verification, password resets and notifications run on Resend with React Email templates, including a daily digest sent by a scheduled job." }
+    { "label": "Anonymous, but actually safe", "body": "Responders never need an account. The anonymity guard catches the role, project or timing details that would narrow a message down to one person, and it never stores or logs the draft. Submissions pass moderation and rate limits before they reach the team." },
+    { "label": "AI where it helps", "body": "Built on Mistral through one isolated module with per-organisation quotas: incoming messages get sentiment and tags, and the platform offers semantic search, question summaries, reply drafts and an AI daily digest. Toxicity and PII flags are only shown to owners and admins." },
+    { "label": "An inbox teams can work", "body": "Per-person read state, archive, labels and assignment, plus analytics charts for volume, sentiment and NPS. Clicking any chart segment filters the inbox to the messages behind it." },
+    { "label": "Multi-tenant by design", "body": "Organisations, teams and role-based permissions (owner, admin, member), email invitations, QR share links, and custom branding (logo, accent colour, welcome text) on the public pages for paid plans." }
   ],
   "demoUrl": "https://signal.nishchayag.com",
   "kind": "Product"
