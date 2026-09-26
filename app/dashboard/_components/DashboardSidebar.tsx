@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { BarChart2, HelpCircle, MessageSquare, Plus, Settings, User, UserCheck } from "lucide-react";
+import { BarChart2, HelpCircle, MessageSquare, Plus, Repeat, Settings, User, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrgSwitcher from "@/components/OrgSwitcher";
 import { questionState } from "@/lib/answers";
@@ -147,6 +147,13 @@ export default function DashboardSidebar({ d }: { d: DashboardData }) {
                         <span className="shrink-0 rounded border border-ink bg-brand-blue/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-foreground">
                           Internal
                         </span>
+                      )}
+                      {question.pulse && (
+                        <Repeat
+                          className="h-3 w-3 shrink-0 text-muted-foreground"
+                          role="img"
+                          aria-label="Repeating question"
+                        />
                       )}
                       {closed && (
                         <span className="shrink-0 rounded border border-ink bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">

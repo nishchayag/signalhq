@@ -30,7 +30,21 @@ interface QuestionData {
   guardAvailable?: boolean;
   config: PublicQuestionConfig;
   closesAt: string | null;
-  closed: { reason: ClosedReason } | null;
+  closed: { reason: ClosedReason; opensAt?: string } | null;
+  /** Recurring pulse (Phase 4b): null unless this question repeats.
+   *  `nextRoundStartsAt` is the same instant whether the pulse is scheduled
+   *  (its first round's own start — "Opens on …") or already open (the
+   *  *next* round's start — "next round opens …"), same as
+   *  lib/pulse.ts#nextRoundStartsAt. */
+  pulse: { cadence: string; nextRoundStartsAt: string } | null;
+}
+
+function formatPulseDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 /**
@@ -159,7 +173,9 @@ export default function QuestionResponseForm({
               </div>
               <h2 className="text-xl font-black mb-2">Response Submitted!</h2>
               <p className="text-muted-foreground mb-4">
-                Your anonymous response has been sent.
+                {question.pulse
+                  ? `Thanks — next round opens ${formatPulseDate(question.pulse.nextRoundStartsAt)}.`
+                  : "Your anonymous response has been sent."}
               </p>
             </div>
             <ReplyReceiptCard replyToken={replyToken} />
@@ -177,6 +193,9 @@ export default function QuestionResponseForm({
   }
 
   if (question.closed || raceClosed) {
+    // Scheduled (a pulse that hasn't opened its first round yet) gets its
+    // own "Opens on …" framing — it isn't closed, it just hasn't started.
+    const scheduled = !raceClosed && question.closed?.reason === "scheduled" && question.closed.opensAt;
     return (
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-dot-grid px-4">
         <Card className="w-full max-w-md">
@@ -184,8 +203,17 @@ export default function QuestionResponseForm({
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink bg-muted">
               <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-black text-foreground">This question is closed</h2>
-            <p className="text-muted-foreground">{closedMessage(question.closed?.reason)}</p>
+            {scheduled ? (
+              <>
+                <h2 className="text-xl font-black text-foreground">This question hasn&apos;t opened yet</h2>
+                <p className="text-muted-foreground">Opens on {formatPulseDate(question.closed!.opensAt!)}.</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-xl font-black text-foreground">This question is closed</h2>
+                <p className="text-muted-foreground">{closedMessage(question.closed?.reason)}</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

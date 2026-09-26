@@ -55,6 +55,11 @@ async function handleGET(
       memberCount,
       branding: brandingView(organization),
       brandingAllowed: hasFeature(organization.plan, "branding"),
+      // Read by CreateQuestionDialog's Repeat section (only fetched for a
+      // role that can even see it) so the upsell/disabled state matches the
+      // org's actual plan instead of flashing enabled before the create/PUT
+      // question routes' own gate would 403 it.
+      pulseAllowed: hasFeature(organization.plan, "pulse"),
       hasLogo,
     },
     { status: 200 }

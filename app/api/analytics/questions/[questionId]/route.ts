@@ -12,6 +12,7 @@ import {
   capProgress,
   createdAtClause,
   parseStatsRange,
+  pulseRoundStats,
   questionAggregates,
   rangeJson,
 } from "@/lib/responseStats";
@@ -55,19 +56,24 @@ export const GET = withErrorHandling(async (request: NextRequest, { params }: Ct
   }
   const { range } = parsed;
 
+  // organizationId + questionId (+ authorType): scoped independent of the
+  // date range — a pulse round is a permanent bucket of the question's whole
+  // lifetime, not a window the from/to picker should truncate.
+  const baseMatch: Record<string, unknown> = {};
+  if (question.organizationId) {
+    baseMatch.organizationId = new mongoose.Types.ObjectId(String(question.organizationId));
+  }
+  baseMatch.questionId = new mongoose.Types.ObjectId(String(question._id));
+  if (!internal) baseMatch.authorType = { $ne: "member" };
+
   // organizationId + questionId + createdAt: the {organizationId, questionId,
   // createdAt} index (legacy org-less questions use {questionId, createdAt}).
   // An internal question's responses ARE members' private threads (only
   // OWNER/ADMIN get this far); a public question never includes them.
-  const match: Record<string, unknown> = {};
-  if (question.organizationId) {
-    match.organizationId = new mongoose.Types.ObjectId(String(question.organizationId));
-  }
-  match.questionId = new mongoose.Types.ObjectId(String(question._id));
-  Object.assign(match, createdAtClause(range));
-  if (!internal) match.authorType = { $ne: "member" };
+  const match = { ...baseMatch, ...createdAtClause(range) };
 
   const agg = await questionAggregates(question, match, range);
+  const rounds = question.pulse ? await pulseRoundStats(baseMatch, question) : undefined;
 
   return NextResponse.json({
     success: true,
@@ -80,5 +86,6 @@ export const GET = withErrorHandling(async (request: NextRequest, { params }: Ct
     },
     ...agg,
     cap: capProgress(question),
+    ...(rounds && { rounds }),
   });
 });

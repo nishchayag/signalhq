@@ -140,3 +140,36 @@ export function stackedMax<T>(data: T[], keys: (keyof T)[]): number {
   }
   return max;
 }
+
+/**
+ * An SVG path for a vertical column: square at the baseline (bottom edge),
+ * 4px-style rounded corners at the data-end (top edge) — marks-and-anatomy's
+ * "4px rounded data-end, square at the baseline" rule for a column growing
+ * up from a shared x-axis (PulseTrendChart's single-series response bars).
+ * A plain `<rect rx>` rounds all four corners, which is wrong at the
+ * baseline; this rounds only the top-left/top-right. Radius clamps to half
+ * the height/width so it never overshoots a short/thin bar. Returns "" for a
+ * zero-or-negative width/height (nothing to draw).
+ */
+export function verticalBarPath(x: number, yTop: number, width: number, height: number, radius: number): string {
+  if (width <= 0 || height <= 0) return "";
+  const r = Math.max(0, Math.min(radius, height, width / 2));
+  if (r === 0) return `M ${x} ${yTop} H ${x + width} V ${yTop + height} H ${x} Z`;
+  return [
+    `M ${x} ${yTop + r}`,
+    `A ${r} ${r} 0 0 1 ${x + r} ${yTop}`,
+    `H ${x + width - r}`,
+    `A ${r} ${r} 0 0 1 ${x + width} ${yTop + r}`,
+    `V ${yTop + height}`,
+    `H ${x}`,
+    "Z",
+  ].join(" ");
+}
+
+/** An SVG path connecting `points` in order, for a single-series line chart
+ * (marks-and-anatomy: "Line: 2px, round join/cap"). "" for fewer than 2
+ * points (nothing to connect). */
+export function linePath(points: { x: number; y: number }[]): string {
+  if (points.length < 2) return "";
+  return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+}

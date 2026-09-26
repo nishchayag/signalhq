@@ -90,6 +90,15 @@ export interface QuestionVolumePoint {
   count: number;
 }
 
+/** One pulse round's stats (lib/responseStats.ts#pulseRoundStats). `round` is
+ * 0-based; render its label via lib/pulse.ts#roundLabel (1-based, "Round N"). */
+export interface PulseRoundStat {
+  round: number;
+  responses: number;
+  average: number | null;
+  nps: NpsStatsApi | null;
+}
+
 export interface QuestionStats {
   success: true;
   range: StatsRangeJson;
@@ -102,6 +111,9 @@ export interface QuestionStats {
   cap: { responseCount: number; maxResponses: number | null; progress: number | null };
   sentiment: SentimentStats;
   tags: TagCount[];
+  /** Present only when the question is a pulse (lib/pulse.ts), oldest round
+   * first — the whole lifetime, not clipped by `range`. */
+  rounds?: PulseRoundStat[];
 }
 
 export const CURRENT_TZ = (): string => {

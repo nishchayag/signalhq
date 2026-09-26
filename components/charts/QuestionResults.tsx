@@ -7,6 +7,7 @@ import BarListChart from "./BarListChart";
 import ChartCard from "./ChartCard";
 import Meter from "./Meter";
 import NpsGauge from "./NpsGauge";
+import PulseTrendChart, { type PulseLineMetric } from "./PulseTrendChart";
 import SentimentBar from "./SentimentBar";
 import StackedColumnChart from "./StackedColumnChart";
 import StatTile from "./StatTile";
@@ -147,6 +148,16 @@ export default function QuestionResults({ d, question }: { d: DashboardData; que
         bucket={data.range.bucket}
         caption={`${caption} — volume over time`}
       />
+
+      {question.pulse && data.rounds && (
+        <PulseTrendChart
+          data={data.rounds}
+          metric={
+            (type === "rating" ? "average" : type === "nps" ? "nps" : "none") as PulseLineMetric
+          }
+          caption={`${caption} — pulse trend`}
+        />
+      )}
 
       {data.tags.length > 0 && (
         <BarListChart

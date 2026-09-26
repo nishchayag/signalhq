@@ -41,13 +41,14 @@ describe("GET /api/organizations/:orgId", () => {
     expect(body.success).toBe(true);
     expect(body.branding).toEqual({ accent: "yellow", welcomeText: "", logoVersion: 0 });
     expect(body.brandingAllowed).toBe(false);
+    expect(body.pulseAllowed).toBe(false);
     // Never leaks logo bytes.
     expect(body.organization.branding?.bytes).toBeUndefined();
     // No OrgAsset row yet.
     expect(body.hasLogo).toBe(false);
   });
 
-  it("PRO org: reflects stored branding and brandingAllowed true", async () => {
+  it("PRO org: reflects stored branding and brandingAllowed/pulseAllowed true", async () => {
     await setPlan("PRO");
     as(w.owner);
     await patchBranding(
@@ -58,6 +59,7 @@ describe("GET /api/organizations/:orgId", () => {
     const body = await res.json();
     expect(body.branding).toEqual({ accent: "mint", welcomeText: "Hi there", logoVersion: 0 });
     expect(body.brandingAllowed).toBe(true);
+    expect(body.pulseAllowed).toBe(true);
   });
 
   it("a plain MEMBER can read branding settings too (not secret to members)", async () => {

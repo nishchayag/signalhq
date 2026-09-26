@@ -19,6 +19,7 @@ import {
   analyticsRateKey,
   npsFromCounts,
   parseStatsRange,
+  pulseRoundStats,
 } from "@/lib/responseStats";
 
 beforeAll(startTestDB);
@@ -143,6 +144,73 @@ describe("npsFromCounts", () => {
       promoterPct: 57.1,
       detractorPct: 28.6,
     });
+  });
+});
+
+describe("pulseRoundStats", () => {
+  const anchor = "2026-01-05"; // a Monday
+  const now = new Date("2026-02-10T12:00:00Z"); // 5 full weeks after the anchor → round 5
+
+  it("is empty for a non-pulse question, and for one that hasn't opened yet", async () => {
+    const { org, owner } = await makeOrg();
+    const q = await makeQuestion(org._id, owner, { type: "rating" });
+    const match = { organizationId: org._id, questionId: q._id };
+    expect(await pulseRoundStats(match, q)).toEqual([]);
+
+    const scheduled = await makeQuestion(org._id, owner, {
+      type: "rating",
+      pulse: { cadence: "weekly", anchorDate: "2099-01-01", timeZone: "UTC", remind: true, lastRemindedRound: -1 },
+    });
+    expect(await pulseRoundStats(match, scheduled, now)).toEqual([]);
+  });
+
+  it("zero-fills every round up to the current one, incl. empty rounds", async () => {
+    const { org, owner } = await makeOrg();
+    const q = await makeQuestion(org._id, owner, {
+      type: "rating",
+      pulse: { cadence: "weekly", anchorDate: anchor, timeZone: "UTC", remind: true, lastRemindedRound: -1 },
+    });
+    await msg(org._id, owner, { questionId: q._id, round: 0, answer: { kind: "rating", score: 5 } });
+    await msg(org._id, owner, { questionId: q._id, round: 0, answer: { kind: "rating", score: 3 } });
+    // round 1 has no responses at all — must still appear, zero-filled.
+    await msg(org._id, owner, { questionId: q._id, round: 5, content: "no score", answer: undefined });
+
+    const match = { organizationId: org._id, questionId: q._id };
+    const rounds = await pulseRoundStats(match, q, now);
+    expect(rounds.map((r) => r.round)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(rounds[0]).toEqual({ round: 0, responses: 2, average: 4, nps: null });
+    expect(rounds[1]).toEqual({ round: 1, responses: 0, average: null, nps: null });
+    // A response with no scored answer of this type still counts toward
+    // `responses`, just with no average contribution.
+    expect(rounds[5]).toEqual({ round: 5, responses: 1, average: null, nps: null });
+  });
+
+  it("computes NPS per round the same way the lifetime gauge does", async () => {
+    const { org, owner } = await makeOrg();
+    const q = await makeQuestion(org._id, owner, {
+      type: "nps",
+      pulse: { cadence: "weekly", anchorDate: anchor, timeZone: "UTC", remind: true, lastRemindedRound: -1 },
+    });
+    for (const score of [10, 10, 9, 9, 8, 6, 2]) {
+      await msg(org._id, owner, { questionId: q._id, round: 0, content: "", answer: { kind: "nps", score } });
+    }
+    const match = { organizationId: org._id, questionId: q._id };
+    const rounds = await pulseRoundStats(match, q, now);
+    expect(rounds[0].nps).toMatchObject({ score: 29, promoters: 4, passives: 1, detractors: 2, total: 7 });
+    expect(rounds[0].average).toBe(7.71);
+  });
+
+  it("caps at the most recent 26 rounds", async () => {
+    const { org, owner } = await makeOrg();
+    // Anchor far enough back that round 0 would fall outside the cap.
+    const q = await makeQuestion(org._id, owner, {
+      type: "text",
+      pulse: { cadence: "weekly", anchorDate: "2020-01-06", timeZone: "UTC", remind: true, lastRemindedRound: -1 },
+    });
+    const match = { organizationId: org._id, questionId: q._id };
+    const rounds = await pulseRoundStats(match, q, now);
+    expect(rounds).toHaveLength(26);
+    expect(rounds[rounds.length - 1].round).toBe(rounds[0].round + 25);
   });
 });
 
@@ -498,5 +566,36 @@ describe("GET /api/analytics/questions/[questionId]", () => {
     }
     as(owner);
     expect((await questionStats(String(q._id))).status).toBe(429);
+  });
+
+  it("includes `rounds` only for a pulse question, and it isn't clipped by the date range", async () => {
+    const { org, owner } = await makeOrg();
+    const plain = await makeQuestion(org._id, owner, { type: "rating" });
+    as(owner);
+    const plainBody = (await questionStats(String(plain._id))).body;
+    expect(plainBody).not.toHaveProperty("rounds");
+
+    // Anchored yesterday (real wall-clock `now`, since the route itself has
+    // no way to fake it) so the current round is reliably 0 — this test
+    // only cares whether `rounds` shows up, not the cap math (which has its
+    // own deterministic unit tests above).
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const pulseQ = await makeQuestion(org._id, owner, {
+      type: "rating",
+      pulse: { cadence: "monthly", anchorDate: yesterday, timeZone: "UTC", remind: true, lastRemindedRound: -1 },
+    });
+    const oldCreatedAt = new Date("2020-01-06T00:00:00Z");
+    await msg(org._id, owner, {
+      questionId: pulseQ._id,
+      round: 0,
+      answer: { kind: "rating", score: 5 },
+      // Outside any sane `from`/`to` window the route would default to —
+      // proves rounds aren't scoped by the analytics date range.
+      createdAt: oldCreatedAt,
+    });
+    const { status, body } = await questionStats(String(pulseQ._id), "?from=2026-01-01&to=2026-01-02");
+    expect(status).toBe(200);
+    expect(body.rounds).toBeInstanceOf(Array);
+    expect(body.rounds).toEqual([{ round: 0, responses: 1, average: 5, nps: null }]);
   });
 });

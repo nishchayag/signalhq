@@ -9,6 +9,14 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import OrgFeedbackForm from "@/components/OrgFeedbackForm";
 import PublicBrandHeader from "@/components/PublicBrandHeader";
 import { isGuardOffered } from "@/lib/aiQuota";
+import type { PulseCadence } from "@/lib/pulse";
+import { Repeat } from "lucide-react";
+
+const PULSE_BADGE_LABEL: Record<PulseCadence, string> = {
+  weekly: "Repeats weekly",
+  biweekly: "Repeats every 2 weeks",
+  monthly: "Repeats monthly",
+};
 
 interface PageProps {
   params: Promise<{ orgSlug: string }>;
@@ -46,11 +54,16 @@ export default async function OrgPublicPage({ params }: PageProps) {
     visibility: { $ne: "internal" },
   })
     .sort({ createdAt: -1 })
-    .select("questionText slug closesAt maxResponses responseCount")
+    // `pulse` must be selected: questionState reads it to tell a scheduled
+    // pulse (round index < 0 — hasn't opened its first round) apart from an
+    // open one. Without it here, a not-yet-open pulse question would show up
+    // as answerable, same as any other bug in this filter.
+    .select("questionText slug closesAt maxResponses responseCount pulse")
     .lean();
-  // A closed question (past its close date, or at its response cap) is
-  // simply not offered here — questionState is the same computed check the
-  // submit routes use, never a stored flag.
+  // A closed question (past its close date, at its response cap, or a pulse
+  // that hasn't opened its first round yet) is simply not offered here —
+  // questionState is the same computed check the submit routes use, never a
+  // stored flag.
   const questions = allQuestions.filter((q) => !questionState(q).closed);
 
   return (
@@ -87,9 +100,15 @@ export default async function OrgPublicPage({ params }: PageProps) {
                 <Link
                   key={String(q._id)}
                   href={`/o/${organization.slug}/q/${q.slug}`}
-                  className="block bg-card hover:bg-secondary transition border-2 border-ink rounded-lg px-4 py-3 text-sm font-semibold text-foreground shadow-solid-sm"
+                  className="flex items-center justify-between gap-3 bg-card hover:bg-secondary transition border-2 border-ink rounded-lg px-4 py-3 text-sm font-semibold text-foreground shadow-solid-sm"
                 >
-                  {q.questionText}
+                  <span>{q.questionText}</span>
+                  {q.pulse && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border-2 border-ink bg-brand-blue/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">
+                      <Repeat className="h-3 w-3" />
+                      {PULSE_BADGE_LABEL[q.pulse.cadence]}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>

@@ -10,6 +10,7 @@ import {
   Power,
   PowerOff,
   RefreshCw,
+  Repeat,
   Search,
   Share2,
   Trash2,
@@ -32,11 +33,25 @@ import { enterToSendHint } from "@/lib/enterToSend";
 import { canSubmitAnswer, closedMessage } from "@/lib/answerForm";
 import { formatAnswer, publicQuestionConfig, questionState } from "@/lib/answers";
 import { buildPublicUrl } from "@/lib/publicUrl";
+import type { PulseSummary } from "@/lib/pulse";
 import type { IQuestion } from "@/models/question.model";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import LoadMoreButton from "./LoadMoreButton";
 import type { DashboardData, ThreadSummary } from "./useDashboardData";
+
+function formatPulseDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** "Round N · next opens <date>" (already open) or "Starts <date>"
+ *  (scheduled — round is negative, before its first round). The API always
+ *  sends the computed view (lib/pulse.ts#pulseSummary), never the raw
+ *  anchor/cadence a client would have to do this math on itself. */
+function pulseStatusLabel(pulse: PulseSummary): string {
+  if (pulse.round < 0) return `Starts ${formatPulseDate(pulse.nextRoundStartsAt)}`;
+  return `${pulse.roundLabel} · next opens ${formatPulseDate(pulse.nextRoundStartsAt)}`;
+}
 
 /** The selected question: header (links/export), then its responses. */
 export default function QuestionView({ d, question }: { d: DashboardData; question: IQuestion }) {
@@ -115,6 +130,12 @@ function QuestionActions({ d, question }: { d: DashboardData; question: IQuestio
       {typeof question.maxResponses === "number" && (
         <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-card px-2.5 py-0.5 text-xs font-bold text-foreground">
           {question.responseCount}/{question.maxResponses}
+        </span>
+      )}
+      {question.pulse && (
+        <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-brand-blue/30 px-2.5 py-0.5 text-xs font-bold text-foreground">
+          <Repeat className="h-3 w-3" />
+          {pulseStatusLabel(question.pulse as unknown as PulseSummary)}
         </span>
       )}
       {d.canUpdateQuestions && (

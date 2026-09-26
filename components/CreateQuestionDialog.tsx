@@ -40,6 +40,10 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import AiQuotaNote, { quotaExhausted } from "@/components/AiQuotaNote";
 import type { AiStatus } from "@/app/dashboard/_components/useDashboardData";
 import { fromDatetimeLocalValue, toDatetimeLocalValue } from "@/lib/datetimeLocal";
+import { can } from "@/lib/permissions";
+import { PULSE_CADENCES, roundAt, type PulseCadence } from "@/lib/pulse";
+import { localYmd, zonedMidnight } from "@/lib/zonedDate";
+import { CURRENT_TZ } from "@/lib/analyticsTypes";
 
 interface CreateQuestionDialogProps {
   open: boolean;
@@ -78,6 +82,38 @@ const TYPE_LABELS: Record<QuestionType, string> = {
   multi: "Multiple choice",
 };
 
+/** "None" (a one-time question) plus the recurring cadences lib/pulse.ts
+ *  understands. */
+type RepeatOption = "none" | PulseCadence;
+
+const CADENCE_LABELS: Record<PulseCadence, string> = {
+  weekly: "Weekly",
+  biweekly: "Every 2 weeks",
+  monthly: "Monthly",
+};
+
+/** The next few rounds' start dates, for the create/edit dialog's "Next
+ *  rounds: …" preview — pure client-side math via lib/pulse.ts#roundAt,
+ *  no server round-trip needed. Round 0 starts at the anchor's own local
+ *  midnight; each subsequent round's start is the previous one's `endsAt`
+ *  (a pulse question has no gaps between rounds). */
+function previewRoundStarts(
+  pulse: { cadence: PulseCadence; anchorDate: string; timeZone: string },
+  count = 3
+): Date[] {
+  const dates: Date[] = [];
+  let cursor = zonedMidnight(pulse.anchorDate, pulse.timeZone);
+  for (let i = 0; i < count; i++) {
+    dates.push(cursor);
+    cursor = roundAt(pulse, cursor).endsAt;
+  }
+  return dates;
+}
+
+function formatRoundDate(d: Date, tz: string): string {
+  return d.toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" });
+}
+
 const defaultFormValues = (): CreateQuestionRequest => ({
   questionText: "",
   description: "",
@@ -111,6 +147,19 @@ export default function CreateQuestionDialog({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [hint, setHint] = useState("");
   const [lockError, setLockError] = useState<string | null>(null);
+
+  // Recurring pulse (Phase 4b). Kept outside react-hook-form: the pulse
+  // section isn't part of every question's form, and the submit body is
+  // built manually below either way (pulse:null to remove is a special
+  // value zod's object schema can't express alongside the create/update
+  // "full shape" schemas). OWNER/ADMIN + question:pulse only; a MEMBER
+  // creating a question never sees this section.
+  const canUsePulse = can(session?.user?.activeOrgRole, "question:pulse");
+  const hasExistingPulse = isEdit && Boolean(question?.pulse);
+  const [pulseAllowed, setPulseAllowed] = useState(false);
+  const [repeat, setRepeat] = useState<RepeatOption>("none");
+  const [pulseAnchor, setPulseAnchor] = useState("");
+  const [pulseRemind, setPulseRemind] = useState(true);
 
   const {
     register,
@@ -225,8 +274,23 @@ export default function CreateQuestionDialog({
         closesAt: question.closesAt ? new Date(question.closesAt).toISOString() : null,
         maxResponses: question.maxResponses ?? null,
       });
+      const existingPulse = question.pulse as
+        | { cadence: PulseCadence; anchorDate: string; remind?: boolean }
+        | undefined;
+      if (existingPulse) {
+        setRepeat(existingPulse.cadence);
+        setPulseAnchor(existingPulse.anchorDate);
+        setPulseRemind(existingPulse.remind !== false);
+      } else {
+        setRepeat("none");
+        setPulseAnchor(localYmd(new Date(), CURRENT_TZ()));
+        setPulseRemind(true);
+      }
     } else {
       reset(defaultFormValues());
+      setRepeat("none");
+      setPulseAnchor(localYmd(new Date(), CURRENT_TZ()));
+      setPulseRemind(true);
     }
   }, [open, question, reset]);
 
@@ -251,6 +315,61 @@ export default function CreateQuestionDialog({
     })();
   }, [open, session, isEdit]);
 
+  // Whether the active org's plan allows pulse at all — read from the same
+  // GET /api/organizations/:orgId the org settings page uses (brandingAllowed
+  // sibling). Fetched only for a role that can even see the section; a
+  // failed fetch just leaves it "not allowed" (an upsell, not a crash) — the
+  // server independently re-checks the real gate on submit either way.
+  useEffect(() => {
+    if (!open || !canUsePulse) return;
+    const orgId = session?.user?.activeOrgId;
+    if (!orgId) return;
+    (async () => {
+      try {
+        const res = await axios.get(`/api/organizations/${orgId}`);
+        if (res.data.success) setPulseAllowed(!!res.data.pulseAllowed);
+      } catch (error) {
+        console.error("Error loading organization plan:", error);
+      }
+    })();
+  }, [open, canUsePulse, session]);
+
+  // A recurring question can't have a response cap, and can't be internal
+  // (the one-thread-per-member rule doesn't apply to a public form) — force
+  // both the moment repeating turns on, same "gate at write time" framing as
+  // the plan/permission checks below.
+  useEffect(() => {
+    if (repeat === "none") return;
+    setValue("maxResponses", null, { shouldDirty: true });
+    setValue("visibility", "public", { shouldDirty: true });
+  }, [repeat, setValue]);
+
+  const cadenceLocked = locked; // schedule fields (cadence/anchor) freeze after the first response
+  const pulseAnchorMin = localYmd(new Date(), CURRENT_TZ());
+  const pulseAnchorInvalid = repeat !== "none" && !!pulseAnchor && pulseAnchor < pulseAnchorMin;
+  const previewDates =
+    repeat !== "none" && pulseAnchor && !pulseAnchorInvalid
+      ? previewRoundStarts({ cadence: repeat, anchorDate: pulseAnchor, timeZone: CURRENT_TZ() })
+      : [];
+
+  // Selecting "None" off an existing pulse removes it (allowed any time,
+  // including after responses — past Message.round stamps stay put and the
+  // question just becomes a normal one going forward). That's a real change
+  // in behaviour, not a form reset, so it's confirmed like any other
+  // destructive action.
+  const handleRepeatChange = async (next: RepeatOption) => {
+    if (next === "none" && repeat !== "none" && hasExistingPulse) {
+      const ok = await confirm({
+        title: "Stop repeating?",
+        description: "Past rounds stay in the results.",
+        confirmLabel: "Stop repeating",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    setRepeat(next);
+  };
+
   const onSubmit = async (data: CreateQuestionRequest) => {
     const nextType = data.type ?? "text";
     const issues = questionConfigIssues(nextType, data.config);
@@ -258,24 +377,45 @@ export default function CreateQuestionDialog({
       toast.error(issues[0].message);
       return;
     }
+    if (canUsePulse && repeat !== "none" && pulseAnchorInvalid) {
+      toast.error("Start date must be today or later");
+      return;
+    }
     setLoading(true);
     setLockError(null);
     try {
+      const pulseForRequest = canUsePulse
+        ? repeat !== "none"
+          ? { cadence: repeat, anchorDate: pulseAnchor, timeZone: CURRENT_TZ(), remind: pulseRemind }
+          : undefined
+        : undefined;
       if (question) {
+        // Edit: `pulse: null` explicitly removes an existing schedule
+        // (allowed any time, incl. after responses); a fresh schedule value
+        // sets/updates it; leaving it out entirely means "don't touch it" —
+        // covers the question that never had one and still doesn't.
+        const pulseForUpdate =
+          canUsePulse && hasExistingPulse && repeat === "none" ? null : pulseForRequest;
         const response = await axios.put(`/api/questions/${question._id}`, {
           questionText: data.questionText,
           description: data.description ?? "",
           type: data.type,
           config: data.config,
           closesAt: data.closesAt,
-          maxResponses: data.maxResponses,
+          maxResponses: pulseForRequest ? null : data.maxResponses,
+          ...(pulseForUpdate !== undefined && { pulse: pulseForUpdate }),
         });
         onQuestionUpdated?.(response.data.question);
         toast.success("Question updated");
         onOpenChange(false);
         return;
       }
-      const response = await axios.post("/api/questions", data);
+      const response = await axios.post("/api/questions", {
+        ...data,
+        visibility: pulseForRequest ? "public" : data.visibility,
+        maxResponses: pulseForRequest ? null : data.maxResponses,
+        ...(pulseForRequest && { pulse: pulseForRequest }),
+      });
       if (response.data.success) {
         onQuestionCreated?.(response.data.question);
         reset(defaultFormValues());
@@ -284,10 +424,15 @@ export default function CreateQuestionDialog({
         toast.error(response.data.message || "Failed to create question");
       }
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.data?.code === "QUESTION_LOCKED") {
+      const errData = axios.isAxiosError(error)
+        ? (error.response?.data as { code?: string; message?: string } | undefined)
+        : undefined;
+      if (errData?.code === "QUESTION_LOCKED" || errData?.code === "PULSE_LOCKED") {
         setLockError(
-          error.response.data.message ||
-            "This question already has responses, so its type and options can't change."
+          errData.message ||
+            (errData.code === "PULSE_LOCKED"
+              ? "This question already has responses, so its recurring schedule can't change."
+              : "This question already has responses, so its type and options can't change.")
         );
         return;
       }
@@ -613,6 +758,7 @@ export default function CreateQuestionDialog({
                   type="button"
                   onClick={() => setValue("maxResponses", null, { shouldDirty: true, shouldValidate: true })}
                   className="text-xs font-semibold text-muted-foreground underline"
+                  disabled={repeat !== "none"}
                 >
                   Clear
                 </button>
@@ -623,12 +769,18 @@ export default function CreateQuestionDialog({
               type="number"
               min={1}
               max={MAX_RESPONSES_LIMIT}
-              disabled={loading}
+              disabled={loading || repeat !== "none"}
               {...register("maxResponses", {
                 // An untouched field feeds its `null` default through here, and Number(null) is 0.
                 setValueAs: (v) => (v === "" || v == null ? null : Number(v)),
               })}
             />
+            {repeat !== "none" && (
+              <p className="text-xs text-muted-foreground">
+                Disabled while this question repeats — a recurring question can&apos;t have a
+                response cap.
+              </p>
+            )}
             {errors.maxResponses && (
               <p className="text-sm text-destructive">{errors.maxResponses.message}</p>
             )}
@@ -644,7 +796,7 @@ export default function CreateQuestionDialog({
             <select
               id="visibility"
               {...register("visibility")}
-              disabled={loading}
+              disabled={loading || repeat !== "none"}
               className={SELECT_CLASS}
             >
               <option value="public">Public — anyone with the link can respond</option>
@@ -652,7 +804,94 @@ export default function CreateQuestionDialog({
                 Internal — only your team can privately answer
               </option>
             </select>
+            {repeat !== "none" && (
+              <p className="text-xs text-muted-foreground">
+                Disabled while this question repeats — a recurring question is always public.
+              </p>
+            )}
           </div>
+          )}
+
+          {canUsePulse && (
+            <div className="space-y-3 rounded-lg border-2 border-ink bg-card p-3.5">
+              <div>
+                <Label htmlFor="pulse-cadence">Repeat</Label>
+                <p className="text-xs text-muted-foreground">
+                  Turn this into a recurring pulse that opens a new round on a schedule.
+                </p>
+              </div>
+
+              {!pulseAllowed && (
+                <p className="rounded-lg border-2 border-ink bg-brand-yellow/25 px-3 py-2 text-xs font-medium text-foreground">
+                  Recurring pulse surveys are available on the Pro plan and up.
+                </p>
+              )}
+
+              <select
+                id="pulse-cadence"
+                value={repeat}
+                disabled={loading || !pulseAllowed}
+                onChange={(e) => handleRepeatChange(e.target.value as RepeatOption)}
+                className={SELECT_CLASS}
+              >
+                <option value="none">
+                  {hasExistingPulse ? "None — stop repeating" : "None — one-time question"}
+                </option>
+                {PULSE_CADENCES.map((c) => (
+                  <option key={c} value={c} disabled={cadenceLocked && c !== repeat}>
+                    {CADENCE_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+
+              {cadenceLocked && (
+                <p className="text-xs text-muted-foreground">
+                  This question already has responses, so its recurring schedule can&apos;t
+                  change{hasExistingPulse ? " — but you can still stop the recurring rounds" : ""}.
+                </p>
+              )}
+
+              {repeat !== "none" && (
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="pulse-anchor">Start date</Label>
+                    <Input
+                      id="pulse-anchor"
+                      type="date"
+                      value={pulseAnchor}
+                      min={pulseAnchorMin}
+                      disabled={loading || cadenceLocked || !pulseAllowed}
+                      onChange={(e) => setPulseAnchor(e.target.value)}
+                    />
+                    {pulseAnchorInvalid && (
+                      <p className="text-xs text-destructive">Start date must be today or later.</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border-2 border-ink bg-card px-3.5 py-2.5">
+                    <div>
+                      <Label htmlFor="pulse-remind" className="text-sm font-semibold">
+                        Email members when each round opens
+                      </Label>
+                    </div>
+                    <Switch
+                      id="pulse-remind"
+                      checked={pulseRemind}
+                      onCheckedChange={setPulseRemind}
+                      disabled={loading || !pulseAllowed}
+                    />
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">Time zone: {CURRENT_TZ()}</p>
+
+                  {previewDates.length > 0 && (
+                    <p className="text-xs font-medium text-foreground">
+                      Next rounds: {previewDates.map((d) => formatRoundDate(d, CURRENT_TZ())).join(", ")}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           {!isEdit && teams.length > 0 && (

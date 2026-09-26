@@ -77,6 +77,7 @@ import mongoose from "mongoose";
 import MessageModel, { AI_SENTIMENTS, type AiSentiment } from "@/models/message.model";
 import { SCALES, isChoiceType, isScaleType, questionType, type QuestionType } from "@/lib/answers";
 import { addDaysYmd, localYmd, mondayOf, resolveTimeZone, zonedMidnight } from "@/lib/zonedDate";
+import { roundAt, type QuestionPulseLike } from "@/lib/pulse";
 
 // The timezone/calendar-day helpers used to live here; they moved to the
 // DB-free lib/zonedDate.ts (so pure code like lib/pulse.ts can use them
@@ -503,4 +504,100 @@ export function capProgress(q: { responseCount?: number | null; maxResponses?: n
     maxResponses,
     progress: maxResponses ? round(Math.min(responseCount / maxResponses, 1), 3) : null,
   };
+}
+
+// ---------------------------------------------------------------- pulse rounds
+
+/** The trend chart shows at most the most recent 26 rounds (a year+ of
+ * weekly rounds), so a long-running pulse never ships an unbounded payload. */
+export const PULSE_ROUND_CAP = 26;
+
+export interface PulseRoundStat {
+  /** 0-based, matching lib/pulse.ts#roundAt — the client 1-based labels via roundLabel(). */
+  round: number;
+  responses: number;
+  /** rating/nps only; null for a round with no scored answers, and always
+   * null for text/choice (choice counts aren't part of this trend — the
+   * per-question distribution chart already covers them). */
+  average: number | null;
+  /** nps questions only, computed the same way as questionAggregates' NPS
+   * block (npsFromCounts) so a round's number always matches what the
+   * lifetime NPS gauge would show if you scoped it to that round alone. */
+  nps: NpsStats | null;
+}
+
+/**
+ * Responses/average/NPS per pulse round, oldest first, `match` scoped to one
+ * question the same way questionAggregates' `match` is (org/question/team/
+ * internal-thread filters) but *without* the date-range clause — a round is
+ * a permanent bucket of the question's whole lifetime, not a window the
+ * from/to picker should truncate. Zero-fills every round from `max(0,
+ * current − 25)` to the current round (lib/pulse.ts#roundAt), so a round
+ * nobody has answered yet still appears with `responses: 0`. `[]` when the
+ * question isn't a pulse, or hasn't opened its first round yet.
+ */
+export async function pulseRoundStats(
+  match: Match,
+  question: { type?: QuestionType | null; pulse?: QuestionPulseLike | null },
+  now: Date = new Date()
+): Promise<PulseRoundStat[]> {
+  if (!question.pulse) return [];
+  const currentRound = roundAt(question.pulse, now).index;
+  if (currentRound < 0) return [];
+
+  const type = questionType(question);
+  const scale = isScaleType(type);
+  const maxRound = currentRound;
+  const minRound = Math.max(0, maxRound - (PULSE_ROUND_CAP - 1));
+
+  const rows = await MessageModel.aggregate<{ _id: { r: number; s: number | null }; count: number }>([
+    { $match: { ...match, round: { $type: "number", $gte: minRound, $lte: maxRound } } },
+    {
+      $project: {
+        _id: 0,
+        r: "$round",
+        // Only a scored answer of this exact type counts toward the
+        // average/NPS line — a bare comment or a different (legacy) answer
+        // kind still counts toward `responses` via the group below, just
+        // with a null score.
+        s: {
+          $cond: [
+            { $and: [{ $eq: ["$answer.kind", type] }, { $isNumber: "$answer.score" }] },
+            "$answer.score",
+            null,
+          ],
+        },
+      },
+    },
+    { $group: { _id: { r: "$r", s: "$s" }, count: { $sum: 1 } } },
+  ]);
+
+  const byRound = new Map<number, { total: number; scoreCounts: Map<number, number> }>();
+  for (const row of rows) {
+    const entry = byRound.get(row._id.r) ?? { total: 0, scoreCounts: new Map<number, number>() };
+    entry.total += row.count;
+    if (row._id.s !== null) {
+      entry.scoreCounts.set(row._id.s, (entry.scoreCounts.get(row._id.s) ?? 0) + row.count);
+    }
+    byRound.set(row._id.r, entry);
+  }
+
+  const result: PulseRoundStat[] = [];
+  for (let r = minRound; r <= maxRound; r++) {
+    const entry = byRound.get(r) ?? { total: 0, scoreCounts: new Map<number, number>() };
+    let average: number | null = null;
+    let nps: NpsStats | null = null;
+    if (scale) {
+      const { min, max } = SCALES[type as "rating" | "nps"];
+      const counts: { score: number; count: number }[] = [];
+      for (let score = min; score <= max; score++) {
+        counts.push({ score, count: entry.scoreCounts.get(score) ?? 0 });
+      }
+      const n = counts.reduce((s, c) => s + c.count, 0);
+      average = n > 0 ? round(counts.reduce((s, c) => s + c.score * c.count, 0) / n, 2) : null;
+      if (type === "nps") nps = npsFromCounts(counts);
+    }
+    result.push({ round: r, responses: entry.total, average, nps });
+  }
+  return result;
 }

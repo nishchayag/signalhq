@@ -6,10 +6,12 @@ import {
   formatCompactNumber,
   formatPercent,
   linearScale,
+  linePath,
   niceTicks,
   npsSegments,
   safeRatio,
   stackedMax,
+  verticalBarPath,
 } from "@/lib/chartMath";
 
 describe("clamp01", () => {
@@ -126,6 +128,48 @@ describe("barPath", () => {
   it("clamps the radius to half the width for a thin bar", () => {
     const d = barPath(0, 0, 4, 20, 4);
     expect(d).toContain("A 2 2 0 0 1");
+  });
+});
+
+describe("verticalBarPath", () => {
+  it("is empty for a zero-height or zero-width bar", () => {
+    expect(verticalBarPath(0, 0, 40, 0, 4)).toBe("");
+    expect(verticalBarPath(0, 0, 0, 20, 4)).toBe("");
+  });
+  it("draws a square rect (no arcs) when radius is 0", () => {
+    const d = verticalBarPath(0, 10, 40, 20, 0);
+    expect(d).toBe("M 0 10 H 40 V 30 H 0 Z");
+  });
+  it("clamps the radius to the height for a short bar", () => {
+    const d = verticalBarPath(0, 0, 40, 3, 4);
+    expect(d).toContain("A 3 3 0 0 1");
+  });
+  it("clamps the radius to half the width for a thin bar", () => {
+    const d = verticalBarPath(0, 0, 4, 20, 4);
+    expect(d).toContain("A 2 2 0 0 1");
+  });
+  it("only rounds the top edge, not the baseline", () => {
+    const d = verticalBarPath(0, 0, 40, 20, 4);
+    // The path closes with a straight run down to the baseline and back —
+    // no arc command near the end of the path.
+    expect(d.endsWith("Z")).toBe(true);
+    expect(d.match(/A /g)).toHaveLength(2);
+  });
+});
+
+describe("linePath", () => {
+  it("is empty for fewer than 2 points", () => {
+    expect(linePath([])).toBe("");
+    expect(linePath([{ x: 0, y: 0 }])).toBe("");
+  });
+  it("connects points with M then L commands", () => {
+    expect(
+      linePath([
+        { x: 0, y: 10 },
+        { x: 5, y: 20 },
+        { x: 10, y: 0 },
+      ])
+    ).toBe("M 0 10 L 5 20 L 10 0");
   });
 });
 
