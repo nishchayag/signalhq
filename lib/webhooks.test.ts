@@ -482,6 +482,32 @@ describe("dispatchMessageEvent", () => {
     expect(updated!.consecutiveFailures).toBe(1); // one failure recorded, not one per attempt
   });
 
+  it("clears a stale lastHttpStatus when a later failure has no HTTP status of its own", async () => {
+    const org = await makeOrg();
+    const integration = await makeIntegration(org);
+
+    // First: a failure that does carry an HTTP status.
+    __setTestTransport(fakeTransport(() => ({ status: 503 })));
+    const msg1 = await makeGeneralMessage(org);
+    await dispatchMessageEvent({ organizationId: org._id, messageId: msg1._id, event: "message.created" });
+    const afterHttpFailure = await IntegrationModel.findById(integration._id);
+    expect(afterHttpFailure!.lastHttpStatus).toBe(503);
+
+    // Then: a network-level failure (no HTTP response at all) — the stale
+    // 503 must not linger and be misreported as this attempt's status.
+    __setTestTransport(
+      fakeTransport(() => {
+        throw new Error("ECONNREFUSED");
+      })
+    );
+    const msg2 = await makeGeneralMessage(org);
+    await dispatchMessageEvent({ organizationId: org._id, messageId: msg2._id, event: "message.created" });
+
+    const afterNetworkFailure = await IntegrationModel.findById(integration._id);
+    expect(afterNetworkFailure!.lastStatus).toBe("fail");
+    expect(afterNetworkFailure!.lastHttpStatus).toBeUndefined();
+  });
+
   it("never retries a non-retryable 4xx", async () => {
     const org = await makeOrg();
     await makeIntegration(org);

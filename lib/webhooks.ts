@@ -271,16 +271,27 @@ async function recordSuccess(integrationId: string, status: number, now: Date): 
 
 async function recordFailure(integration: LeanIntegration, err: unknown, now: Date): Promise<void> {
   const httpStatus = extractHttpStatus(err);
+  const update: Record<string, unknown> = {
+    $set: {
+      lastAttemptAt: now,
+      lastStatus: "fail",
+      ...(httpStatus !== undefined && { lastHttpStatus: httpStatus }),
+    },
+    $inc: { consecutiveFailures: 1 },
+  };
+  // A network-level failure (connection refused, timeout, blocked URL — no
+  // HTTP response at all) has no httpStatus of its own. Without this, a
+  // stale lastHttpStatus from a previous, unrelated HTTP failure or success
+  // would keep showing in the settings UI (e.g. "HTTP error (200)" for a
+  // target that's actually unreachable), contradicting
+  // lib/integrationsUi.ts#deliveryStatusInfo's documented fallback of
+  // "Couldn't reach the target" for exactly this case.
+  if (httpStatus === undefined) {
+    update.$unset = { lastHttpStatus: "" };
+  }
   const updated = await IntegrationModel.findOneAndUpdate(
     { _id: integration._id },
-    {
-      $set: {
-        lastAttemptAt: now,
-        lastStatus: "fail",
-        ...(httpStatus !== undefined && { lastHttpStatus: httpStatus }),
-      },
-      $inc: { consecutiveFailures: 1 },
-    },
+    update,
     { new: true }
   );
   if (!updated || !updated.enabled || updated.consecutiveFailures < INTEGRATION_AUTO_DISABLE_THRESHOLD) {

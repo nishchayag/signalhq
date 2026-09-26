@@ -83,6 +83,11 @@ async function handlePOST(
         ...(result.httpStatus !== undefined && { lastHttpStatus: result.httpStatus }),
         ...(result.ok && { lastSuccessAt: new Date() }),
       },
+      // A network-level failure (no HTTP response at all) has no
+      // httpStatus of its own — clear any stale one from an earlier
+      // attempt so the UI doesn't misreport "HTTP error (200)" for an
+      // unreachable target (see lib/webhooks.ts#recordFailure).
+      ...(result.httpStatus === undefined && !result.ok && { $unset: { lastHttpStatus: "" } }),
     }
   ).catch(() => {});
 
