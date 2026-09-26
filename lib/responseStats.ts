@@ -76,6 +76,13 @@
 import mongoose from "mongoose";
 import MessageModel, { AI_SENTIMENTS, type AiSentiment } from "@/models/message.model";
 import { SCALES, isChoiceType, isScaleType, questionType, type QuestionType } from "@/lib/answers";
+import { addDaysYmd, localYmd, mondayOf, resolveTimeZone, zonedMidnight } from "@/lib/zonedDate";
+
+// The timezone/calendar-day helpers used to live here; they moved to the
+// DB-free lib/zonedDate.ts (so pure code like lib/pulse.ts can use them
+// without pulling in this Mongoose-backed module) and are re-exported here
+// for backward compatibility with existing imports of this module.
+export { resolveTimeZone, localYmd, zonedMidnight, addDaysYmd, mondayOf };
 
 /** Per-user limit shared by both analytics routes (429 past it). */
 export const ANALYTICS_RATE_LIMIT = { limit: 60, windowMs: 10 * 60 * 1000 } as const;
@@ -98,80 +105,6 @@ const DEFAULT_OVERVIEW_DAYS = 30;
 const AUTO_WEEK_AFTER_DAYS = 92;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TOP_TAGS = 10;
-
-/**
- * Canonical IANA zone name, or null if Intl doesn't know it. The canonical
- * form matters: Mongo's `timezone` is case-sensitive ("utc" is an error,
- * "UTC" isn't), and ICU canonicalises to the long-standing link names
- * ("Asia/Kolkata" → "Asia/Calcutta", "Europe/Kyiv" → "Europe/Kiev"), which
- * Mongo's tzdata also knows (measured on MongoDB 8.2). Offsets like "+05:30"
- * pass through and Mongo accepts them too.
- */
-export function resolveTimeZone(tz: string | null | undefined): string | null {
-  if (tz == null || tz === "") return "UTC";
-  if (tz.length > 64) return null;
-  try {
-    return new Intl.DateTimeFormat("en-US", { timeZone: tz }).resolvedOptions().timeZone;
-  } catch {
-    return null;
-  }
-}
-
-const ymdFormatters = new Map<string, Intl.DateTimeFormat>();
-/** The local calendar date of `d` in `tz`, "YYYY-MM-DD". */
-export function localYmd(d: Date, tz: string): string {
-  let f = ymdFormatters.get(tz);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    ymdFormatters.set(tz, f);
-  }
-  const parts = Object.fromEntries(f.formatToParts(d).map((p) => [p.type, p.value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-/** tz's UTC offset (ms) at `instant`. */
-function tzOffsetMs(instant: number, tz: string): number {
-  const f = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  const p = Object.fromEntries(f.formatToParts(new Date(instant)).map((x) => [x.type, x.value]));
-  const wall = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
-  return wall - Math.floor(instant / 1000) * 1000;
-}
-
-/** The instant local midnight of `ymd` occurs in `tz`. */
-export function zonedMidnight(ymd: string, tz: string): Date {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const guess = Date.UTC(y, m - 1, d);
-  const off = tzOffsetMs(guess, tz);
-  let t = guess - off;
-  const off2 = tzOffsetMs(t, tz);
-  if (off2 !== off) t = guess - off2;
-  return new Date(t);
-}
-
-function addDaysYmd(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-function mondayOf(ymd: string): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
-  return addDaysYmd(ymd, -((dow + 6) % 7));
-}
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
