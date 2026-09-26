@@ -8,12 +8,16 @@ import { moderateContent } from "@/lib/contentModeration";
 import { notifyMessageEvent } from "@/lib/notifications";
 import { threadOf } from "@/lib/thread";
 import { runAfter } from "@/lib/background";
+import { dispatchMessageEvent } from "@/lib/webhooks";
 import { MAX_THREAD_TURNS, RECEIPT_FIELDS, loadReceipt, tokenKey } from "@/lib/receipt";
 
 // The anonymous sender's side of a thread. The replyToken in the URL is the
 // sender's only credential: no session, no account. Responses carry the
 // thread turns and `awaitingOrg` only — never ai/embedding/ids — and are
 // never cached. Unknown tokens and member-thread tokens get the same 404.
+
+// Room for the post-response webhook dispatch (runAfter) on Vercel.
+export const maxDuration = 30;
 
 const IP_LIMIT = 5;
 const IP_WINDOW_MS = 10 * 60 * 1000;
@@ -116,6 +120,16 @@ export async function POST(
         primaryUserIds: createdFor ? [String(createdFor)] : [],
         event: "followup",
         messageId: String(messageId),
+      })
+    );
+    // Dispatch re-reads the message by id, so RECEIPT_FIELDS above doesn't
+    // need to grow just to feed a delivery payload.
+    runAfter(() =>
+      dispatchMessageEvent({
+        organizationId: organizationId ? String(organizationId) : null,
+        messageId: String(messageId),
+        event: "message.followup",
+        followupAt: now,
       })
     );
 

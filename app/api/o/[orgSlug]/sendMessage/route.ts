@@ -10,7 +10,7 @@ import { moderateContent } from "@/lib/contentModeration";
 import { notifyMessageEvent } from "@/lib/notifications";
 import { isAiEnabled } from "@/lib/ai";
 import { runAfter } from "@/lib/background";
-import { enrichMessage } from "@/lib/aiEnrichment";
+import { afterMessageCreated } from "@/lib/messageEvents";
 
 // Room for the post-response AI enrichment (runAfter) on Vercel.
 export const maxDuration = 30;
@@ -77,7 +77,15 @@ export async function POST(
       ...(aiOn && { ai: { status: "pending", attempts: 0 } }),
     });
     // After the response; never awaited, never fails the submission.
-    if (aiOn) runAfter(() => enrichMessage(message._id));
+    // Enriches (when applicable) and delivers to any Slack/webhook
+    // integrations the org has configured.
+    runAfter(() =>
+      afterMessageCreated({
+        organizationId: organization._id,
+        messageId: message._id,
+        event: "message.created",
+      })
+    );
 
     // Emails after the response, too: the sender never waits on Resend.
     runAfter(() =>

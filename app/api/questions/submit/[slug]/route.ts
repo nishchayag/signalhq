@@ -13,7 +13,7 @@ import { moderateContent } from "@/lib/contentModeration";
 import { notifyMessageEvent } from "@/lib/notifications";
 import { isAiEnabled } from "@/lib/ai";
 import { runAfter } from "@/lib/background";
-import { enrichMessage } from "@/lib/aiEnrichment";
+import { afterMessageCreated } from "@/lib/messageEvents";
 import { isGuardOffered } from "@/lib/aiQuota";
 import { publicQuestionConfig, questionState } from "@/lib/answers";
 import { QUESTION_CLOSED, withResponseSlot } from "@/lib/answerClaim";
@@ -188,7 +188,15 @@ export async function POST(
     }
 
     // After the response; never awaited, never fails the submission.
-    if (enrich) runAfter(() => enrichMessage(message._id));
+    // Enriches (when applicable) and delivers to any Slack/webhook
+    // integrations the org has configured.
+    runAfter(() =>
+      afterMessageCreated({
+        organizationId: question.organizationId,
+        messageId: message._id,
+        event: "message.created",
+      })
+    );
 
     // Emails after the response, too: the sender never waits on Resend.
     runAfter(() =>

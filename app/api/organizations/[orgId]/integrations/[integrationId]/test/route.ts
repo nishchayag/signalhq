@@ -6,7 +6,7 @@ import { withErrorHandling } from "@/lib/apiHandler";
 import { isValidObjectId } from "@/lib/objectId";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { hasFeature } from "@/lib/plans";
-import { sendIntegrationTestEvent } from "@/lib/integrations";
+import { sendTestEvent } from "@/lib/webhooks";
 import { integrationsKeyConfigured } from "@/lib/secretBox";
 
 const notFound = () =>
@@ -68,7 +68,7 @@ async function handlePOST(
     );
   }
 
-  const result = await sendIntegrationTestEvent(integration);
+  const result = await sendTestEvent(integration);
 
   // Best-effort bookkeeping so the settings UI's "last delivery status"
   // reflects test sends too. Never touches consecutiveFailures/auto-disable
