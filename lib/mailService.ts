@@ -1,6 +1,7 @@
 import userModel from "@/models/user.model";
 import connectDB from "./connectDB";
 import { Resend } from "resend";
+import { render } from "@react-email/components";
 import VerificationEmail from "@/emailTemplates/verifyEmailTemplate";
 import ResetPasswordOtpEmail from "@/emailTemplates/resetPasswordTemplate";
 import InvitationEmail from "@/emailTemplates/invitationTemplate";
@@ -8,6 +9,17 @@ import NewMessageEmail, { type DigestAiSummary } from "@/emailTemplates/newMessa
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM = process.env.RESEND_FROM_EMAIL as string;
+
+/**
+ * Collapses CR/LF/tab and other control characters to a single space and
+ * trims the result, for any untrusted value (e.g. an org name) interpolated
+ * into an email subject line — a bare "\r\n" there could inject extra
+ * header lines. Schemas reject control characters at write time already;
+ * this is a second layer at send time.
+ */
+function sanitizeSubjectPart(value: string): string {
+  return value.replace(/[\u0000-\u001F\u007F]+/g, " ").trim();
+}
 
 /**
  * Send a verification ("VERIFY") or password-reset OTP email. Returns true
@@ -35,6 +47,12 @@ export const sendEmail = async ({
       return false;
     }
 
+    const element =
+      mailType === "VERIFY"
+        ? VerificationEmail({ otp: otpCode, name: userInDB.name })
+        : ResetPasswordOtpEmail({ otp: otpCode, name: userInDB.name });
+    const text = await render(element, { plainText: true });
+
     const { error } = await resend.emails.send({
       from: FROM,
       to: email,
@@ -42,10 +60,8 @@ export const sendEmail = async ({
         mailType === "VERIFY"
           ? "Email Verification code for SignalHQ"
           : "Reset Password code for SignalHQ",
-      react:
-        mailType === "VERIFY"
-          ? VerificationEmail({ otp: otpCode, name: userInDB.name })
-          : ResetPasswordOtpEmail({ otp: otpCode, name: userInDB.name }),
+      react: element,
+      text,
     });
     if (error) {
       console.error("Error sending email:", error);
@@ -76,11 +92,15 @@ export const sendInvitationEmail = async ({
   acceptUrl: string;
 }): Promise<boolean> => {
   try {
+    const element = InvitationEmail({ orgName, inviterName, role, acceptUrl });
+    const text = await render(element, { plainText: true });
+
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: email,
-      subject: `You've been invited to join ${orgName} on SignalHQ`,
-      react: InvitationEmail({ orgName, inviterName, role, acceptUrl }),
+      subject: `You've been invited to join ${sanitizeSubjectPart(orgName)} on SignalHQ`,
+      react: element,
+      text,
     });
     if (error) {
       console.error("Error sending invitation email:", error);
@@ -105,16 +125,23 @@ export const sendNotificationEmail = async ({
   name,
   count,
   dashboardUrl,
+  settingsUrl,
   aiSummaries,
 }: {
   email: string;
   name: string;
   count: number;
   dashboardUrl: string;
+  // Absolute link to the account's notification settings — used both for
+  // the footer link and the List-Unsubscribe header.
+  settingsUrl: string;
   // Daily digest only: per-org AI bullet summaries (lib/notifications.ts).
   aiSummaries?: DigestAiSummary[];
 }): Promise<boolean> => {
   try {
+    const element = NewMessageEmail({ name, count, dashboardUrl, settingsUrl, aiSummaries });
+    const text = await render(element, { plainText: true });
+
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: email,
@@ -122,7 +149,11 @@ export const sendNotificationEmail = async ({
         count === 1
           ? "You have a new message on SignalHQ"
           : `You have ${count} new messages on SignalHQ`,
-      react: NewMessageEmail({ name, count, dashboardUrl, aiSummaries }),
+      react: element,
+      text,
+      // No one-click POST endpoint exists — a plain https URL is a valid
+      // List-Unsubscribe value, just without the one-click header pair.
+      headers: { "List-Unsubscribe": `<${settingsUrl}>` },
     });
     if (error) {
       console.error("Error sending notification email:", error);

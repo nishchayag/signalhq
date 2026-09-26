@@ -454,7 +454,7 @@ export default function AccountSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="mb-6">
+        <Card id="notifications" className="mb-6 scroll-mt-6">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
               <Bell className="h-4 w-4 text-muted-foreground" />

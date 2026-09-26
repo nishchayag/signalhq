@@ -26,7 +26,10 @@ export default function InvitationEmail({
 }: InvitationEmailProps) {
   return (
     <Html>
-      <Head />
+      <Head>
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
+      </Head>
       <Preview>You&apos;ve been invited to join {orgName} on SignalHQ</Preview>
       <Body style={main}>
         <Container style={container}>

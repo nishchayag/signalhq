@@ -21,7 +21,10 @@ export default function VerificationEmail({
 }: VerificationEmailProps) {
   return (
     <Html>
-      <Head />
+      <Head>
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
+      </Head>
       <Preview>Your SignalHQ verification code</Preview>
       <Body style={main}>
         <Container style={container}>

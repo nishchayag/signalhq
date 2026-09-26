@@ -15,7 +15,7 @@ export function publicOrigin(): string {
   return "";
 }
 
-/** Joins `publicOrigin()` with a path, e.g. "/o/acme" -> "https://signalhq.io/o/acme". */
+/** Joins `publicOrigin()` with a path, e.g. "/o/acme" -> "https://signal.nishchayag.com/o/acme". */
 export function buildPublicUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${publicOrigin()}${normalizedPath}`;

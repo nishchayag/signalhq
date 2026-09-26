@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  nameValidation,
   passwordValidation,
   signupSchema,
   usernameValidation,
@@ -21,6 +22,21 @@ describe("usernameValidation", () => {
   it("rejects characters outside [a-z0-9_]", () => {
     expect(usernameValidation.safeParse("user-name").success).toBe(false);
     expect(usernameValidation.safeParse("user name").success).toBe(false);
+  });
+});
+
+describe("nameValidation", () => {
+  it("accepts names with letters, spaces, apostrophes, periods and hyphens", () => {
+    expect(nameValidation.safeParse("José O'Brien-Smith").success).toBe(true);
+  });
+
+  it("rejects a name containing a newline (would leak into the personal org name)", () => {
+    expect(nameValidation.safeParse("Acme\nBcc: x@y").success).toBe(false);
+  });
+
+  it("rejects a name containing a tab or NUL byte", () => {
+    expect(nameValidation.safeParse("Jane\tDoe").success).toBe(false);
+    expect(nameValidation.safeParse("Jane\u0000Doe").success).toBe(false);
   });
 });
 

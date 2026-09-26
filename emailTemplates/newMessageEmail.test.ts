@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { render } from "@react-email/render";
 import NewMessageEmail from "@/emailTemplates/newMessageEmail";
 
-const base = { name: "Sam", count: 3, dashboardUrl: "https://example.test/dashboard" };
+const base = {
+  name: "Sam",
+  count: 3,
+  dashboardUrl: "https://example.test/dashboard",
+  settingsUrl: "https://example.test/dashboard/account#notifications",
+};
 
 describe("NewMessageEmail", () => {
   it("renders the plain count email without an AI section when no summaries", async () => {
@@ -10,6 +15,13 @@ describe("NewMessageEmail", () => {
     expect(html).toContain("3 new messages");
     expect(html).not.toContain("AI summary");
     expect(html).not.toContain("Generated automatically");
+  });
+
+  it("links the settings footer text to settingsUrl and declares a light color scheme", async () => {
+    const html = await render(NewMessageEmail(base));
+    expect(html).toContain(`href="${base.settingsUrl}"`);
+    expect(html).toContain('name="color-scheme" content="light"');
+    expect(html).toContain('name="supported-color-schemes" content="light"');
   });
 
   it("renders one AI summary section per org, with bullets, and escapes HTML", async () => {

@@ -21,7 +21,10 @@ export default function ResetPasswordOtpEmail({
 }: ResetPasswordOtpEmailProps) {
   return (
     <Html>
-      <Head />
+      <Head>
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
+      </Head>
       <Preview>Your SignalHQ password reset code</Preview>
       <Body style={main}>
         <Container style={container}>

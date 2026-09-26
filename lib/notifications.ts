@@ -5,6 +5,7 @@ import MessageModel from "@/models/message.model";
 import MembershipModel from "@/models/membership.model";
 import OrganizationModel from "@/models/organization.model";
 import { sendNotificationEmail } from "@/lib/mailService";
+import { buildPublicUrl } from "@/lib/publicUrl";
 import type { DigestAiSummary } from "@/emailTemplates/newMessageEmail";
 import { aiObject, isAiEnabled, logAiError } from "@/lib/ai";
 import { fenceUntrusted } from "@/lib/aiPrompt";
@@ -121,7 +122,8 @@ export async function notifyMessageEvent({
               email: user.email,
               name: user.name,
               count: 1,
-              dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard`,
+              dashboardUrl: buildPublicUrl("/dashboard"),
+              settingsUrl: buildPublicUrl("/dashboard/account#notifications"),
             });
             if (ok) continue;
           }
@@ -352,7 +354,8 @@ export async function flushDailyDigests({
         email: user.email,
         name: user.name,
         count,
-        dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard`,
+        dashboardUrl: buildPublicUrl("/dashboard"),
+        settingsUrl: buildPublicUrl("/dashboard/account#notifications"),
         ...(aiSummaries.length > 0 && { aiSummaries }),
       });
       if (ok) {

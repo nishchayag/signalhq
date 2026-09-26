@@ -8,6 +8,7 @@ import TeamModel from "@/models/team.model";
 import { requireOrgAccess } from "@/lib/apiAuth";
 import { createInvitationSchema } from "@/schemas/invitationSchema";
 import { sendInvitationEmail } from "@/lib/mailService";
+import { buildPublicUrl } from "@/lib/publicUrl";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logActivity } from "@/lib/auditLog";
 import { withErrorHandling } from "@/lib/apiHandler";
@@ -119,10 +120,7 @@ async function handlePOST(
   );
 
   const organization = await OrganizationModel.findById(orgId).select("name");
-  const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
-    "http://localhost:3000";
-  const acceptUrl = `${baseUrl}/invite/${token}`;
+  const acceptUrl = buildPublicUrl(`/invite/${token}`);
 
   const emailed = await sendInvitationEmail({
     email,

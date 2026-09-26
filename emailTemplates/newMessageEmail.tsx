@@ -9,6 +9,7 @@ import {
   Text,
   Section,
   Button,
+  Link,
 } from "@react-email/components";
 
 /** One org's AI digest summary. Plain strings — rendered as React text, never as HTML. */
@@ -21,6 +22,8 @@ interface NewMessageEmailProps {
   name: string;
   count: number;
   dashboardUrl: string;
+  // Absolute link to the account's notification settings section.
+  settingsUrl: string;
   aiSummaries?: DigestAiSummary[];
 }
 
@@ -28,13 +31,17 @@ export default function NewMessageEmail({
   name,
   count,
   dashboardUrl,
+  settingsUrl,
   aiSummaries,
 }: NewMessageEmailProps) {
   const summaries = (aiSummaries ?? []).filter((s) => s.bullets.length > 0);
   const isSingle = count === 1;
   return (
     <Html>
-      <Head />
+      <Head>
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
+      </Head>
       <Preview>
         {isSingle
           ? "You have a new message on SignalHQ"
@@ -80,7 +87,11 @@ export default function NewMessageEmail({
 
           <Text style={footer}>
             You&apos;re receiving this based on your notification settings —
-            change them anytime from your account settings.
+            change them anytime from{" "}
+            <Link href={settingsUrl} style={footerLink}>
+              your account settings
+            </Link>
+            .
             <br />— The SignalHQ Team 🚀
           </Text>
         </Container>
@@ -138,6 +149,11 @@ const footer = {
   color: "#888",
   marginTop: "40px",
   textAlign: "center" as const,
+};
+
+const footerLink = {
+  color: "#888",
+  textDecoration: "underline",
 };
 
 const summarySection = {

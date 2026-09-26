@@ -29,12 +29,18 @@ export const passwordValidation = z
 // name rule (the model's old ASCII-only regex was dropped), shared by signup
 // and the account name change; at signup the name also becomes the personal
 // org's display name, so it stays permissive.
+//
+// Note: `\s` in the character class below also matches control whitespace
+// (tab, newline, carriage return), so a second regex explicitly rejects
+// control characters — otherwise a name like "Acme\nBcc: x@y" would slip
+// through and land verbatim in the personal org's display name.
 export const nameValidation = z
   .string()
   .trim()
   .min(1, "Name is required")
   .max(50, "Name is too long")
-  .regex(/^[\p{L}\p{M}\s'.-]+$/u, "Name can only contain letters, spaces, apostrophes, periods and hyphens");
+  .regex(/^[\p{L}\p{M}\s'.-]+$/u, "Name can only contain letters, spaces, apostrophes, periods and hyphens")
+  .regex(/^[^\u0000-\u001F\u007F]*$/, "Name contains invalid characters");
 
 export const signupSchema = z.object({
   username: usernameValidation,
