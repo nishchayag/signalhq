@@ -16,15 +16,26 @@ type FormData = { content: string };
 // Anonymous general-feedback form for an organization's public page.
 // `guardAvailable` (from the page) says whether to offer the AI anonymity
 // check (POST /api/guard) — AI configured and the org has guard quota left.
+//
+// `embed`: rendered inside an iframe (app/embed/o/[orgSlug]). This form has
+// no viewport-height classes of its own to strip, but takes the prop for
+// symmetry with QuestionResponseForm and in case a future state here grows
+// one — same reasoning as the `embed` doc there.
 export default function OrgFeedbackForm({
   orgSlug,
   guardAvailable,
   orgName,
+  embed = false,
 }: {
   orgSlug: string;
   guardAvailable?: boolean;
   orgName?: string;
+  embed?: boolean;
 }) {
+  // No viewport-height classes to strip here (see the doc above) — accepted
+  // and intentionally unused today, kept for API symmetry with
+  // QuestionResponseForm's `embed` prop.
+  void embed;
   const [submitting, setSubmitting] = useState(false);
   const [replyToken, setReplyToken] = useState<string | null>(null);
   const { register, handleSubmit, reset, control, setValue } = useForm<FormData>({

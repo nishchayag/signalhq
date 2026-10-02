@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { toast } from "sonner";
-import { Copy, BookmarkCheck } from "lucide-react";
+import { Copy, BookmarkCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buildPublicUrl } from "@/lib/publicUrl";
 
@@ -14,9 +14,18 @@ export default function ReplyReceiptCard({
 }) {
   const link = buildPublicUrl(`/r/${replyToken}`);
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(link);
-    toast.success("Link copied to clipboard!");
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link copied to clipboard!");
+    } catch {
+      // Clipboard access can be denied (permissions policy, an insecure
+      // context, or — notably — inside a sandboxed embed iframe that
+      // doesn't grant "clipboard-write"). Falling back to "Open in new tab"
+      // rather than Copy is the point: the link itself still works, it just
+      // needs to be reached a different way.
+      toast.error("Couldn't copy — use \"Open in new tab\" instead");
+    }
   };
 
   return (
@@ -39,6 +48,15 @@ export default function ReplyReceiptCard({
           Copy
         </Button>
       </div>
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-foreground underline underline-offset-2 hover:no-underline"
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+        Open in new tab
+      </a>
     </div>
   );
 }

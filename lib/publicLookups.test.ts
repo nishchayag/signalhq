@@ -97,3 +97,23 @@ describe("getPublicOrg effectiveBranding", () => {
     expect(await getPublicOrg("does-not-exist")).toBeNull();
   });
 });
+
+describe("getPublicOrg showBadge", () => {
+  it("FREE org: showBadge is true (no embedNoBadge feature)", async () => {
+    const org = await makeOrg({ plan: "FREE" });
+    const result = await getPublicOrg(org.slug);
+    expect(result?.showBadge).toBe(true);
+  });
+
+  it("PRO org: showBadge is false (embedNoBadge hides it)", async () => {
+    const org = await makeOrg({ plan: "PRO" });
+    const result = await getPublicOrg(org.slug);
+    expect(result?.showBadge).toBe(false);
+  });
+
+  it("ENTERPRISE org: showBadge is false", async () => {
+    const org = await makeOrg({ plan: "ENTERPRISE" });
+    const result = await getPublicOrg(org.slug);
+    expect(result?.showBadge).toBe(false);
+  });
+});

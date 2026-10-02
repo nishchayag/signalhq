@@ -3,15 +3,18 @@ import connectDB from "@/lib/connectDB";
 import OrganizationModel from "@/models/organization.model";
 import QuestionModel from "@/models/question.model";
 import { getEffectiveBranding } from "@/lib/branding";
+import { hasFeature } from "@/lib/plans";
 
 // React cache(): generateMetadata and the page component in the same request
 // share one lookup instead of querying Mongo twice.
 
 /**
  * Public org by slug: name/slug plus `effectiveBranding` (null unless the
- * org's current plan allows it — see lib/branding.ts). Never the logo's
- * bytes, only a `logoUrl` the client fetches separately from the public
- * logo route.
+ * org's current plan allows it — see lib/branding.ts) and `showBadge` (the
+ * embed widget's "Powered by SignalHQ" badge — shown unless the org's
+ * current plan has `embedNoBadge`, same downgrade-safe pattern as branding).
+ * Never the logo's bytes, only a `logoUrl` the client fetches separately
+ * from the public logo route.
  */
 export const getPublicOrg = cache(async (orgSlug: string) => {
   await connectDB();
@@ -20,7 +23,8 @@ export const getPublicOrg = cache(async (orgSlug: string) => {
     .lean();
   if (!org) return null;
   const effectiveBranding = await getEffectiveBranding(org);
-  return { _id: org._id, name: org.name, slug: org.slug, effectiveBranding };
+  const showBadge = !hasFeature(org.plan, "embedNoBadge");
+  return { _id: org._id, name: org.name, slug: org.slug, effectiveBranding, showBadge };
 });
 
 /**

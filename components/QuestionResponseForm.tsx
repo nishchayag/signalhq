@@ -58,15 +58,24 @@ function formatPulseDate(iso: string): string {
  * plan currently allows it (lib/branding.ts#getEffectiveBranding), in which
  * case a compact branded strip renders above the "Anonymous Feedback"
  * heading; omitted entirely otherwise, so the page looks exactly as before.
+ *
+ * `embed`: rendered inside an iframe (app/embed/q/[slug]). Drops the
+ * `min-h-screen`/`min-h-[calc(100vh-4rem)]` classes every state below uses
+ * to center itself in a full browser viewport — inside an iframe sized to
+ * fit its content (EmbedAutoResize), a forced minimum height would make the
+ * frame grow to fill the *host* page's viewport, which would then report a
+ * taller measured height, which would grow the frame again, looping.
  */
 export default function QuestionResponseForm({
   slug,
   orgName,
   branding,
+  embed = false,
 }: {
   slug: string;
   orgName?: string;
   branding?: PublicBranding | null;
+  embed?: boolean;
 }) {
   const [question, setQuestion] = useState<QuestionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +86,10 @@ export default function QuestionResponseForm({
   // someone else, or the close date ticking over); the 410 response doesn't
   // carry the reason, so this renders the generic closed message.
   const [raceClosed, setRaceClosed] = useState(false);
+  // See the `embed` prop doc above — these are blank in embed mode so the
+  // iframe's height tracks its content instead of the full viewport.
+  const vhScreen = embed ? "" : "min-h-screen ";
+  const vhCalc = embed ? "" : "min-h-[calc(100vh-4rem)] ";
 
   useEffect(() => {
     const fetchQuestion = async () => {
@@ -127,7 +140,7 @@ export default function QuestionResponseForm({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={`${vhScreen}flex items-center justify-center`}>
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
@@ -135,7 +148,7 @@ export default function QuestionResponseForm({
 
   if (!question) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={`${vhScreen}flex items-center justify-center`}>
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
@@ -152,7 +165,7 @@ export default function QuestionResponseForm({
 
   if (replyToken) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-dot-grid px-4">
+      <div className={`${vhCalc}flex items-center justify-center bg-dot-grid px-4`}>
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 space-y-4">
             <div className="text-center">
@@ -197,7 +210,7 @@ export default function QuestionResponseForm({
     // own "Opens on …" framing — it isn't closed, it just hasn't started.
     const scheduled = !raceClosed && question.closed?.reason === "scheduled" && question.closed.opensAt;
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-dot-grid px-4">
+      <div className={`${vhCalc}flex items-center justify-center bg-dot-grid px-4`}>
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 space-y-3 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink bg-muted">
@@ -221,7 +234,7 @@ export default function QuestionResponseForm({
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-dot-grid py-12 px-4">
+    <div className={`${vhCalc}bg-dot-grid py-12 px-4`}>
       <div className="max-w-2xl mx-auto">
         {branding && orgName && (
           <PublicBrandHeader orgName={orgName} branding={branding} compact />
