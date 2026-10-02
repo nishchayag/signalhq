@@ -5,7 +5,7 @@ import MessageModel from "@/models/message.model";
 import { questionResponseSchema } from "@/schemas/questionSchema";
 import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { getClientIp } from "@/lib/getClientIp";
+import { hashedIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
 import { notifyMessageEvent } from "@/lib/notifications";
 import { isAiEnabled } from "@/lib/ai";
@@ -22,9 +22,9 @@ export async function POST(
 ) {
   await connectDB();
   try {
-    const ip = getClientIp(request);
-    const allowed = await checkRateLimit(`orgSendMessage:${ip}`, 5, 10 * 60 * 1000);
-    if (!allowed) {
+    const ip = hashedIp(request);
+    const overallAllowed = await checkRateLimit(`orgSendMessage:overall:${ip}`, 30, 10 * 60 * 1000);
+    if (!overallAllowed) {
       return NextResponse.json(
         {
           success: false,
@@ -59,6 +59,21 @@ export async function POST(
       return NextResponse.json(
         { success: false, message: "Organization not found" },
         { status: 404 }
+      );
+    }
+
+    const targetAllowed = await checkRateLimit(
+      `orgSendMessage:target:${ip}:${organization._id}`,
+      5,
+      10 * 60 * 1000
+    );
+    if (!targetAllowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Too many messages sent from this location. Please try again in a few minutes.",
+        },
+        { status: 429 }
       );
     }
 

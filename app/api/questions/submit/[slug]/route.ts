@@ -8,7 +8,7 @@ import "@/models/user.model";
 import { buildAnswerSchema } from "@/schemas/questionSchema";
 import { nanoid } from "nanoid";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { getClientIp } from "@/lib/getClientIp";
+import { hashedIp } from "@/lib/getClientIp";
 import { moderateContent } from "@/lib/contentModeration";
 import { notifyMessageEvent } from "@/lib/notifications";
 import { isAiEnabled } from "@/lib/ai";
@@ -120,9 +120,9 @@ export async function POST(
   await connectDB();
 
   try {
-    const ip = getClientIp(request);
-    const allowed = await checkRateLimit(`questionSubmit:${ip}`, 5, 10 * 60 * 1000);
-    if (!allowed) {
+    const ip = hashedIp(request);
+    const overallAllowed = await checkRateLimit(`questionSubmit:overall:${ip}`, 30, 10 * 60 * 1000);
+    if (!overallAllowed) {
       return NextResponse.json(
         {
           success: false,
@@ -154,6 +154,21 @@ export async function POST(
     // Fast path for the common case; the atomic claim below is the guard.
     if (questionState(question).closed) {
       return NextResponse.json(QUESTION_CLOSED, { status: 410 });
+    }
+
+    const targetAllowed = await checkRateLimit(
+      `questionSubmit:target:${ip}:${question._id}`,
+      5,
+      10 * 60 * 1000
+    );
+    if (!targetAllowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Too many messages sent from this location. Please try again in a few minutes.",
+        },
+        { status: 429 }
+      );
     }
 
     const result = buildAnswerSchema(question).safeParse(body);
