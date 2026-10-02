@@ -48,3 +48,6 @@ graphify-out/
 
 # Personal Claude Code context files: kept local, never committed
 CLAUDE.md
+
+# local Claude topic notes
+docs/claude/
