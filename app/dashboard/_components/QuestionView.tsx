@@ -101,6 +101,7 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
           description="Share this link or QR code to collect anonymous responses."
           filenameBase={`${d.orgSlug ?? "signalhq"}-${question.slug}`}
           copyEventLabel="question"
+          embed={{ kind: "question", slug: question.slug }}
         />
       )}
     </div>

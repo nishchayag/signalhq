@@ -1238,6 +1238,7 @@ export default function OrganizationPage() {
         description="Share this link or QR code to collect anonymous feedback."
         filenameBase={`${orgSlug}-feedback`}
         copyEventLabel="org"
+        embed={orgSlug ? { kind: "org", slug: orgSlug } : undefined}
       />
     </div>
   );

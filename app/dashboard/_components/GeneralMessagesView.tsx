@@ -148,6 +148,7 @@ export default function GeneralMessagesView({ d }: { d: DashboardData }) {
         description="Share this link or QR code to collect anonymous feedback."
         filenameBase={`${d.orgSlug}-feedback`}
         copyEventLabel="org"
+        embed={d.orgSlug ? { kind: "org", slug: d.orgSlug } : undefined}
       />
     </div>
   );

@@ -15,6 +15,7 @@ export type AnalyticsEvent =
   | "feedback_sent"
   | "guard_used"
   | "qr_downloaded"
+  | "embed_snippet_copied"
   | "branding_saved"
   | "logo_uploaded"
   | "integration_created"
