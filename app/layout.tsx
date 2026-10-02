@@ -42,12 +42,44 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headerList = await headers();
+  // Set by proxy.ts per request — required by the strict-dynamic CSP so
+  // these hand-authored inline/external scripts are allowed to execute.
+  const nonce = headerList.get("x-nonce") || undefined;
+
+  // Embed pages (app/embed/**) are framed on someone else's site: they get a
+  // stripped-down shell with none of the app chrome, analytics or JSON-LD —
+  // just theming, the page itself, and toasts. One root layout stays (no
+  // route groups, no loading.tsx anywhere), so the branch lives here.
+  if (headerList.get("x-embed") === "1") {
+    const embedTheme = headerList.get("x-embed-theme");
+    const forcedTheme = embedTheme === "light" || embedTheme === "dark" ? embedTheme : undefined;
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        >
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+            nonce={nonce}
+            storageKey="signalhq-embed-theme"
+            forcedTheme={forcedTheme}
+          >
+            {children}
+            {/* Sonner Toast Notifications */}
+            <Toaster position="top-right" expand={true} richColors />
+          </ThemeProvider>
+        </body>
+      </html>
+    );
+  }
+
   const websiteJsonLd = generateJsonLd({ type: "WebSite" });
   const organizationJsonLd = generateJsonLd({ type: "Organization" });
   const softwareAppJsonLd = generateJsonLd({ type: "SoftwareApplication" });
-  // Set by proxy.ts per request — required by the strict-dynamic CSP so
-  // these hand-authored inline/external scripts are allowed to execute.
-  const nonce = (await headers()).get("x-nonce") || undefined;
 
   return (
     <html lang="en" suppressHydrationWarning>
