@@ -82,9 +82,9 @@ export default function QuestionView({ d, question }: { d: DashboardData; questi
         )}
       </div>
 
-      <QuestionResults key={question._id} d={d} question={question} />
+      <QuestionResults key={`${question._id}:results`} d={d} question={question} />
 
-      <InsightsPanel key={question._id} questionId={question._id} ai={d.ai} refreshAi={d.refreshAi} />
+      <InsightsPanel key={`${question._id}:insights`} questionId={question._id} ai={d.ai} refreshAi={d.refreshAi} />
 
       {question.visibility === "internal" ? (
         <InternalQuestionView d={d} question={question} />
