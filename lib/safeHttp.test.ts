@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import {
@@ -10,7 +10,14 @@ import {
   validateTargetUrl,
 } from "@/lib/safeHttp";
 
+// The dev-localhost bypass is off under NODE_ENV=production, which Vercel's
+// build sets while running this suite, so pin a non-production NODE_ENV.
+beforeEach(() => {
+  vi.stubEnv("NODE_ENV", "test");
+});
+
 afterEach(() => {
+  vi.unstubAllEnvs();
   delete process.env.INTEGRATIONS_DEV_ALLOW_LOCALHOST;
   delete process.env.VERCEL;
 });
