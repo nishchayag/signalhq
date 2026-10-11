@@ -18,13 +18,10 @@ describe("createInvitationSchema", () => {
     expect(result.role).toBe("MEMBER");
   });
 
-  it("rejects an email with surrounding whitespace", () => {
-    // .email() runs before .trim() in the chain, so padded input fails
-    // format validation before the trim step ever applies — pinning this
-    // order-dependent quirk rather than assuming trim-then-validate.
-    expect(
-      createInvitationSchema.safeParse({ email: "  a@b.com  " }).success
-    ).toBe(false);
+  it("trims surrounding whitespace before validating the email", () => {
+    const result = createInvitationSchema.safeParse({ email: "  a@b.com  " });
+    expect(result.success).toBe(true);
+    expect(result.data?.email).toBe("a@b.com");
   });
 
   it("rejects an invalid email", () => {

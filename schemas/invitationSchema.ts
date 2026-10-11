@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const createInvitationSchema = z.object({
-  email: z.string().email("Please enter a valid email address").trim(),
+  email: z.string().trim().email("Please enter a valid email address"),
   role: z.enum(["ADMIN", "MEMBER"]).default("MEMBER"),
   // Optional team to add the invitee to on acceptance.
   teamId: z.string().optional(),
