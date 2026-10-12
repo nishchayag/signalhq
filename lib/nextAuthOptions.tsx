@@ -1,4 +1,7 @@
 import userModel from "@/models/user.model";
+import OrganizationModel, {
+  OrganizationPlan,
+} from "@/models/organization.model";
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import connectDB from "@/lib/connectDB";
@@ -125,6 +128,16 @@ const authOptions: AuthOptions = {
         if (trigger === "update") {
           token.name = current.name;
           token.email = current.email;
+        } else if (token.activeOrgId) {
+          // Another admin may have changed the plan since sign-in; keep the
+          // badge honest without waiting for an org switch or re-login. Only
+          // a display label, so a failed lookup keeps the old one rather
+          // than failing the session read.
+          const org = await OrganizationModel.findById(token.activeOrgId)
+            .select("plan")
+            .lean<{ plan?: OrganizationPlan }>()
+            .catch(() => null);
+          if (org?.plan) token.activeOrgPlan = org.plan;
         }
       }
 
