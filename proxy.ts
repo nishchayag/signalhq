@@ -117,7 +117,8 @@ export const config = {
   matcher: [
     // embed.js is the public loader script served from public/ — it must
     // never get redirected to /login for a logged-out visitor embedding it
-    // on their own site.
-    "/((?!_next|favicon.ico|icon.svg|apple-icon.png|icon-192.png|icon-512.png|sitemap.xml|robots.txt|manifest.webmanifest|api/|embed\\.js).*)",
+    // on their own site. opengraph-image is the root share card, fetched by
+    // logged-out link-preview crawlers.
+    "/((?!_next|favicon.ico|icon.svg|apple-icon.png|icon-192.png|icon-512.png|sitemap.xml|robots.txt|manifest.webmanifest|api/|embed\\.js|opengraph-image).*)",
   ],
 };

@@ -20,6 +20,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description: "Answer anonymously on SignalHQ. No account needed, and nothing ties your response back to you.",
     url: question.path,
+    // Explicit: page metadata outranks the segment's opengraph-image file.
+    image: `${question.path}/opengraph-image`,
     noindex: true,
   });
 }

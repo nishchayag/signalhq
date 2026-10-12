@@ -32,6 +32,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title: `Send anonymous feedback to ${organization.name}`,
     description: `Share honest, anonymous feedback with ${organization.name}. No account needed, and nothing ties the message back to you.`,
     url: `/o/${organization.slug}`,
+    // Explicit: page metadata outranks the segment's opengraph-image file.
+    image: `/o/${organization.slug}/opengraph-image`,
     noindex: true,
   });
 }

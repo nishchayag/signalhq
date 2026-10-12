@@ -14,8 +14,9 @@ export const seoConfig: SEOConfig = {
   siteName: "SignalHQ",
   siteUrl: process.env.NEXT_PUBLIC_BASE_URL || "https://signalhq.io",
   defaultTitle: "SignalHQ - Anonymous Feedback for Teams",
+  // Kept short: link previews cut descriptions off around 150 characters.
   defaultDescription:
-    "SignalHQ turns honest, anonymous feedback into signal for your team. Collect candid messages from teammates, your audience, or community through shareable links — organized by organization and team.",
+    "Collect honest, anonymous feedback through one shareable link. No accounts for responders, and nothing ties a message back to them.",
   defaultKeywords: [
     "anonymous feedback",
     "team feedback",
@@ -28,7 +29,8 @@ export const seoConfig: SEOConfig = {
     "private feedback",
     "feedback tool",
   ],
-  defaultImage: "/og-image.png",
+  // Served by app/opengraph-image.tsx; /o pages have their own cards.
+  defaultImage: "/opengraph-image",
   twitterHandle: "@signalhq",
   author: "SignalHQ Team",
   locale: "en_US",
